@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/target.schema.json",
+  "title": "Rawframe target definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "role", "owner", "purpose", "stability",
+    "compositionRoot", "context", "executionMode", "outputRole", "projectBinding",
+    "requiredRootModules", "forbiddenModules", "capabilitySlots", "allowedDeploymentModels",
+    "supportedPlatformFamilies", "contracts", "verification"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/target\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "role": { "enum": ["studio", "rawframe_application", "standalone_client", "dedicated_server", "command_line", "worker"] },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "stability": { "enum": ["internal", "experimental", "stable"] },
+    "compositionRoot": { "$ref": "#/$defs/id" },
+    "context": { "enum": ["client", "server", "editor", "tool"] },
+    "executionMode": { "enum": ["graphical", "headless"] },
+    "outputRole": { "enum": ["interactive_application", "service", "command_line_tool", "isolated_worker"] },
+    "projectBinding": { "enum": ["none", "dynamic_package", "fixed_project"] },
+    "requiredRootModules": { "$ref": "#/$defs/idSet" },
+    "forbiddenModules": { "$ref": "#/$defs/idSet" },
+    "capabilitySlots": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "requirement", "minimumProviders", "maximumProviders", "providerKinds"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "requirement": { "enum": ["required", "optional"] },
+          "minimumProviders": { "type": "integer", "minimum": 0 },
+          "maximumProviders": { "type": "integer", "minimum": 1 },
+          "providerKinds": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": { "enum": ["backend", "adapter", "bridge"] }
+          }
+        }
+      }
+    },
+    "allowedDeploymentModels": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["modular", "sealed"] }
+    },
+    "supportedPlatformFamilies": { "$ref": "#/$defs/idSetNonEmpty" },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lifecycle", "security", "package"],
+      "properties": {
+        "lifecycle": { "$ref": "#/$defs/referenceSet" },
+        "security": { "$ref": "#/$defs/referenceSet" },
+        "package": { "$ref": "#/$defs/referenceSet" }
+      }
+    },
+    "verification": { "$ref": "#/$defs/idSet" },
+    "workerRole": { "$ref": "#/$defs/id" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "role": { "const": "worker" } }, "required": ["role"] },
+      "then": { "required": ["workerRole"] },
+      "else": { "not": { "required": ["workerRole"] } }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "idSet": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "idSetNonEmpty": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$" },
+    "referenceSet": {
+      "type": "array", "uniqueItems": true,
+      "items": { "anyOf": [{ "$ref": "#/$defs/id" }, { "$ref": "#/$defs/path" }] }
+    }
+  }
+}

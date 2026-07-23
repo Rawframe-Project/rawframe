@@ -1,0 +1,11 @@
+cmake_path(GET CMAKE_CURRENT_LIST_DIR PARENT_PATH vcpkg_root)
+cmake_path(GET vcpkg_root PARENT_PATH third_party_root)
+cmake_path(GET third_party_root PARENT_PATH repository_root)
+set(prepared_tools "${repository_root}/out/prepared/windows-x86_64/tools")
+
+set(CMAKE_C_COMPILER "${prepared_tools}/llvm/bin/clang-cl.exe" CACHE FILEPATH "" FORCE)
+set(CMAKE_CXX_COMPILER "${prepared_tools}/llvm/bin/clang-cl.exe" CACHE FILEPATH "" FORCE)
+set(CMAKE_LINKER "${prepared_tools}/llvm/bin/lld-link.exe" CACHE FILEPATH "" FORCE)
+set(CMAKE_AR "${prepared_tools}/llvm/bin/llvm-lib.exe" CACHE FILEPATH "" FORCE)
+set(CMAKE_RC_COMPILER "${prepared_tools}/llvm/bin/llvm-rc.exe" CACHE FILEPATH "" FORCE)
+set(CMAKE_MAKE_PROGRAM "${prepared_tools}/ninja/ninja.exe" CACHE FILEPATH "" FORCE)

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/artifact-lock.schema.json",
+  "title": "Rawframe verified artifact lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "lockVersion", "artifacts"],
+  "properties": {
+    "$schema": { "const": "../schemas/artifact-lock.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "lockVersion": { "type": "integer", "minimum": 1 },
+    "artifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "catalogId",
+        "version",
+        "platform",
+        "architectures",
+        "role",
+        "origins",
+        "byteSize",
+        "sha256",
+        "signature",
+        "archive",
+        "licenseReference",
+        "reviewReference"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "catalogId": { "$ref": "#/$defs/id" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "platform": { "$ref": "#/$defs/id" },
+        "architectures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "role": { "enum": ["build_tool", "runtime", "sdk", "source", "debug_symbols", "data"] },
+        "origins": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "uri" }
+        },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signature": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "scheme", "expectedIdentity"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "scheme": { "enum": ["none", "authenticode", "codesign", "gpg", "gpg_sigstore", "sigstore", "vendor"] },
+            "expectedIdentity": { "type": "string", "maxLength": 300 },
+            "verificationArtifactIds": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/id" }
+            }
+          }
+        },
+        "archive": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "manifestReference"],
+          "oneOf": [
+            { "required": ["root"], "not": { "anyOf": [{ "required": ["roots"] }, { "required": ["rootless"] }] } },
+            { "required": ["roots"], "not": { "anyOf": [{ "required": ["root"] }, { "required": ["rootless"] }] } },
+            { "required": ["rootless"], "not": { "anyOf": [{ "required": ["root"] }, { "required": ["roots"] }] } }
+          ],
+          "properties": {
+            "format": { "enum": ["none", "zip", "tar", "tar_gz", "tar_xz", "seven_zip", "installer"] },
+            "root": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "roots": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 32,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "rootless": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["entryCount", "topLevelDirectories", "topLevelFiles"],
+              "properties": {
+                "entryCount": { "type": "integer", "minimum": 1, "maximum": 300000 },
+                "topLevelDirectories": { "type": "integer", "minimum": 0, "maximum": 4096 },
+                "topLevelFiles": { "type": "integer", "minimum": 0, "maximum": 4096 }
+              }
+            },
+            "manifestReference": { "$ref": "#/$defs/id" },
+            "requiredFiles": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "byteSize", "sha256"],
+                "properties": {
+                  "path": { "type": "string", "minLength": 1, "maxLength": 300 },
+                  "byteSize": { "type": "integer", "minimum": 1 },
+                  "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                }
+              }
+            }
+          }
+        },
+        "licenseReference": { "$ref": "#/$defs/id" },
+        "reviewReference": { "$ref": "#/$defs/reference" }
+      }
+    },
+    "reference": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z0-9_]+)+$"
+    }
+  }
+}

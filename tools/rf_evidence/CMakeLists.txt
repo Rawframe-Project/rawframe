@@ -1,0 +1,104 @@
+find_package(simdjson 4.6.4 CONFIG REQUIRED)
+find_package(OpenSSL 3.5.7 EXACT REQUIRED COMPONENTS Crypto)
+
+add_library(rawframe_tool_rf_evidence_private STATIC)
+target_sources(rawframe_tool_rf_evidence_private PRIVATE
+    src/command.cpp
+    src/dependency_authority.cpp
+    src/diagnostic.cpp
+    src/file_reader.cpp
+    src/json_policy.cpp
+    src/license_review.cpp
+    src/offline_verifier.cpp
+    src/path_audit.cpp
+    src/path_policy.cpp
+    src/process_runner.cpp
+    src/report_writer.cpp
+    src/repository_validator.cpp
+    src/schema_oracle.cpp
+    src/sha256.cpp
+    src/shipping_closure.cpp
+    src/source_inspector.cpp
+)
+target_include_directories(rawframe_tool_rf_evidence_private PUBLIC src)
+target_link_libraries(rawframe_tool_rf_evidence_private PUBLIC
+    rawframe::compiler_policy
+    simdjson::simdjson
+    OpenSSL::Crypto
+)
+set_target_properties(rawframe_tool_rf_evidence_private PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
+add_executable(rawframe_tool_rf_evidence src/main.cpp)
+target_link_libraries(rawframe_tool_rf_evidence PRIVATE rawframe_tool_rf_evidence_private)
+set_target_properties(rawframe_tool_rf_evidence PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    OUTPUT_NAME rf-evidence
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
+)
+
+if(RAWFRAME_BUILD_TESTS)
+    find_package(GTest 1.17.0 EXACT CONFIG REQUIRED)
+    add_subdirectory(tests)
+endif()
+
+if(RAWFRAME_ENABLE_ANALYSIS)
+    if(NOT DEFINED RAWFRAME_CLANG_FORMAT_EXECUTABLE OR
+       NOT EXISTS "${RAWFRAME_CLANG_FORMAT_EXECUTABLE}")
+        message(FATAL_ERROR "RF1120 the preset's locked clang-format executable is absent")
+    endif()
+    set(rawframe_tool_rf_evidence_maintained_sources
+        src/command.cpp
+        src/command.h
+        src/dependency_authority.cpp
+        src/dependency_authority.h
+        src/diagnostic.cpp
+        src/diagnostic.h
+        src/failure.h
+        src/file_reader.cpp
+        src/file_reader.h
+        src/json_policy.cpp
+        src/json_policy.h
+        src/license_review.cpp
+        src/license_review.h
+        src/main.cpp
+        src/offline_verifier.cpp
+        src/offline_verifier.h
+        src/path_audit.cpp
+        src/path_audit.h
+        src/path_policy.cpp
+        src/path_policy.h
+        src/process_runner.cpp
+        src/process_runner.h
+        src/report_writer.cpp
+        src/report_writer.h
+        src/repository_validator.cpp
+        src/repository_validator.h
+        src/schema_oracle.cpp
+        src/schema_oracle.h
+        src/sha256.cpp
+        src/sha256.h
+        src/shipping_closure.cpp
+        src/shipping_closure.h
+        src/source_inspector.cpp
+        src/source_inspector.h
+        tests/command_test.cpp
+        tests/json_policy_test.cpp
+        tests/path_policy_test.cpp
+        tests/report_writer_test.cpp
+        tests/repository_audit_test.cpp
+        tests/repository_validator_test.cpp
+        tests/sha256_test.cpp
+    )
+    add_custom_target(rawframe_tool_rf_evidence_format_check ALL
+        COMMAND "${RAWFRAME_CLANG_FORMAT_EXECUTABLE}" --style=file --dry-run --Werror
+            ${rawframe_tool_rf_evidence_maintained_sources}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Checking rf-evidence formatting against the repository .clang-format"
+        VERBATIM)
+endif()

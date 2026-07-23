@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/packaging-policy.schema.json",
+  "title": "Rawframe packaging policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "owner", "purpose", "deploymentModel", "projectBinding",
+    "nativeModuleAdmission", "capabilityPackages", "integrity", "localOverridesAllowed", "symbols",
+    "developerEndpoints", "contentProtectionReferences", "updateReferences", "trustedBuildRequired", "releaseEligible"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/packaging-policy\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "deploymentModel": { "enum": ["modular", "sealed"] },
+    "projectBinding": { "enum": ["none", "dynamic_package", "fixed_project"] },
+    "nativeModuleAdmission": { "enum": ["forbidden", "declared_signed_only", "sealed_closure_only"] },
+    "capabilityPackages": { "enum": ["forbidden", "declared_compatible_only", "sealed_closure_only"] },
+    "integrity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifestRequired", "signatureRequired", "provenanceRequired"],
+      "properties": {
+        "manifestRequired": { "type": "boolean" },
+        "signatureRequired": { "type": "boolean" },
+        "provenanceRequired": { "type": "boolean" }
+      }
+    },
+    "localOverridesAllowed": { "type": "boolean" },
+    "symbols": { "enum": ["embedded", "adjacent", "external_store", "none"] },
+    "developerEndpoints": { "enum": ["enabled", "authenticated", "disabled"] },
+    "contentProtectionReferences": { "$ref": "#/$defs/referenceSet" },
+    "updateReferences": { "$ref": "#/$defs/referenceSet" },
+    "trustedBuildRequired": { "type": "boolean" },
+    "releaseEligible": { "type": "boolean" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$" },
+    "referenceSet": { "type": "array", "uniqueItems": true, "items": { "anyOf": [{ "$ref": "#/$defs/id" }, { "$ref": "#/$defs/path" }] } }
+  }
+}

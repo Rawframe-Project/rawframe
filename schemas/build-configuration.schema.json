@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/build-configuration.schema.json",
+  "title": "Rawframe build configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "owner", "purpose", "optimization", "debugInformation",
+    "assertions", "diagnostics", "profilingHooks", "hardening", "linkTimeOptimization",
+    "incrementalBuildPriority", "trustedInputsRequired"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/build-configuration\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "enum": ["build.debug", "build.development", "build.shipping"] },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "optimization": { "enum": ["debugging_first", "balanced", "performance_first"] },
+    "debugInformation": { "enum": ["full", "line_tables", "split_external", "none"] },
+    "assertions": { "enum": ["full", "contract_only", "fatal_only"] },
+    "diagnostics": { "enum": ["full", "development", "restricted"] },
+    "profilingHooks": { "enum": ["full", "bounded", "restricted"] },
+    "hardening": { "enum": ["development", "shipping"] },
+    "linkTimeOptimization": { "enum": ["off", "toolchain_default", "required"] },
+    "incrementalBuildPriority": { "enum": ["highest", "balanced", "lowest"] },
+    "trustedInputsRequired": { "type": "boolean" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" }
+  }
+}

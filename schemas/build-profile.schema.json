@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/build-profile.schema.json",
+  "title": "Rawframe build profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "owner", "purpose", "stability", "supportStatus",
+    "target", "deploymentPlatform", "configuration", "instrumentation", "buildMachineToolchain",
+    "deploymentToolchain", "packagingPolicy", "selectedCapabilities", "providerSelections",
+    "dependencyContext", "presetAliases", "verification"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/build-profile\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "stability": { "enum": ["internal", "experimental", "stable"] },
+    "supportStatus": { "enum": ["architectural", "experimental", "supported"] },
+    "target": { "$ref": "#/$defs/id" },
+    "deploymentPlatform": { "$ref": "#/$defs/id" },
+    "configuration": { "enum": ["build.debug", "build.development", "build.shipping"] },
+    "instrumentation": { "$ref": "#/$defs/id" },
+    "buildMachineToolchain": { "$ref": "#/$defs/id" },
+    "deploymentToolchain": { "$ref": "#/$defs/id" },
+    "packagingPolicy": { "$ref": "#/$defs/id" },
+    "selectedCapabilities": { "$ref": "#/$defs/idSet" },
+    "providerSelections": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": {
+        "type": "array", "minItems": 1, "uniqueItems": true,
+        "items": { "$ref": "#/$defs/id" }
+      }
+    },
+    "dependencyContext": { "$ref": "#/$defs/id" },
+    "presetAliases": { "$ref": "#/$defs/idSetNonEmpty" },
+    "verification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["suites", "referenceGames"],
+      "properties": {
+        "suites": { "$ref": "#/$defs/idSetNonEmpty" },
+        "referenceGames": { "$ref": "#/$defs/idSet" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "idSet": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "idSetNonEmpty": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+  }
+}

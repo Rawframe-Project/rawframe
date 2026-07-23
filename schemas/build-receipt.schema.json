@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/build-receipt.schema.json",
+  "title": "Rawframe build receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "receiptVersion", "source", "profile", "authorityDigests",
+    "moduleGraphDigest", "providerSelections", "toolchains", "dependencyResolution", "cmake",
+    "buildMachine", "trust", "artifacts", "verification", "releaseEligible"
+  ],
+  "properties": {
+    "$schema": { "const": "https://schemas.rawframe.dev/build-receipt.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "receiptVersion": { "type": "integer", "minimum": 1 },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repositoryRevision", "dirty"],
+      "properties": {
+        "repositoryRevision": { "type": "string", "minLength": 7, "maxLength": 200 },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "digest", "target", "platform", "configuration", "instrumentation", "packagingPolicy"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "target": { "$ref": "#/$defs/id" },
+        "platform": { "$ref": "#/$defs/id" },
+        "configuration": { "enum": ["build.debug", "build.development", "build.shipping"] },
+        "instrumentation": { "$ref": "#/$defs/id" },
+        "packagingPolicy": { "$ref": "#/$defs/id" }
+      }
+    },
+    "authorityDigests": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/sha256" }
+    },
+    "moduleGraphDigest": { "$ref": "#/$defs/sha256" },
+    "providerSelections": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+    },
+    "toolchains": {
+      "type": "object", "additionalProperties": false,
+      "required": ["buildMachine", "deployment", "sdkIdentities"],
+      "properties": {
+        "buildMachine": { "$ref": "#/$defs/id" },
+        "deployment": { "$ref": "#/$defs/id" },
+        "sdkIdentities": { "$ref": "#/$defs/idSet" }
+      }
+    },
+    "dependencyResolution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["catalogDigest", "lockDigest", "preparedTreeDigest", "sbomDigest"],
+      "properties": {
+        "catalogDigest": { "$ref": "#/$defs/sha256" },
+        "lockDigest": { "$ref": "#/$defs/sha256" },
+        "preparedTreeDigest": { "$ref": "#/$defs/sha256" },
+        "sbomDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cmake": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "preset", "generatedInputDigest"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "preset": { "$ref": "#/$defs/id" },
+        "generatedInputDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "buildMachine": {
+      "type": "object", "additionalProperties": false,
+      "required": ["platformFamily", "architecture", "environmentDigest"],
+      "properties": {
+        "platformFamily": { "$ref": "#/$defs/id" },
+        "architecture": { "$ref": "#/$defs/id" },
+        "environmentDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "trust": {
+      "type": "object", "additionalProperties": false,
+      "required": ["localOverrides", "trustedDependencies", "trustedCache", "restrictedInputs"],
+      "properties": {
+        "localOverrides": { "type": "boolean" },
+        "trustedDependencies": { "type": "boolean" },
+        "trustedCache": { "type": "boolean" },
+        "restrictedInputs": { "type": "boolean" }
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["role", "path", "byteSize", "sha256", "signatureIdentity", "symbolsReference"],
+        "properties": {
+          "role": { "$ref": "#/$defs/id" },
+          "path": { "$ref": "#/$defs/path" },
+          "byteSize": { "type": "integer", "minimum": 0 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "signatureIdentity": { "type": "string", "maxLength": 300 },
+          "symbolsReference": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "verification": {
+      "type": "array", "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["suite", "status", "reportDigest", "environmentIdentity"],
+        "properties": {
+          "suite": { "$ref": "#/$defs/id" },
+          "status": { "enum": ["passed", "failed", "missing", "not_applicable"] },
+          "reportDigest": { "$ref": "#/$defs/sha256" },
+          "environmentIdentity": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "releaseEligible": { "type": "boolean" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "idSet": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$" }
+  }
+}

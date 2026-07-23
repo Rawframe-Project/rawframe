@@ -1,0 +1,14 @@
+{
+  "$schema": "schemas/repository.schema.json",
+  "schemaVersion": 3,
+  "modules": [],
+  "targets": [],
+  "platforms": [],
+  "configurations": [],
+  "instrumentations": [],
+  "packagingPolicies": [],
+  "profiles": [],
+  "tools": [
+    "tools/rf_evidence/tool.json"
+  ]
+}

@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/module.schema.json",
+  "title": "Rawframe module manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "id",
+    "kind",
+    "owner",
+    "purpose",
+    "stability",
+    "dependencies",
+    "availability",
+    "exports",
+    "contracts",
+    "verification",
+    "thirdParty"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "^(?:\\.\\./)+schemas/module\\.schema\\.json$"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "kind": {
+      "enum": [
+        "base",
+        "foundation",
+        "runtime_primitive",
+        "runtime_capability",
+        "backend",
+        "adapter",
+        "bridge",
+        "toolchain",
+        "editor",
+        "product",
+        "host"
+      ]
+    },
+    "owner": {
+      "$ref": "#/$defs/id"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 240
+    },
+    "stability": {
+      "enum": ["internal", "experimental", "stable"]
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public", "private", "testOnly", "toolOnly", "hostOnly", "forbidden"],
+      "properties": {
+        "public": { "$ref": "#/$defs/idSet" },
+        "private": { "$ref": "#/$defs/idSet" },
+        "testOnly": { "$ref": "#/$defs/idSet" },
+        "toolOnly": { "$ref": "#/$defs/idSet" },
+        "hostOnly": { "$ref": "#/$defs/idSet" },
+        "forbidden": { "$ref": "#/$defs/idSet" }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contexts", "executionModes", "platforms"],
+      "properties": {
+        "contexts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["client", "server", "editor", "tool"] }
+        },
+        "executionModes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["graphical", "headless"] }
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              { "const": "any" },
+              { "$ref": "#/$defs/id" }
+            ]
+          }
+        }
+      }
+    },
+    "exports": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "native": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["visibility", "includeRoot", "includePrefix"],
+          "properties": {
+            "visibility": { "enum": ["engine", "sdk"] },
+            "includeRoot": { "$ref": "#/$defs/path" },
+            "includePrefix": {
+              "type": "string",
+              "pattern": "^rawframe(?:/[a-z][a-z0-9_]*)+$"
+            }
+          }
+        },
+        "luau": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "surface"],
+          "properties": {
+            "mode": { "const": "generated" },
+            "surface": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Za-z0-9]*$"
+            }
+          }
+        }
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "threading", "security", "performance"],
+      "properties": {
+        "lifecycle": { "$ref": "#/$defs/referenceSet" },
+        "threading": { "$ref": "#/$defs/referenceSet" },
+        "security": { "$ref": "#/$defs/referenceSet" },
+        "performance": { "$ref": "#/$defs/referenceSet" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["testClasses", "budgetReferences"],
+      "properties": {
+        "testClasses": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "unit",
+              "component",
+              "integration",
+              "architecture",
+              "smoke",
+              "platform_hardware"
+            ]
+          }
+        },
+        "budgetReferences": { "$ref": "#/$defs/referenceSet" }
+      }
+    },
+    "thirdParty": {
+      "$ref": "#/$defs/idSet"
+    },
+    "implements": {
+      "$ref": "#/$defs/id"
+    },
+    "adapts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalApi", "rawframeContract"],
+      "properties": {
+        "externalApi": { "$ref": "#/$defs/id" },
+        "rawframeContract": { "$ref": "#/$defs/id" }
+      }
+    },
+    "connects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contracts", "direction", "coordinationOwner"],
+      "properties": {
+        "contracts": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "direction": {
+          "enum": ["bidirectional", "coordinated"]
+        },
+        "coordinationOwner": { "$ref": "#/$defs/id" }
+      }
+    },
+    "compositionRole": {
+      "$ref": "#/$defs/id"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "backend" } }, "required": ["kind"] },
+      "then": { "required": ["implements"] },
+      "else": { "not": { "required": ["implements"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "adapter" } }, "required": ["kind"] },
+      "then": { "required": ["adapts"] },
+      "else": { "not": { "required": ["adapts"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "bridge" } }, "required": ["kind"] },
+      "then": { "required": ["connects"] },
+      "else": { "not": { "required": ["connects"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "host" } }, "required": ["kind"] },
+      "then": { "required": ["compositionRole"] },
+      "else": { "not": { "required": ["compositionRole"] } }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$"
+    },
+    "idSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "referenceSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "anyOf": [
+          { "$ref": "#/$defs/id" },
+          { "$ref": "#/$defs/path" }
+        ]
+      }
+    }
+  }
+}

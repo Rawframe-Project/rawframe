@@ -1,0 +1,150 @@
+{
+  "$schema": "../schemas/toolchain-lock.schema.json",
+  "schemaVersion": 1,
+  "lockVersion": 1,
+  "bootstrap": {
+    "minimumCMakeVersion": "3.31.0",
+    "verifierContractVersion": 1,
+    "verifierArtifactIds": [
+      "authority.cmake_release_key.data",
+      "authority.sigstore_trusted_root.data",
+      "authority.ubuntu_archive_keyring.linux_all",
+      "host.ubuntu.resolute_inrelease",
+      "host.ubuntu.resolute_packages",
+      "tool.archive_extractor.linux_x86_64",
+      "tool.archive_extractor.windows_x86_64",
+      "tool.cmake.checksums",
+      "tool.cmake.checksums_signature",
+      "tool.cosign.linux_x86_64",
+      "tool.cosign.linux_x86_64_bundle",
+      "tool.cosign.windows_x86_64",
+      "tool.cosign.windows_x86_64_bundle",
+      "tool.gnupg.linux_x86_64",
+      "tool.gnupg.linux_x86_64_full",
+      "tool.gnupg.windows_x86_64",
+      "tool.gnupg.windows_x86_64_signature"
+    ],
+    "transportExecutables": [
+      {
+        "hostId": "windows-x86_64",
+        "absolutePath": "C:/Windows/System32/curl.exe",
+        "version": "8.19.0",
+        "byteSize": 791600,
+        "binarySha256": "642a07eeea4d3132426e673fb3c88be8cead3d03ca1f019c7e7d0000ed2122be",
+        "packageIdentity": "Windows 11 Pro 25H2 build 26200.8655 inbox curl"
+      },
+      {
+        "hostId": "linux-x86_64",
+        "absolutePath": "/usr/bin/curl",
+        "version": "8.18.0",
+        "byteSize": 334360,
+        "binarySha256": "2de3b921599d2684ea4da8c328871bf8fc5d37297d278f4ffe0fa92895b5f0b3",
+        "packageIdentity": "Ubuntu curl 8.18.0-1ubuntu2 deb e0848724d39a0519bc781697d9827cf87013a423632be2208e4afdef190ee788"
+      }
+    ]
+  },
+  "managedTools": [
+    {
+      "id": "tool.archive_extractor",
+      "version": "26.2",
+      "artifactIds": ["tool.archive_extractor.linux_x86_64", "tool.archive_extractor.windows_x86_64"],
+      "licenseExpression": "LGPL-2.1-or-later AND BSD-3-Clause AND LicenseRef-unRAR-restriction"
+    },
+    {
+      "id": "tool.cmake",
+      "version": "4.4.0",
+      "artifactIds": ["tool.cmake.linux_x86_64", "tool.cmake.windows_x86_64"],
+      "licenseExpression": "BSD-3-Clause"
+    },
+    {
+      "id": "tool.cosign",
+      "version": "3.0.6",
+      "artifactIds": ["tool.cosign.linux_x86_64", "tool.cosign.windows_x86_64"],
+      "licenseExpression": "Apache-2.0"
+    },
+    {
+      "id": "tool.gnupg",
+      "version": "2.5.21",
+      "artifactIds": ["tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.windows_x86_64"],
+      "licenseExpression": "GPL-3.0-or-later"
+    },
+    {
+      "id": "tool.jsonschema_oracle",
+      "version": "16.1.0",
+      "artifactIds": ["tool.jsonschema_oracle.linux_x86_64", "tool.jsonschema_oracle.windows_x86_64"],
+      "licenseExpression": "AGPL-3.0-only"
+    },
+    {
+      "id": "tool.llvm",
+      "version": "22.1.8",
+      "artifactIds": ["tool.llvm.linux_x86_64", "tool.llvm.windows_x86_64"],
+      "licenseExpression": "Apache-2.0 WITH LLVM-exception"
+    },
+    {
+      "id": "tool.nasm",
+      "version": "3.01",
+      "artifactIds": ["tool.nasm.windows_x86_64"],
+      "licenseExpression": "BSD-2-Clause"
+    },
+    {
+      "id": "tool.ninja",
+      "version": "1.13.2",
+      "artifactIds": ["tool.ninja.linux_x86_64", "tool.ninja.windows_x86_64"],
+      "licenseExpression": "Apache-2.0"
+    },
+    {
+      "id": "tool.perl",
+      "version": "5.42.2.1",
+      "artifactIds": ["tool.perl.windows_x86_64"],
+      "licenseExpression": "Artistic-1.0-Perl OR GPL-1.0-or-later"
+    },
+    {
+      "id": "tool.powershell",
+      "version": "7.6.2",
+      "artifactIds": ["tool.powershell.windows_x86_64"],
+      "licenseExpression": "MIT"
+    },
+    {
+      "id": "tool.vcpkg",
+      "version": "2026.7.13",
+      "artifactIds": ["tool.vcpkg.linux_x86_64", "tool.vcpkg.windows_x86_64"],
+      "licenseExpression": "MIT"
+    }
+  ],
+  "compilers": [
+    {
+      "id": "compiler.llvm_clang",
+      "families": ["host.linux_x86_64", "host.windows_x86_64"],
+      "minimumVersion": "22.1.8",
+      "maximumVersionExclusive": "22.1.9",
+      "probeId": "probe.compiler.llvm_22_1_8",
+      "capabilities": ["capability.cpp23", "capability.no_exceptions", "capability.no_rtti"],
+      "redistributable": true
+    }
+  ],
+  "installedSdks": [
+    {
+      "id": "sdk.windows_11",
+      "families": ["host.windows_x86_64"],
+      "minimumVersion": "10.0.26100.0",
+      "maximumVersionExclusive": "10.0.26100.1",
+      "probeId": "probe.sdk.windows_26100",
+      "capabilities": ["capability.ucrt", "capability.windows_sdk"],
+      "redistributable": false,
+      "verificationExecutables": [
+        {
+          "id": "tool.windows_sdk.signtool",
+          "absolutePath": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/signtool.exe",
+          "version": "10.0.26100.8249",
+          "byteSize": 543144,
+          "binarySha256": "e7b517a6a2828af2d1fba3da60ae1e322a95141bfae192622725329630caa2b3",
+          "capability": "capability.authenticode_verify"
+        }
+      ]
+    }
+  ],
+  "vcpkg": {
+    "toolId": "tool.vcpkg",
+    "configurationPolicyVersion": 1
+  }
+}

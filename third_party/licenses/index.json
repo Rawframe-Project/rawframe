@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "materials": [
+    {
+      "path": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "byteSize": 58215,
+      "sha256": "cd4997341473ed49ae2e16e968ac89608739bc4428182b032d2f8b10f49638a9"
+    },
+    {
+      "path": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "byteSize": 93811,
+      "sha256": "c05c422e9037b697a900fa0c75c6c0137bcc15b9344a94629ba8841ab3858c8d"
+    },
+    {
+      "path": "third_party/licenses/cmake/LICENSE.rst",
+      "byteSize": 1499,
+      "sha256": "02decff634c03ed91bd0d73a4db4ccce44a81ce61637cbad41392500f851d7f3"
+    },
+    {
+      "path": "third_party/licenses/googletest/LICENSE",
+      "byteSize": 1475,
+      "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+    },
+    {
+      "path": "third_party/licenses/llvm/LICENSE.TXT",
+      "byteSize": 303,
+      "sha256": "54cbc326a78b9400065bfc5830a57fdcdaf808286d4ac35d8a9e324aa77b7241"
+    }
+  ],
+  "entries": [
+    {
+      "id": "license.cmake",
+      "catalogIds": ["tool.cmake"],
+      "spdxExpression": "BSD-3-Clause",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "CMake 4.4.0",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.cosign",
+      "catalogIds": ["tool.cosign"],
+      "spdxExpression": "Apache-2.0",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "Cosign 3.0.6",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.gnupg",
+      "catalogIds": ["tool.gnupg"],
+      "spdxExpression": "GPL-3.0-or-later",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "GnuPG GPL-3.0 text",
+      "redistribution": "conditional",
+      "approval": "approved"
+    },
+    {
+      "id": "license.googletest",
+      "catalogIds": ["test.googletest"],
+      "spdxExpression": "BSD-3-Clause",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "GoogleTest 1.17.0",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.llvm",
+      "catalogIds": ["tool.llvm"],
+      "spdxExpression": "Apache-2.0 WITH LLVM-exception",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "LLVM 22.1.8",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.nasm",
+      "catalogIds": ["tool.nasm"],
+      "spdxExpression": "BSD-2-Clause",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "NASM 3.01",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.ninja",
+      "catalogIds": ["tool.ninja"],
+      "spdxExpression": "Apache-2.0",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "Ninja 1.13.2",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.openpgp_public_key",
+      "catalogIds": ["authority.cmake_release_key"],
+      "spdxExpression": "LicenseRef-Public-Key-Material",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "OpenPGP public-key material",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.openssl",
+      "catalogIds": ["library.openssl"],
+      "spdxExpression": "Apache-2.0",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "OpenSSL 3.5.7",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.powershell",
+      "catalogIds": ["tool.powershell"],
+      "spdxExpression": "MIT",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "PowerShell 7.6.2",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.seven_zip",
+      "catalogIds": ["tool.archive_extractor"],
+      "spdxExpression": "LGPL-2.1-or-later AND BSD-3-Clause AND LicenseRef-unRAR-restriction",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "7-Zip 26.02",
+      "redistribution": "conditional",
+      "approval": "approved"
+    },
+    {
+      "id": "license.simdjson",
+      "catalogIds": ["library.simdjson"],
+      "spdxExpression": "Apache-2.0 OR MIT",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "simdjson 4.6.4",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.sourcemeta_jsonschema",
+      "catalogIds": ["tool.jsonschema_oracle"],
+      "spdxExpression": "AGPL-3.0-only",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "Sourcemeta JSON Schema CLI 16.1.0",
+      "redistribution": "forbidden",
+      "approval": "restricted"
+    },
+    {
+      "id": "license.strawberry_perl",
+      "catalogIds": ["tool.perl"],
+      "spdxExpression": "Artistic-1.0-Perl OR GPL-1.0-or-later",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "Strawberry Perl 5.42.2.1",
+      "redistribution": "conditional",
+      "approval": "approved"
+    },
+    {
+      "id": "license.ubuntu",
+      "catalogIds": ["host.ubuntu"],
+      "spdxExpression": "LicenseRef-Ubuntu",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "Ubuntu 26.04 build-host media",
+      "redistribution": "conditional",
+      "approval": "approved"
+    },
+    {
+      "id": "license.vcpkg",
+      "catalogIds": ["tool.vcpkg"],
+      "spdxExpression": "MIT",
+      "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
+      "sectionHeading": "vcpkg registry/tool",
+      "redistribution": "allowed",
+      "approval": "approved"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/repository.schema.json",
+  "title": "Rawframe repository index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "modules",
+    "targets",
+    "platforms",
+    "configurations",
+    "instrumentations",
+    "packagingPolicies",
+    "profiles",
+    "tools"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "schemas/repository.schema.json"
+    },
+    "schemaVersion": {
+      "const": 3
+    },
+    "modules": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "targets": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "platforms": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "configurations": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "instrumentations": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "packagingPolicies": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "profiles": {
+      "$ref": "#/$defs/pathSet"
+    },
+    "tools": {
+      "$ref": "#/$defs/pathSet"
+    }
+  },
+  "$defs": {
+    "pathSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$"
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/deployment-platform.schema.json",
+  "title": "Rawframe deployment platform",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "family", "owner", "stability", "supportStatus",
+    "runtimeFamily", "deviceClass", "architecture", "abi", "minimumRuntimeVersion", "restricted",
+    "buildMachineFamilies", "deploymentToolchain", "sdkRequirements", "targetTriplet", "buildToolTriplet",
+    "supportedRoles", "supportedInstrumentation", "deploymentModels", "capabilities", "requirements"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/deployment-platform\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "family": { "$ref": "#/$defs/id" },
+    "owner": { "$ref": "#/$defs/id" },
+    "stability": { "enum": ["internal", "experimental", "stable"] },
+    "supportStatus": { "enum": ["architectural", "experimental", "supported"] },
+    "runtimeFamily": { "$ref": "#/$defs/id" },
+    "deviceClass": { "enum": ["desktop", "mobile", "vr", "console", "server", "web"] },
+    "architecture": { "$ref": "#/$defs/id" },
+    "abi": { "$ref": "#/$defs/id" },
+    "minimumRuntimeVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "restricted": { "type": "boolean" },
+    "buildMachineFamilies": { "$ref": "#/$defs/idSetNonEmpty" },
+    "deploymentToolchain": { "$ref": "#/$defs/id" },
+    "sdkRequirements": { "$ref": "#/$defs/idSet" },
+    "targetTriplet": { "$ref": "#/$defs/id" },
+    "buildToolTriplet": { "$ref": "#/$defs/id" },
+    "supportedRoles": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["studio", "rawframe_application", "standalone_client", "dedicated_server", "command_line", "worker"] }
+    },
+    "supportedInstrumentation": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["none", "address_sanitizer", "undefined_behavior_sanitizer", "thread_sanitizer", "coverage", "profiling"] }
+    },
+    "deploymentModels": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["modular", "sealed"] }
+    },
+    "capabilities": { "$ref": "#/$defs/idSet" },
+    "requirements": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packaging", "signing", "entitlement", "symbols", "deviceTesting"],
+      "properties": {
+        "packaging": { "$ref": "#/$defs/referenceSet" },
+        "signing": { "$ref": "#/$defs/referenceSet" },
+        "entitlement": { "$ref": "#/$defs/referenceSet" },
+        "symbols": { "$ref": "#/$defs/referenceSet" },
+        "deviceTesting": { "$ref": "#/$defs/referenceSet" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "idSet": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "idSetNonEmpty": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$" },
+    "referenceSet": { "type": "array", "uniqueItems": true, "items": { "anyOf": [{ "$ref": "#/$defs/id" }, { "$ref": "#/$defs/path" }] } }
+  }
+}

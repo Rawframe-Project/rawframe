@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/instrumentation.schema.json",
+  "title": "Rawframe instrumentation policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schemaVersion", "id", "owner", "purpose", "kind", "compatibleConfigurations",
+    "platformFamilies", "toolchains", "incompatibleInstrumentation", "runtimeDependencies",
+    "releaseEligible", "performanceClass", "verification"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "pattern": "^(?:\\.\\./)+schemas/instrumentation\\.schema\\.json$" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "kind": { "enum": ["none", "address_sanitizer", "undefined_behavior_sanitizer", "thread_sanitizer", "coverage", "profiling"] },
+    "compatibleConfigurations": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["build.debug", "build.development", "build.shipping"] }
+    },
+    "platformFamilies": { "$ref": "#/$defs/idSetNonEmpty" },
+    "toolchains": { "$ref": "#/$defs/idSetNonEmpty" },
+    "incompatibleInstrumentation": { "$ref": "#/$defs/idSet" },
+    "runtimeDependencies": { "$ref": "#/$defs/idSet" },
+    "releaseEligible": { "type": "boolean" },
+    "performanceClass": { "enum": ["none", "low", "medium", "high", "extreme"] },
+    "verification": { "$ref": "#/$defs/idSet" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+    "idSet": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "idSetNonEmpty": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+  }
+}

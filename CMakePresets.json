@@ -1,0 +1,147 @@
+{
+  "version": 10,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 4,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "task-0001-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "RAWFRAME_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_INSTALL": "OFF"
+      }
+    },
+    {
+      "name": "task-0001-windows-x86_64-debug",
+      "inherits": "task-0001-base",
+      "displayName": "TASK-0001 Windows x86-64 Debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RAWFRAME_HOST_ID": "windows-x86_64",
+        "CMAKE_C_COMPILER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-cl.exe",
+        "CMAKE_CXX_COMPILER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-cl.exe",
+        "CMAKE_LINKER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/lld-link.exe",
+        "CMAKE_AR": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/llvm-lib.exe",
+        "CMAKE_RC_COMPILER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/llvm-rc.exe",
+        "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/prepared/windows-x86_64/tools/ninja/ninja.exe",
+        "RAWFRAME_CLANG_TIDY_EXECUTABLE": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-tidy.exe",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/out/prepared/windows-x86_64/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/out/prepared/windows-x86_64/installed",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/third_party/vcpkg",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-rawframe"
+      }
+    },
+    {
+      "name": "task-0001-windows-x86_64-analysis",
+      "inherits": "task-0001-windows-x86_64-debug",
+      "displayName": "TASK-0001 Windows x86-64 Analysis",
+      "cacheVariables": {
+        "RAWFRAME_ENABLE_ANALYSIS": "ON",
+        "RAWFRAME_CLANG_FORMAT_EXECUTABLE": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-format.exe"
+      }
+    },
+    {
+      "name": "task-0001-linux-x86_64-debug",
+      "inherits": "task-0001-base",
+      "displayName": "TASK-0001 Linux x86-64 Debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RAWFRAME_HOST_ID": "linux-x86_64",
+        "CMAKE_C_COMPILER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang++",
+        "CMAKE_LINKER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/ld.lld",
+        "CMAKE_AR": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/llvm-ar",
+        "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/prepared/linux-x86_64/tools/ninja/ninja",
+        "RAWFRAME_CLANG_TIDY_EXECUTABLE": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang-tidy",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/out/prepared/linux-x86_64/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/out/prepared/linux-x86_64/installed",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/third_party/vcpkg",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-rawframe"
+      }
+    },
+    {
+      "name": "task-0001-linux-x86_64-analysis",
+      "inherits": "task-0001-linux-x86_64-debug",
+      "displayName": "TASK-0001 Linux x86-64 Analysis",
+      "cacheVariables": {
+        "RAWFRAME_ENABLE_ANALYSIS": "ON",
+        "RAWFRAME_CLANG_FORMAT_EXECUTABLE": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang-format"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "task-0001-windows-x86_64-debug",
+      "configurePreset": "task-0001-windows-x86_64-debug",
+      "jobs": 0
+    },
+    {
+      "name": "task-0001-windows-x86_64-analysis",
+      "configurePreset": "task-0001-windows-x86_64-analysis",
+      "jobs": 0
+    },
+    {
+      "name": "task-0001-linux-x86_64-debug",
+      "configurePreset": "task-0001-linux-x86_64-debug",
+      "jobs": 0
+    },
+    {
+      "name": "task-0001-linux-x86_64-analysis",
+      "configurePreset": "task-0001-linux-x86_64-analysis",
+      "jobs": 0
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "task-0001-windows-x86_64-debug",
+      "configurePreset": "task-0001-windows-x86_64-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "task-0001-linux-x86_64-debug",
+      "configurePreset": "task-0001-linux-x86_64-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "task-0001-windows-x86_64",
+      "steps": [
+        { "type": "configure", "name": "task-0001-windows-x86_64-debug" },
+        { "type": "build", "name": "task-0001-windows-x86_64-debug" },
+        { "type": "test", "name": "task-0001-windows-x86_64-debug" }
+      ]
+    },
+    {
+      "name": "task-0001-linux-x86_64",
+      "steps": [
+        { "type": "configure", "name": "task-0001-linux-x86_64-debug" },
+        { "type": "build", "name": "task-0001-linux-x86_64-debug" },
+        { "type": "test", "name": "task-0001-linux-x86_64-debug" }
+      ]
+    }
+  ]
+}

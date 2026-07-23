@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.dev/tool.schema.json",
+  "title": "Rawframe repository tool manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "id",
+    "displayName",
+    "owner",
+    "purpose",
+    "stability",
+    "implementation",
+    "availability",
+    "dependencies",
+    "capabilities",
+    "outputs",
+    "distribution",
+    "contracts",
+    "verification"
+  ],
+  "properties": {
+    "$schema": { "const": "../../schemas/tool.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^rawframe\\.tool\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*$"
+    },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "owner": { "$ref": "#/$defs/id" },
+    "purpose": { "type": "string", "minLength": 20, "maxLength": 240 },
+    "stability": { "enum": ["internal", "experimental", "stable"] },
+    "implementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "dialect", "buildSystem", "cmakeTarget", "entryPoints", "exceptions", "rtti"],
+      "properties": {
+        "language": { "const": "cpp" },
+        "dialect": { "const": "c++23" },
+        "buildSystem": { "const": "cmake" },
+        "cmakeTarget": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "entryPoints": { "$ref": "#/$defs/nonEmptyIdSet" },
+        "exceptions": { "const": "disabled" },
+        "rtti": { "const": "disabled" }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platforms", "architectures"],
+      "properties": {
+        "platforms": { "$ref": "#/$defs/nonEmptyIdSet" },
+        "architectures": { "$ref": "#/$defs/nonEmptyIdSet" }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tools", "modules", "thirdParty", "managedTools"],
+      "properties": {
+        "tools": { "$ref": "#/$defs/idSet" },
+        "modules": { "$ref": "#/$defs/idSet" },
+        "thirdParty": { "$ref": "#/$defs/idSet" },
+        "managedTools": { "$ref": "#/$defs/idSet" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filesystemReadRoots", "filesystemWriteRoots", "network", "credentials", "runnerControl", "baselinePromotion"],
+      "properties": {
+        "filesystemReadRoots": { "$ref": "#/$defs/nonEmptyPathSet" },
+        "filesystemWriteRoots": { "$ref": "#/$defs/pathSet" },
+        "network": { "enum": ["denied", "sync_only"] },
+        "credentials": { "enum": ["none", "read_only", "signing", "promotion"] },
+        "runnerControl": { "type": "boolean" },
+        "baselinePromotion": { "type": "boolean" }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "root"],
+        "properties": {
+          "role": { "$ref": "#/$defs/id" },
+          "root": { "type": "string", "pattern": "^out(?:/[a-z0-9_./-]+)?$" }
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryOnly", "shippingClosure", "sdkExposure", "targetRoot"],
+      "properties": {
+        "repositoryOnly": { "const": true },
+        "shippingClosure": { "const": "forbidden" },
+        "sdkExposure": { "const": "forbidden" },
+        "targetRoot": { "const": "forbidden" }
+      }
+    },
+    "contracts": { "$ref": "#/$defs/nonEmptyIdSet" },
+    "verification": { "$ref": "#/$defs/nonEmptyIdSet" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$"
+    },
+    "idSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "nonEmptyIdSet": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "pathSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(?:repository|out|schemas|third_party|tools)(?:/[a-z0-9_./-]+)?$" }
+    },
+    "nonEmptyPathSet": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(?:repository|out|schemas|third_party|tools)(?:/[a-z0-9_./-]+)?$" }
+    }
+  }
+}
