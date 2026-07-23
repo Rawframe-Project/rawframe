@@ -4,6 +4,8 @@ Rawframe is a performance-oriented, network-first engine and toolchain for 2D an
 
 The project is in its foundation phase: the architecture is specified and the first repository tooling is being built. There are no releases yet, and every surface is unstable.
 
+For an overview of the project, its plans, and common questions, see the [FAQ](FAQ.md).
+
 ## License
 
 Rawframe is source-available under the Rawframe Source-Available License; see [LICENSE.md](LICENSE.md). In short: free to use, modify, and self-host; commercial standalone exports owe 5% of a product's lifetime gross revenue above USD 100,000; building a competing engine or distribution platform with it is not permitted. The license text is authoritative, not this summary.
