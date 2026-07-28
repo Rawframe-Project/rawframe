@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 4.4.0)
 # only when its arguments are provided, because the ubuntu-keyring package,
 # SHA256SUMS, and SHA256SUMS.gpg objects are acquired by the Linux host lane;
 # the Windows lane never possesses them and tests perform no acquisition.
-foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_GPG RF_GPGV RF_SOURCEMETA_KEY
+foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_GPG RF_GPGV RF_GPGCONF RF_SOURCEMETA_KEY
                           RF_SOURCEMETA_CHECKSUMS RF_SOURCEMETA_SIGNATURE)
     if(NOT DEFINED ${argument})
         message(FATAL_ERROR "RF1494 ${argument} is required")
@@ -17,7 +17,7 @@ set(work_root "${RF_REPOSITORY_ROOT}/out/sync/tests")
 file(MAKE_DIRECTORY "${work_root}")
 
 rf_prepare_release_keyring(
-    "${RF_GPG}" "${RF_SOURCEMETA_KEY}"
+    "${RF_GPG}" "${RF_GPGCONF}" "${RF_SOURCEMETA_KEY}"
     "F1CCCE7BD9D52CB76FE05C9B9C6328B7F7D5AA04" "${work_root}" "sourcemeta" sourcemeta_keyring
 )
 rf_verify_detached_openpgp(

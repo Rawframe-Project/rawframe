@@ -25,6 +25,11 @@ rf_require_debian_package_record(
     "0f750a1157602bdb5fddd48d7b6b55f8b7665639df9e988f965a2cfe6418114f"
 )
 rf_require_debian_package_record(
+    "${packages_text}" "gpgconf" "2.4.8-4ubuntu3"
+    "pool/main/g/gnupg2/gpgconf_2.4.8-4ubuntu3_amd64.deb" "111222"
+    "42744ee98bad9b691b18bdfbea94f1dd84652b0d98f009d725b76fd47468aa37"
+)
+rf_require_debian_package_record(
     "${packages_text}" "ubuntu-keyring" "2023.11.28.1build1"
     "pool/main/u/ubuntu-keyring/ubuntu-keyring_2023.11.28.1build1_all.deb" "11228"
     "c377ccf26964f4c206c05c0bc7adb708e031beb919bb9a0ff63af983d064cd66"

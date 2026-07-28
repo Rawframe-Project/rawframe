@@ -148,7 +148,7 @@ if(RF_HOST STREQUAL "windows-x86_64")
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${RF_transport_absolutePath}" "tool.gnupg.windows_x86_64_signature" gnupg_sig)
     rf_extract_gnupg_windows(
         "${seven_zip_executable}" "${gnupg_path}" "${quarantine_root}/gnupg-${gnupg_sha256}"
-        gpg_executable gpgv_executable gnupg_distribution_keyring
+        gpg_executable gpgv_executable gpgconf_executable gnupg_distribution_keyring
     )
     rf_verify_gnupg_windows(
         "${gpg_executable}" "${gpgv_executable}" "${gnupg_distribution_keyring}"
@@ -157,13 +157,13 @@ if(RF_HOST STREQUAL "windows-x86_64")
 else()
     rf_verify_gnupg_linux(
         "${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${RF_transport_absolutePath}"
-        gpg_executable gpgv_executable
+        gpg_executable gpgv_executable gpgconf_executable
     )
 endif()
 
 rf_verify_cmake_release(
     "${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${RF_transport_absolutePath}"
-    "${gpg_executable}" "${gpgv_executable}" "${RF_cmake_origin}" "${RF_cmake_sha256}"
+    "${gpg_executable}" "${gpgv_executable}" "${gpgconf_executable}" "${RF_cmake_origin}" "${RF_cmake_sha256}"
 )
 rf_verify_cosign(
     "${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${RF_transport_absolutePath}" "${RF_HOST}"
@@ -209,6 +209,7 @@ else()
     file(MAKE_DIRECTORY "${gnupg_prepared_source}/bin" "${gnupg_prepared_source}/share/gnupg")
     file(COPY_FILE "${gpg_executable}" "${gnupg_prepared_source}/bin/gpg")
     file(COPY_FILE "${gpgv_executable}" "${gnupg_prepared_source}/bin/gpgv")
+    file(COPY_FILE "${gpgconf_executable}" "${gnupg_prepared_source}/bin/gpgconf")
     file(COPY_FILE "${RF_LINUX_ARCHIVE_KEYRING}" "${gnupg_prepared_source}/share/gnupg/ubuntu-archive-keyring.gpg")
 endif()
 

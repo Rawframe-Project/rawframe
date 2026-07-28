@@ -372,10 +372,10 @@ Status loadArtifacts(const std::filesystem::path& repositoryRoot, AuthoritySets&
             }
         }
     }
-    if (sets.artifactIds.size() != 49U) {
+    if (sets.artifactIds.size() != 50U) {
         return std::unexpected(Failure{FailureCode::InvalidManifest,
                                        kPath.generic_string(),
-                                       "TASK-0001 artifact lock must contain exactly 49 admitted inputs"});
+                                       "TASK-0001 artifact lock must contain exactly 50 admitted inputs"});
     }
     for (const auto& [owner, reference] : sets.artifactVerificationReferences) {
         if (!sets.artifactIds.contains(lowercase(reference))) {
@@ -420,10 +420,10 @@ Status loadToolchain(const std::filesystem::path& repositoryRoot, AuthoritySets&
                                            "bootstrap verifier artifact is missing or duplicated"});
         }
     }
-    if (verifierIds.size() != 17U) {
+    if (verifierIds.size() != 18U) {
         return std::unexpected(Failure{FailureCode::InvalidManifest,
                                        kPath.generic_string(),
-                                       "bootstrap verifier contract must contain exactly 17 artifacts"});
+                                       "bootstrap verifier contract must contain exactly 18 artifacts"});
     }
     simdjson::dom::array tools;
     if ((*root).at_key("managedTools").get_array().get(tools) != 0) {

@@ -10,7 +10,7 @@ include("${RF_REPOSITORY_ROOT}/cmake/bootstrap/common.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/authority.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/openpgp.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/verification_corpus.cmake")
-rf_sync_require_prepared_verifiers("${RF_REPOSITORY_ROOT}" "${RF_HOST}" gpg gpgv cosign trusted_root)
+rf_sync_require_prepared_verifiers("${RF_REPOSITORY_ROOT}" "${RF_HOST}" gpg gpgv gpgconf cosign trusted_root)
 set(work_root "${RF_REPOSITORY_ROOT}/out/sync/${RF_HOST}/quarantine")
 file(MAKE_DIRECTORY "${work_root}")
 
@@ -51,7 +51,7 @@ if(NOT declared_ids STREQUAL covered_ids)
 endif()
 
 rf_prepare_release_keyring(
-    "${gpg}" "${microsoft_key_path}" "BC528686B50D79E339D3721CEB3E94ADBE1229CF"
+    "${gpg}" "${gpgconf}" "${microsoft_key_path}" "BC528686B50D79E339D3721CEB3E94ADBE1229CF"
     "${work_root}" "microsoft" microsoft_keyring
 )
 rf_verify_detached_openpgp(
@@ -60,7 +60,7 @@ rf_verify_detached_openpgp(
 )
 
 rf_prepare_release_keyring(
-    "${gpg}" "${openssl_keys_path}" "BA5473A2B0587B07FB27CF2D216094DFD0CB81EF"
+    "${gpg}" "${gpgconf}" "${openssl_keys_path}" "BA5473A2B0587B07FB27CF2D216094DFD0CB81EF"
     "${work_root}" "openssl" openssl_keyring
 )
 rf_verify_detached_openpgp(
@@ -69,7 +69,7 @@ rf_verify_detached_openpgp(
 )
 
 rf_prepare_release_keyring(
-    "${gpg}" "${sourcemeta_key_path}" "F1CCCE7BD9D52CB76FE05C9B9C6328B7F7D5AA04"
+    "${gpg}" "${gpgconf}" "${sourcemeta_key_path}" "F1CCCE7BD9D52CB76FE05C9B9C6328B7F7D5AA04"
     "${work_root}" "sourcemeta" sourcemeta_keyring
 )
 rf_verify_detached_openpgp(

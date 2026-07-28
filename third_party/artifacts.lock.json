@@ -162,7 +162,7 @@
       "byteSize": 1938859476,
       "sha256": "df0e1ecf16caf3489a272a5eea4eec9b0d82878f6477fa309504f918a0006384",
       "signature": { "required": true, "scheme": "gpg_sigstore", "expectedIdentity": "LLVM release key FFB3368980F3E6BB5737145A316C56D064CACBA5 and llvm/llvm-project release workflow", "verificationArtifactIds": ["authority.llvm_release_keys.data", "authority.sigstore_trusted_root.data", "tool.llvm.linux_x86_64_provenance", "tool.llvm.linux_x86_64_signature"] },
-      "archive": { "format": "tar_xz", "root": "LLVM-22.1.8-Linux-X64", "manifestReference": "manifest.llvm_22_1_8_linux" },
+      "archive": { "format": "tar_xz", "root": "LLVM-22.1.8-Linux-X64", "manifestReference": "manifest.llvm_22_1_8_linux", "requiredFiles": [{ "path": "bin/clang-22", "byteSize": 271520144, "sha256": "31a40dc31f3c15a47aa119aa148f339bf363d8f61202ddbdacbd3f24b71ba113" }, { "path": "bin/clang-format", "byteSize": 5491816, "sha256": "b60fe916a9d98bfd0f317a210f6a06dfde1217ebb0b605da697ef211208d3bcf" }, { "path": "bin/clang-tidy", "byteSize": 182564936, "sha256": "427df7282637a7af4901f245f6e972558dbc29fb075c4a66ee91349caeab9274" }, { "path": "bin/lld", "byteSize": 200218648, "sha256": "a37ea59e863b4c1fd95ead6a905f7ddb461f7d90d4f30d2d76bcbb2ae9588b1d" }, { "path": "bin/llvm-ar", "byteSize": 52388064, "sha256": "8d5e04cec1f1533928290a7986be9412df6d1faa60ab7e475ec4322ca8e1d1eb" }] },
       "licenseReference": "license.llvm",
       "reviewReference": "task.0001"
     },
@@ -452,6 +452,21 @@
       "reviewReference": "task.0001"
     },
     {
+      "id": "tool.gnupg.linux_x86_64_config",
+      "catalogId": "tool.gnupg",
+      "version": "2.4.8-4ubuntu3",
+      "platform": "platform.linux",
+      "architectures": ["architecture.x86_64"],
+      "role": "build_tool",
+      "origins": ["https://archive.ubuntu.com/ubuntu/pool/main/g/gnupg2/gpgconf_2.4.8-4ubuntu3_amd64.deb"],
+      "byteSize": 111222,
+      "sha256": "42744ee98bad9b691b18bdfbea94f1dd84652b0d98f009d725b76fd47468aa37",
+      "signature": { "required": true, "scheme": "vendor", "expectedIdentity": "Canonical resolute signed Packages index" },
+      "archive": { "format": "installer", "root": "gpgconf_2.4.8-4ubuntu3_amd64.deb", "manifestReference": "manifest.gpgconf_2_4_8_linux", "requiredFiles": [{ "path": "usr/bin/gpgconf", "byteSize": 118496, "sha256": "f6c8be96f71adc97a0736c5b6784dba66f6a01cc5d41bc3df0971b94fa5075ae" }] },
+      "licenseReference": "license.gnupg",
+      "reviewReference": "task.0001"
+    },
+    {
       "id": "tool.gnupg.windows_x86_64",
       "catalogId": "tool.gnupg",
       "version": "2.5.21",
@@ -462,7 +477,7 @@
       "byteSize": 5772160,
       "sha256": "6246c925a73167253444afc24a0deb83a3f43b7d636af84d6aaf48a98a62f024",
       "signature": { "required": true, "scheme": "gpg", "expectedIdentity": "6DAA6E64A76D2840571B4902528897B826403ADA", "verificationArtifactIds": ["tool.gnupg.windows_x86_64_signature"] },
-      "archive": { "format": "installer", "root": "gnupg-w32-2.5.21_20260702.exe", "manifestReference": "manifest.gnupg_2_5_21_windows", "requiredFiles": [{ "path": "bin/gpg.exe", "byteSize": 1374760, "sha256": "1696bd14a012bbc9683775d8d8497210215b3f3f13c19bfc05a2c37f49864a59" }, { "path": "bin/gpgv.exe", "byteSize": 694824, "sha256": "10836486cf58d50ef01d4acde14788ab9771b230cc5b96bc3795a6c3948d6cdb" }] },
+      "archive": { "format": "installer", "root": "gnupg-w32-2.5.21_20260702.exe", "manifestReference": "manifest.gnupg_2_5_21_windows", "requiredFiles": [{ "path": "bin/gpg.exe", "byteSize": 1374760, "sha256": "1696bd14a012bbc9683775d8d8497210215b3f3f13c19bfc05a2c37f49864a59" }, { "path": "bin/gpgv.exe", "byteSize": 694824, "sha256": "10836486cf58d50ef01d4acde14788ab9771b230cc5b96bc3795a6c3948d6cdb" }, { "path": "bin/gpgconf.exe", "byteSize": 205864, "sha256": "83f327ced8d2954bc06dc3eb21002042ecbee1546686f518acd97b5fb3e78c9d" }] },
       "licenseReference": "license.gnupg",
       "reviewReference": "task.0001"
     },

@@ -131,15 +131,17 @@ function(rf_require_json_members json_variable label expected_csv)
     endif()
 endfunction()
 
-function(rf_shutdown_gnupg_home gpg home)
+function(rf_shutdown_gnupg_home gpgconf home)
     # gpg auto-launches per-homedir helper daemons (gpg-agent, scdaemon,
     # keyboxd) that outlive the calling process and keep their executable
     # images locked, which blocks replacement of the tree they run from.
     # Drain the daemons owned by this private homedir before abandoning it;
     # daemons bound to any other homedir are never touched.
-    cmake_path(GET gpg PARENT_PATH gpg_directory)
-    cmake_path(GET gpg EXTENSION LAST_ONLY gpg_extension)
-    set(gpgconf "${gpg_directory}/gpgconf${gpg_extension}")
+    #
+    # The caller supplies the drain executable rather than letting this derive
+    # it from gpg's directory. Deriving it assumed the Windows installer tree,
+    # where all three binaries share one bin/; the Ubuntu closure ships gpgconf
+    # in its own package, so on Linux nothing sits beside gpg.
     if(NOT EXISTS "${gpgconf}")
         rf_bootstrap_fail("RF1324" "cannot drain GnuPG daemons: gpgconf is missing beside gpg")
     endif()

@@ -1,6 +1,6 @@
 include_guard(GLOBAL)
 
-function(rf_prepare_release_keyring gpg key_file expected_primary work_root token output_keyring)
+function(rf_prepare_release_keyring gpg gpgconf key_file expected_primary work_root token output_keyring)
     set(home "${work_root}/${token}-gnupg-home")
     set(keyring "${work_root}/${token}-release-keyring.gpg")
     file(REMOVE_RECURSE "${home}")
@@ -33,7 +33,7 @@ function(rf_prepare_release_keyring gpg key_file expected_primary work_root toke
     if(NOT export_result EQUAL 0 OR NOT EXISTS "${keyring}")
         rf_bootstrap_fail("RF1432" "cannot create isolated release keyring for ${token}")
     endif()
-    rf_shutdown_gnupg_home("${gpg}" "${home}")
+    rf_shutdown_gnupg_home("${gpgconf}" "${home}")
     set(${output_keyring} "${keyring}" PARENT_SCOPE)
 endfunction()
 

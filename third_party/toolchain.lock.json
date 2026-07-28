@@ -20,6 +20,7 @@
       "tool.cosign.windows_x86_64_bundle",
       "tool.gnupg.linux_x86_64",
       "tool.gnupg.linux_x86_64_full",
+      "tool.gnupg.linux_x86_64_config",
       "tool.gnupg.windows_x86_64",
       "tool.gnupg.windows_x86_64_signature"
     ],
@@ -62,7 +63,7 @@
     {
       "id": "tool.gnupg",
       "version": "2.5.21",
-      "artifactIds": ["tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.windows_x86_64"],
+      "artifactIds": ["tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.linux_x86_64_config", "tool.gnupg.windows_x86_64"],
       "licenseExpression": "GPL-3.0-or-later"
     },
     {
