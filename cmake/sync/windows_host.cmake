@@ -3,6 +3,11 @@ include_guard(GLOBAL)
 # Probes the exact TASK-0001 locked Windows host tuple `host.windows_11_25h2_x86_64`.
 # Every locked value is mechanically probed; PATH presence never admits a component.
 
+# The locked SignTool identity is owned by the bootstrap signature file, because
+# Stage 0 admits its transport before this probe runs. Include it rather than
+# restating those values here.
+include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/windows_signature.cmake")
+
 # TASK-0001 resolution R1 admits the operating system at generation plus a
 # revision floor instead of an exact build. Exact operating-system build
 # identity belongs to the ADR-0020/SPEC-0015 benchmark cell fingerprint, not
