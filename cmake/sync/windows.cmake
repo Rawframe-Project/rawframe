@@ -20,6 +20,7 @@ include("${RF_REPOSITORY_ROOT}/cmake/sync/licenses.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/llvm.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/windows_closure.cmake")
 include("${RF_REPOSITORY_ROOT}/cmake/sync/windows_prepare.cmake")
+include("${RF_REPOSITORY_ROOT}/cmake/sync/verification_corpus.cmake")
 
 rf_load_bootstrap_authority("${RF_REPOSITORY_ROOT}" "${RF_HOST}")
 rf_verify_transport_executable(
@@ -36,6 +37,12 @@ foreach(index RANGE 0 ${publication_last})
     list(GET publication_paths ${index} artifact_path)
     rf_publish_locked_artifact("${RF_REPOSITORY_ROOT}" "${RF_REPOSITORY_ROOT}/out/cache" "${artifact_id}" "${artifact_path}")
 endforeach()
+
+# Published separately from the host closure. Corpus membership is a property of
+# the artifact, so it neither joins nor perturbs the counted Windows selection.
+rf_sync_publish_verification_corpus(
+    "${RF_REPOSITORY_ROOT}" "${RF_HOST}" "${RF_transport_absolutePath}"
+)
 
 rf_prepare_windows_tools("${RF_REPOSITORY_ROOT}")
 rf_prepare_windows_vcpkg("${RF_REPOSITORY_ROOT}")

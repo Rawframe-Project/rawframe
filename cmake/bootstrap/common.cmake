@@ -231,7 +231,7 @@ function(rf_load_bootstrap_authority repository_root host_id)
         rf_bootstrap_fail("RF1228" "bootstrap transport is missing for ${host_id}")
     endif()
 
-    rf_require_json_members(artifact_json "artifact lock" "\$schema,schemaVersion,lockVersion,artifacts")
+    rf_require_json_members(artifact_json "artifact lock" "\$schema,schemaVersion,lockVersion,verificationCorpus,artifacts")
     string(JSON artifact_count LENGTH "${artifact_json}" artifacts)
     if(artifact_count LESS 1 OR artifact_count GREATER 4096)
         rf_bootstrap_fail("RF1229" "artifact lock count is outside bootstrap limits")
