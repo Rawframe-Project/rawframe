@@ -10,17 +10,21 @@ set(CMAKE_AR "${prepared_tools}/llvm/bin/llvm-ar" CACHE FILEPATH "" FORCE)
 set(CMAKE_RANLIB "${prepared_tools}/llvm/bin/llvm-ranlib" CACHE FILEPATH "" FORCE)
 set(CMAKE_MAKE_PROGRAM "${prepared_tools}/ninja/ninja" CACHE FILEPATH "" FORCE)
 
-# Selecting a chainload toolchain replaces vcpkg's own toolchain rather than
-# adding to it, so `VCPKG_C_FLAGS`, `VCPKG_CXX_FLAGS`, and `VCPKG_LINKER_FLAGS`
-# from the triplet never reach the compiler. The flags therefore live here,
-# where the compiler identity is already decided, so one file owns the whole
-# Linux compile and link configuration instead of two that silently disagree.
+# This file configures every target built on this host, both the vcpkg
+# dependency closure and the first-party tree, so it owns only what the platform
+# closure requires. First-party warning level, language mode, exception and RTTI
+# policy belong to `rawframe::compiler_policy`, which applies them per target;
+# imposing them here would additionally apply them to third-party sources that
+# this repository has no authority to remediate.
 #
-# `-stdlib=` is a C++ selection and is unused when compiling C, where `-Werror`
-# turns an unused argument into a hard failure, so it stays off the C line.
-set(CMAKE_C_FLAGS_INIT "-Wall -Wextra -Wpedantic -Werror")
-set(CMAKE_CXX_FLAGS_INIT
-    "-Wall -Wextra -Wpedantic -Werror -fno-exceptions -fno-rtti -stdlib=libc++ -std=c++23")
+# The standard library is a platform closure decision rather than a style one,
+# because a single link-compatible C++ ABI has to span dependencies and
+# first-party code. It is the Linux counterpart of the single dynamic release
+# CRT that the Windows lane selects. The admitted host installs the libstdc++
+# runtime but no GCC development package, so libc++ from the locked LLVM tree is
+# also the only standard library with headers present. `-stdlib=` is a C++
+# selection that a C compile would reject as unused, so it stays off the C line.
+set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
 
 # The admitted host installs no binutils and no GCC development packages, so
 # the driver has neither `ld` nor `crtbegin.o`/`libgcc.a` to fall back on. Every
