@@ -138,9 +138,14 @@ vcpkg_configure_make(
     OPTIONS_DEBUG
         --debug
 )
+# `build_sw` is the software-only build target OpenSSL 3.5.7 generates. The
+# install step keeps vcpkg's default `install` target, which this configuration
+# resolves to `install_sw install_ssldirs`: documentation is already excluded by
+# `no-docs`, and the ssldirs half creates the certificate and private
+# directories that the `.keep` markers below rely on.
 vcpkg_install_make(
     ${MAKEFILE_OPTIONS}
-    BUILD_TARGET build_inst_sw
+    BUILD_TARGET build_sw
 )
 vcpkg_fixup_pkgconfig()
 
