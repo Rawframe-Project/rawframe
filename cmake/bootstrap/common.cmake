@@ -168,6 +168,33 @@ function(rf_verify_file_identity path expected_bytes expected_sha256 label)
     endif()
 endfunction()
 
+# TASK-0001 resolution R3. Exactly one CMake identity is admitted, so this
+# rejects vendor suffixes, release candidates, and every other version. It takes
+# the version as an argument rather than reading CMAKE_VERSION so the rule can
+# be exercised against fabricated inputs without a second CMake installation.
+function(rf_admit_bootstrap_cmake_version reported locked output_base)
+    if(NOT reported MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)$")
+        rf_bootstrap_fail("RF1203" "bootstrap CMake must be an upstream stable release without a vendor or candidate suffix")
+    endif()
+    set(base "${CMAKE_MATCH_1}")
+    if(NOT base VERSION_EQUAL locked)
+        rf_bootstrap_fail("RF1204" "bootstrap CMake is not the single locked CMake identity")
+    endif()
+    set(${output_base} "${base}" PARENT_SCOPE)
+endfunction()
+
+# TASK-0001 resolution R1. The operating system is admitted at generation plus a
+# revision floor, and the measured revision is returned so callers record it as
+# evidence rather than asserting the locked value back.
+function(rf_admit_host_os_revision measured minimum label)
+    if(NOT measured MATCHES "^[0-9]+$")
+        rf_bootstrap_fail("RF1501" "${label} update build revision is not a decimal integer")
+    endif()
+    if(measured LESS minimum)
+        rf_bootstrap_fail("RF1501" "${label} update build revision is below the locked minimum")
+    endif()
+endfunction()
+
 function(rf_load_bootstrap_authority repository_root host_id)
     set(toolchain_path "${repository_root}/third_party/toolchain.lock.json")
     set(artifact_path "${repository_root}/third_party/artifacts.lock.json")
@@ -175,8 +202,7 @@ function(rf_load_bootstrap_authority repository_root host_id)
     rf_read_bounded_json("${artifact_path}" artifact_json)
 
     rf_require_json_members(toolchain_json "toolchain lock" "\$schema,schemaVersion,lockVersion,bootstrap,managedTools,compilers,installedSdks,vcpkg")
-    rf_require_json_members(toolchain_json "toolchain bootstrap" "minimumCMakeVersion,verifierContractVersion,verifierArtifactIds,transportExecutables" bootstrap)
-    string(JSON minimum_cmake GET "${toolchain_json}" bootstrap minimumCMakeVersion)
+    rf_require_json_members(toolchain_json "toolchain bootstrap" "verifierContractVersion,verifierArtifactIds,transportExecutables" bootstrap)
     string(JSON verifier_contract_version GET "${toolchain_json}" bootstrap verifierContractVersion)
     if(NOT verifier_contract_version EQUAL 1)
         rf_bootstrap_fail("RF1234" "unsupported bootstrap verifier contract")
@@ -189,14 +215,14 @@ function(rf_load_bootstrap_authority repository_root host_id)
     set(transport_found FALSE)
     math(EXPR transport_last "${transport_count} - 1")
     foreach(transport_index RANGE 0 ${transport_last})
-        rf_require_json_members(toolchain_json "bootstrap transport" "hostId,absolutePath,version,byteSize,binarySha256,packageIdentity" bootstrap transportExecutables ${transport_index})
+        rf_require_json_members(toolchain_json "bootstrap transport" "hostId,absolutePath,minimumVersion,vendorSignature,packageIdentity" bootstrap transportExecutables ${transport_index})
         string(JSON candidate_host GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} hostId)
         if(candidate_host STREQUAL host_id)
             if(transport_found)
                 rf_bootstrap_fail("RF1227" "duplicate bootstrap transport for ${host_id}")
             endif()
             set(transport_found TRUE)
-            foreach(field IN ITEMS absolutePath version byteSize binarySha256 packageIdentity)
+            foreach(field IN ITEMS absolutePath minimumVersion vendorSignature packageIdentity)
                 string(JSON transport_${field} GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} ${field})
             endforeach()
         endif()
@@ -246,7 +272,7 @@ function(rf_load_bootstrap_authority repository_root host_id)
         rf_bootstrap_fail("RF1233" "bootstrap CMake artifact is missing for ${host_id}")
     endif()
 
-    foreach(variable IN ITEMS minimum_cmake transport_absolutePath transport_version transport_byteSize transport_binarySha256
+    foreach(variable IN ITEMS transport_absolutePath transport_minimumVersion transport_vendorSignature
                               transport_packageIdentity cmake_version cmake_byteSize cmake_sha256 cmake_origin
                               cmake_archive_format cmake_archive_root cmake_archive_manifestReference)
         set(RF_${variable} "${${variable}}" PARENT_SCOPE)

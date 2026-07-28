@@ -91,6 +91,49 @@ function(rawframe_register_repository_tests)
             PASS_REGULAR_EXPRESSION "RF1550" LABELS "security;bootstrap" TIMEOUT 60)
     endforeach()
 
+    # TASK-0001 resolutions R1 and R3. Both admission rules take their input as
+    # an argument, so each rejection reason is exercised directly. The two
+    # admitted cases run in the same suite so a rule that rejects everything
+    # cannot pass.
+    foreach(case_entry IN ITEMS
+            "cmake_release_candidate|RF1203" "cmake_vendor_build|RF1203"
+            "cmake_other_stable_release|RF1204" "cmake_locked_identity_admitted|RF1573"
+            "os_revision_below_floor|RF1501" "os_revision_not_integer|RF1501"
+            "os_revision_at_and_above_floor_admitted|RF1573")
+        string(REPLACE "|" ";" case_fields "${case_entry}")
+        list(GET case_fields 0 case_name)
+        list(GET case_fields 1 case_code)
+        add_test(NAME "BootstrapFixtures.AdmissionRules.${case_name}"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_CASE=${case_name}"
+                -P "${CMAKE_SOURCE_DIR}/cmake/bootstrap/tests/admission_rule_cases.cmake")
+        set_tests_properties("BootstrapFixtures.AdmissionRules.${case_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "${case_code}" LABELS "security;bootstrap" TIMEOUT 60)
+    endforeach()
+
+    # TASK-0001 resolution R2 replaced frozen transport bytes with an exact
+    # path, a version floor, and a vendor signature. Each condition carries a
+    # case that proves it rejects. The tampered-binary case accepts any of the
+    # signature-failure codes because SignTool stops before printing a signing
+    # chain once the embedded signature no longer covers the bytes.
+    foreach(case_entry IN ITEMS
+            "absent_transport|RF1255" "unknown_signature_class|RF1256"
+            "version_below_floor|RF1248" "unsigned_binary|RF144[123]")
+        string(REPLACE "|" ";" case_fields "${case_entry}")
+        list(GET case_fields 0 case_name)
+        list(GET case_fields 1 case_code)
+        if(case_name STREQUAL "unsigned_binary" AND NOT RAWFRAME_HOST_ID STREQUAL "windows-x86_64")
+            continue()
+        endif()
+        add_test(NAME "BootstrapFixtures.TransportAdmission.${case_name}"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_CASE=${case_name}"
+                "-DRF_SCRATCH=${scratch_root}/transport_admission"
+                -P "${CMAKE_SOURCE_DIR}/cmake/bootstrap/tests/transport_admission_cases.cmake")
+        set_tests_properties("BootstrapFixtures.TransportAdmission.${case_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "${case_code}" LABELS "security;bootstrap" TIMEOUT 120)
+    endforeach()
+
     # Stage-0 self-lock guard: a CMake running from beneath out/prepared keeps
     # its own image locked inside the tree the publish must replace, so the
     # publishing stages refuse it before performing any write. The command

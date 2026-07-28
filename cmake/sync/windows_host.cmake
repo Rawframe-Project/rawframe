@@ -3,8 +3,15 @@ include_guard(GLOBAL)
 # Probes the exact TASK-0001 locked Windows host tuple `host.windows_11_25h2_x86_64`.
 # Every locked value is mechanically probed; PATH presence never admits a component.
 
+# TASK-0001 resolution R1 admits the operating system at generation plus a
+# revision floor instead of an exact build. Exact operating-system build
+# identity belongs to the ADR-0020/SPEC-0015 benchmark cell fingerprint, not
+# to a Tier-0 correctness tool, and an exact-build gate would fail on every
+# cumulative update, which sets this Task against the ADR-0079 rule that
+# security updates are applied promptly. The measured revision is recorded as
+# evidence in the host tuple report. Every other value below stays exact.
 set(RF_WINDOWS_HOST_OS_BUILD "26200")
-set(RF_WINDOWS_HOST_OS_UBR "8655")
+set(RF_WINDOWS_HOST_OS_UBR_MINIMUM "8655")
 set(RF_WINDOWS_HOST_OS_DISPLAY_VERSION "25H2")
 set(RF_WINDOWS_HOST_OS_EDITION "Professional")
 # The owner-approved 2026-07-16 amendment admits exactly two Visual Studio
@@ -27,11 +34,8 @@ set(RF_WINDOWS_HOST_SDK_GENERATION "10.0.26100.0")
 set(RF_WINDOWS_HOST_SDK_PRODUCT_VERSION "10.0.26100")
 set(RF_WINDOWS_HOST_SDK_PACKAGE_VERSION "10.1.26100.8249")
 set(RF_WINDOWS_HOST_SDK_PACKAGE_GUID "{204d0387-6d9a-48cf-bb7d-93d49ec0141c}")
-set(RF_WINDOWS_HOST_SIGNTOOL
-    "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/signtool.exe")
-set(RF_WINDOWS_HOST_SIGNTOOL_BYTES 543144)
-set(RF_WINDOWS_HOST_SIGNTOOL_SHA256
-    "e7b517a6a2828af2d1fba3da60ae1e322a95141bfae192622725329630caa2b3")
+# The locked SignTool identity is owned by cmake/bootstrap/windows_signature.cmake
+# because Stage 0 needs it before this probe runs. Do not restate it here.
 
 function(rf_probe_windows_os_identity)
     cmake_host_system_information(RESULT build_number QUERY WINDOWS_REGISTRY
@@ -41,9 +45,8 @@ function(rf_probe_windows_os_identity)
     endif()
     cmake_host_system_information(RESULT ubr QUERY WINDOWS_REGISTRY
         "HKLM/SOFTWARE/Microsoft/Windows NT/CurrentVersion" VALUE "UBR")
-    if(NOT ubr STREQUAL RF_WINDOWS_HOST_OS_UBR)
-        rf_bootstrap_fail("RF1501" "host OS update build revision differs from the locked tuple")
-    endif()
+    rf_admit_host_os_revision("${ubr}" "${RF_WINDOWS_HOST_OS_UBR_MINIMUM}" "host OS")
+    set(RF_WINDOWS_HOST_OS_UBR_MEASURED "${ubr}" PARENT_SCOPE)
     cmake_host_system_information(RESULT display_version QUERY WINDOWS_REGISTRY
         "HKLM/SOFTWARE/Microsoft/Windows NT/CurrentVersion" VALUE "DisplayVersion")
     cmake_host_system_information(RESULT edition QUERY WINDOWS_REGISTRY
@@ -250,7 +253,8 @@ function(rf_probe_windows_host_tuple repository_root)
     file(WRITE "${report_root}/host-tuple.json.tmp"
         "{\n"
         "  \"host\": \"host.windows_11_25h2_x86_64\",\n"
-        "  \"osBuild\": \"${RF_WINDOWS_HOST_OS_BUILD}.${RF_WINDOWS_HOST_OS_UBR}\",\n"
+        "  \"osBuild\": \"${RF_WINDOWS_HOST_OS_BUILD}.${RF_WINDOWS_HOST_OS_UBR_MEASURED}\",\n"
+        "  \"osUpdateBuildRevisionMinimum\": \"${RF_WINDOWS_HOST_OS_UBR_MINIMUM}\",\n"
         "  \"osDisplayVersion\": \"${RF_WINDOWS_HOST_OS_DISPLAY_VERSION}\",\n"
         "  \"osEdition\": \"${RF_WINDOWS_HOST_OS_EDITION}\",\n"
         "  \"visualStudioVersion\": \"${RF_WINDOWS_HOST_VS_VERSION}\",\n"

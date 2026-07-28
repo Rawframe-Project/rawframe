@@ -23,7 +23,8 @@ include("${RF_REPOSITORY_ROOT}/cmake/sync/windows_prepare.cmake")
 
 rf_load_bootstrap_authority("${RF_REPOSITORY_ROOT}" "${RF_HOST}")
 rf_verify_transport_executable(
-    "${RF_transport_absolutePath}" "${RF_transport_version}" "${RF_transport_byteSize}" "${RF_transport_binarySha256}"
+    "${RF_transport_absolutePath}" "${RF_transport_minimumVersion}" "${RF_transport_vendorSignature}"
+    transport_measured_version
 )
 rf_sync_verify_complete_windows_closure(
     "${RF_REPOSITORY_ROOT}" "${RF_transport_absolutePath}" publication_ids publication_paths
