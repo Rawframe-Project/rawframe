@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/packaging-policy.schema.json",
+  "$id": "https://schemas.rawframe.net/packaging-policy.schema.json",
   "title": "Rawframe packaging policy",
   "type": "object",
   "additionalProperties": false,

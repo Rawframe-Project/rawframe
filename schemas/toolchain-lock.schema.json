@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/toolchain-lock.schema.json",
+  "$id": "https://schemas.rawframe.net/toolchain-lock.schema.json",
   "title": "Rawframe toolchain lock",
   "type": "object",
   "additionalProperties": false,
@@ -12,9 +12,8 @@
     "bootstrap": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["minimumCMakeVersion", "verifierContractVersion", "verifierArtifactIds", "transportExecutables"],
+      "required": ["verifierContractVersion", "verifierArtifactIds", "transportExecutables"],
       "properties": {
-        "minimumCMakeVersion": { "$ref": "#/$defs/version" },
         "verifierContractVersion": { "const": 1 },
         "verifierArtifactIds": { "$ref": "#/$defs/idSet" },
         "transportExecutables": {
@@ -112,13 +111,12 @@
     "bootstrapTransport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hostId", "absolutePath", "version", "byteSize", "binarySha256", "packageIdentity"],
+      "required": ["hostId", "absolutePath", "minimumVersion", "vendorSignature", "packageIdentity"],
       "properties": {
         "hostId": { "enum": ["windows-x86_64", "linux-x86_64"] },
         "absolutePath": { "type": "string", "minLength": 1, "maxLength": 260 },
-        "version": { "$ref": "#/$defs/version" },
-        "byteSize": { "type": "integer", "minimum": 1 },
-        "binarySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "minimumVersion": { "$ref": "#/$defs/version" },
+        "vendorSignature": { "enum": ["authenticode_microsoft_windows", "distribution_package_chain"] },
         "packageIdentity": { "type": "string", "minLength": 1, "maxLength": 256 }
       }
     }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/vendor-origin.schema.json",
+  "$id": "https://schemas.rawframe.net/vendor-origin.schema.json",
   "title": "Rawframe vendored source origin",
   "type": "object",
   "additionalProperties": false,

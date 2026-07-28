@@ -12,11 +12,6 @@ include("${CMAKE_CURRENT_LIST_DIR}/transport.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/archive.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/verifier.cmake")
 
-if(NOT CMAKE_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)(-msvc[0-9]+)?$")
-    rf_bootstrap_fail("RF1203" "bootstrap CMake must be a stable release or the locked Microsoft stable servicing build")
-endif()
-set(bootstrap_cmake_base_version "${CMAKE_MATCH_1}")
-
 cmake_path(GET CMAKE_CURRENT_LIST_DIR PARENT_PATH cmake_root)
 cmake_path(GET cmake_root PARENT_PATH repository_root)
 
@@ -38,9 +33,10 @@ if(NOT DEFINED RF_BOOTSTRAP_STAGE OR NOT RF_BOOTSTRAP_STAGE STREQUAL "verified_p
 endif()
 
 rf_load_bootstrap_authority("${repository_root}" "${RF_HOST}")
-if(bootstrap_cmake_base_version VERSION_LESS RF_minimum_cmake)
-    rf_bootstrap_fail("RF1204" "bootstrap CMake is older than the locked minimum")
-endif()
+# TASK-0001 resolution R3. Exactly one CMake identity is admitted: the locked
+# 4.4.0 artifact, pre-staged and digest-verified before it runs. No ambient,
+# vendor-bundled, or release-candidate CMake is admitted at any version.
+rf_admit_bootstrap_cmake_version("${CMAKE_VERSION}" "${RF_cmake_version}" bootstrap_cmake_base_version)
 
 if(RF_HOST STREQUAL "windows-x86_64")
     set(expected_transport_path "C:/Windows/System32/curl.exe")
@@ -54,9 +50,9 @@ if(NOT RF_transport_absolutePath STREQUAL expected_transport_path)
 endif()
 rf_verify_transport_executable(
     "${RF_transport_absolutePath}"
-    "${RF_transport_version}"
-    "${RF_transport_byteSize}"
-    "${RF_transport_binarySha256}"
+    "${RF_transport_minimumVersion}"
+    "${RF_transport_vendorSignature}"
+    transport_measured_version
 )
 
 set(bootstrap_root "${repository_root}/out/bootstrap/${RF_HOST}")

@@ -280,7 +280,7 @@
       "platform": "platform.any",
       "architectures": ["architecture.any"],
       "role": "data",
-      "origins": ["https://download.nus.edu.sg/mirror/gentoo/distfiles/7e/openpgp-keys-bradking-20240902-2D2CEF1034921684.asc"],
+      "origins": ["https://distfiles.gentoo.org/distfiles/7e/openpgp-keys-bradking-20240902-2D2CEF1034921684.asc"],
       "byteSize": 36974,
       "sha256": "ff237f671d27f5dcedda064da48d1d3bc2a422bb5bb07c56ea8487746e36b1fb",
       "signature": { "required": false, "scheme": "none", "expectedIdentity": "reviewed CMake release key bytes and fingerprint" },

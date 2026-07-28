@@ -1,5 +1,7 @@
 include_guard(GLOBAL)
 
+include("${CMAKE_CURRENT_LIST_DIR}/windows_signature.cmake")
+
 function(rf_classify_https_url url origin_host is_redirect output_host)
     if(url MATCHES "#" OR url MATCHES "^https://[^/]*@")
         rf_bootstrap_fail("RF1240" "transport URL contains forbidden credentials or fragment")
@@ -17,7 +19,7 @@ function(rf_classify_https_url url origin_host is_redirect output_host)
         if(url MATCHES "\\?")
             rf_bootstrap_fail("RF1243" "authoritative origin must be query-free")
         endif()
-        set(admitted_origins github.com www.sourcemeta.com www.nasm.us www.nasm.dev releases.ubuntu.com archive.ubuntu.com gnupg.org files.gpg4win.org download.nus.edu.sg tuf-repo-cdn.sigstore.dev releases.llvm.org packages.microsoft.com openssl-library.org)
+        set(admitted_origins github.com www.sourcemeta.com www.nasm.us www.nasm.dev releases.ubuntu.com archive.ubuntu.com gnupg.org files.gpg4win.org distfiles.gentoo.org tuf-repo-cdn.sigstore.dev releases.llvm.org packages.microsoft.com openssl-library.org)
         list(FIND admitted_origins "${host}" admitted_index)
         if(admitted_index EQUAL -1)
             rf_bootstrap_fail("RF1244" "authoritative origin host is not allowlisted")
@@ -38,8 +40,19 @@ function(rf_classify_https_url url origin_host is_redirect output_host)
     set(${output_host} "${host}" PARENT_SCOPE)
 endfunction()
 
-function(rf_verify_transport_executable executable expected_version expected_bytes expected_sha256)
-    rf_verify_file_identity("${executable}" "${expected_bytes}" "${expected_sha256}" "bootstrap transport")
+# TASK-0001 resolution R2. The transport is a serviced operating-system inbox
+# binary, so it is admitted by exact locked path, a minimum version, and the
+# vendor signature, and its measured version is recorded as evidence. Freezing
+# its bytes bought no attack resistance, because the transport does not
+# interpret anything and every artifact it fetches is afterwards verified
+# against a locked length and digest and an OpenPGP or Sigstore authority; a
+# substituted transport can only fail to deliver a correct artifact, never make
+# an incorrect one pass. Freezing its bytes did guarantee a hard failure at
+# every operating-system update.
+function(rf_verify_transport_executable executable minimum_version vendor_signature output_version)
+    if(NOT EXISTS "${executable}")
+        rf_bootstrap_fail("RF1255" "bootstrap transport is absent at its locked path")
+    endif()
     execute_process(
         COMMAND "${executable}" -q --version
         RESULT_VARIABLE version_result
@@ -47,9 +60,21 @@ function(rf_verify_transport_executable executable expected_version expected_byt
         ERROR_VARIABLE version_error
         TIMEOUT 10
     )
-    if(NOT version_result EQUAL 0 OR NOT version_output MATCHES "^curl ${expected_version} ")
-        rf_bootstrap_fail("RF1248" "bootstrap transport version identity mismatch")
+    if(NOT version_result EQUAL 0 OR NOT version_output MATCHES "^curl ([0-9]+\\.[0-9]+\\.[0-9]+) ")
+        rf_bootstrap_fail("RF1248" "bootstrap transport did not report a parsable curl version")
     endif()
+    set(measured_version "${CMAKE_MATCH_1}")
+    if(measured_version VERSION_LESS minimum_version)
+        rf_bootstrap_fail("RF1248" "bootstrap transport version is below the locked minimum")
+    endif()
+
+    if(vendor_signature STREQUAL "authenticode_microsoft_windows")
+        rf_verify_windows_vendor_signature("${executable}" "bootstrap transport")
+    elseif(NOT vendor_signature STREQUAL "distribution_package_chain")
+        rf_bootstrap_fail("RF1256" "bootstrap transport declares an unknown vendor signature class")
+    endif()
+
+    set(${output_version} "${measured_version}" PARENT_SCOPE)
 endfunction()
 
 function(rf_download_manually_redirected curl_executable origin destination expected_bytes output_hops output_hosts)

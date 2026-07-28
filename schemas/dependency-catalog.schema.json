@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/dependency-catalog.schema.json",
+  "$id": "https://schemas.rawframe.net/dependency-catalog.schema.json",
   "title": "Rawframe third-party dependency catalog",
   "type": "object",
   "additionalProperties": false,

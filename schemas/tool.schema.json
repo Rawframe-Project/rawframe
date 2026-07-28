@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/tool.schema.json",
+  "$id": "https://schemas.rawframe.net/tool.schema.json",
   "title": "Rawframe repository tool manifest",
   "type": "object",
   "additionalProperties": false,
