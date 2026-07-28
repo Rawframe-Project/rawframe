@@ -218,7 +218,7 @@ Result<OfflineVerificationReport> verifyOfflineInputs(const std::filesystem::pat
 #ifdef _WIN32
             const auto* const kRelative = "cosign/bin/cosign.exe";
 #else
-            const auto relative = "cosign/bin/cosign";
+            const auto* const kRelative = "cosign/bin/cosign";
 #endif
             preparedExpectations.push_back({kPreparedTools / kRelative, expectedBytes, *expectedDigest, *id});
         } else if (*id == (hostId == "windows-x86_64" ? "tool.cosign.windows_x86_64_bundle"
