@@ -235,12 +235,14 @@ function(rawframe_register_repository_tests)
         set_tests_properties("SyncFixtures.OpenpgpSidecars" PROPERTIES
             LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 120)
 
+        # No transport argument at all. Every input is a published verification
+        # corpus artifact, so this fixture has no acquisition path to deny.
         add_test(NAME "SyncFixtures.ReleasePrimaries"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
-                "-DRF_HOST=windows-x86_64" "-DRF_TRANSPORT=${denied_transport}"
+                "-DRF_HOST=windows-x86_64"
                 -P "${fixture_scripts}/release_primaries.cmake")
         set_tests_properties("SyncFixtures.ReleasePrimaries" PROPERTIES
-            LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 300)
+            PASS_REGULAR_EXPRESSION "RF1497" LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 300)
 
         add_test(NAME "SyncFixtures.LlvmClosure"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"

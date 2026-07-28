@@ -2,6 +2,19 @@
   "$schema": "../schemas/artifact-lock.schema.json",
   "schemaVersion": 1,
   "lockVersion": 1,
+  "verificationCorpus": [
+    "authority.microsoft_release_key.data",
+    "authority.openssl_release_keys.data",
+    "authority.sourcemeta_release_key.data",
+    "library.openssl.source",
+    "library.openssl.source_signature",
+    "tool.jsonschema_oracle.checksums",
+    "tool.jsonschema_oracle.checksums_signature",
+    "tool.jsonschema_oracle.linux_x86_64",
+    "tool.jsonschema_oracle.windows_x86_64",
+    "tool.vcpkg.linux_x86_64",
+    "tool.vcpkg.linux_x86_64_signature"
+  ],
   "artifacts": [
     {
       "id": "host.ubuntu.linux_x86_64",
