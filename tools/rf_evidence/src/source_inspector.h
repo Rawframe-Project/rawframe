@@ -62,6 +62,12 @@ enum class SourceGate : std::uint8_t {
     return "ok";
 }
 
+// The 1,500-line gate is a verification failure rather than a report
+// classification. It is exposed as its own rule so that it can be rejected
+// directly, without a fixture file that would itself become maintained source
+// and trip the gate during ordinary runs.
+[[nodiscard]] Status admitPhysicalLineCount(std::string_view path, std::size_t lines);
+
 struct SourceOwnershipEntry {
     std::string path;
     std::size_t lines;

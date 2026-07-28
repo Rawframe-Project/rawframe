@@ -1,9 +1,12 @@
 #include "report_writer.h"
+#include "repository_validator.h"
 #include "source_inspector.h"
 
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <set>
 #include <string>
+#include <vector>
 
 namespace rawframe::tool::evidence {
 
@@ -40,6 +43,43 @@ TEST(SourceInspector, PreservesTheExactStandardThresholds) {
     EXPECT_EQ(kOwnershipReviewLines, 600U);
     EXPECT_EQ(kFeatureGrowthStopLines, 1'000U);
     EXPECT_EQ(kHardFailureLines, 1'500U);
+}
+
+TEST(SourceInspector, AdmitsFileLengthsBelowTheHardFailureGate) {
+    EXPECT_TRUE(admitPhysicalLineCount("tools/rf_evidence/src/example.cpp", 0).has_value());
+    EXPECT_TRUE(admitPhysicalLineCount("tools/rf_evidence/src/example.cpp", kHardFailureLines - 1).has_value());
+}
+
+TEST(SourceInspector, RejectsFileLengthsAtOrAboveTheHardFailureGate) {
+    auto atGate = admitPhysicalLineCount("tools/rf_evidence/src/example.cpp", kHardFailureLines);
+    ASSERT_FALSE(atGate.has_value());
+    EXPECT_EQ(atGate.error().code, FailureCode::LimitExceeded);
+    EXPECT_EQ(atGate.error().path, "tools/rf_evidence/src/example.cpp");
+    EXPECT_NE(atGate.error().message.find("1500-line hard failure gate"), std::string::npos);
+
+    EXPECT_FALSE(admitPhysicalLineCount("tools/rf_evidence/src/example.cpp", kHardFailureLines + 1).has_value());
+}
+
+TEST(SourceInspector, AttributesOwnershipToTheDeclaringToolManifest) {
+    const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
+    auto snapshot = validateRepository(kRoot);
+    ASSERT_TRUE(snapshot.has_value()) << snapshot.error().path << ": " << snapshot.error().message;
+    ASSERT_FALSE(snapshot->tools.empty());
+
+    auto result = inspectSourceOwnership(kRoot);
+    ASSERT_TRUE(result.has_value()) << result.error().path << ": " << result.error().message;
+    ASSERT_FALSE(result->empty());
+
+    // The owner must come from the manifest, not from a constant inside the
+    // inspector, so every reported owner has to be one a manifest declares.
+    std::set<std::string> declaredOwners;
+    for (const auto& tool : snapshot->tools) {
+        EXPECT_FALSE(tool.owner.empty()) << tool.id;
+        declaredOwners.insert(tool.owner);
+    }
+    for (const auto& entry : *result) {
+        EXPECT_TRUE(declaredOwners.contains(entry.owner)) << entry.path << ": " << entry.owner;
+    }
 }
 
 TEST(SourceInspector, ClassifiesEveryMaintainedFileAgainstTheMeasuredLineCount) {

@@ -133,8 +133,15 @@ Result<ToolInfo> validateToolManifest(const std::filesystem::path& repositoryRoo
 
     auto schema = requiredString(kRoot, "$schema", manifestPath);
     auto id = requiredString(kRoot, "id", manifestPath);
-    if (!schema || !id) {
-        return std::unexpected(!schema ? schema.error() : id.error());
+    // The manifest is the declared ownership authority for everything beneath the
+    // tool root. STD-0001's ownership review has no other source of truth, so it
+    // is read here rather than restated as a constant by any consumer.
+    auto owner = requiredString(kRoot, "owner", manifestPath);
+    if (!schema || !id || !owner) {
+        if (!schema) {
+            return std::unexpected(schema.error());
+        }
+        return std::unexpected(!id ? id.error() : owner.error());
     }
     if (*schema != "../../schemas/tool.schema.json" || !id->starts_with("rawframe.tool.")) {
         return std::unexpected(
@@ -193,6 +200,7 @@ Result<ToolInfo> validateToolManifest(const std::filesystem::path& repositoryRoo
     return ToolInfo{
         .id = std::move(*id),
         .manifestPath = std::move(manifestRelativePath),
+        .owner = std::move(*owner),
         .cmakeTarget = std::move(*target),
         .thirdPartyDependencies = std::move(*thirdParty),
         .managedToolDependencies = std::move(*managedTools),

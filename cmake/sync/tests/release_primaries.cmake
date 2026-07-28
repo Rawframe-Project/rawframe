@@ -13,6 +13,32 @@ include("${RF_REPOSITORY_ROOT}/cmake/sync/openpgp.cmake")
 rf_sync_require_prepared_verifiers("${RF_REPOSITORY_ROOT}" "${RF_HOST}" gpg gpgv cosign trusted_root)
 set(work_root "${RF_REPOSITORY_ROOT}/out/sync/${RF_HOST}/quarantine")
 
+# This fixture verifies release-primary signature chains offline and is given a
+# denied transport on purpose, because the dependency contract forbids network
+# access during test. Several of its inputs are platform.linux artifacts that a
+# Windows sync never publishes, so on a clean Windows host they must be staged
+# explicitly. Report exactly which are missing instead of failing later inside
+# the transport with an opaque curl status.
+set(missing_inputs "")
+foreach(required_id IN ITEMS
+        "tool.vcpkg.linux_x86_64" "tool.vcpkg.linux_x86_64_signature"
+        "authority.microsoft_release_key.data" "library.openssl.source"
+        "library.openssl.source_signature" "authority.openssl_release_keys.data"
+        "tool.jsonschema_oracle.windows_x86_64" "tool.jsonschema_oracle.linux_x86_64"
+        "tool.jsonschema_oracle.checksums" "tool.jsonschema_oracle.checksums_signature"
+        "authority.sourcemeta_release_key.data")
+    rf_sync_load_artifact("${RF_REPOSITORY_ROOT}" "${required_id}" probe)
+    if(NOT EXISTS "${work_root}/artifact-${probe_sha256}"
+       AND NOT EXISTS "${RF_REPOSITORY_ROOT}/out/sync/${RF_HOST}/prestaged/artifact-${probe_sha256}")
+        list(APPEND missing_inputs "${required_id}")
+    endif()
+endforeach()
+if(missing_inputs)
+    list(JOIN missing_inputs ", " missing_text)
+    rf_bootstrap_fail("RF1497"
+        "release-primary inputs are not staged for ${RF_HOST} and this fixture may not use the network: ${missing_text}")
+endif()
+
 foreach(pair IN ITEMS
         "tool.vcpkg.linux_x86_64|vcpkg"
         "tool.vcpkg.linux_x86_64_signature|vcpkg_signature"
