@@ -4,6 +4,14 @@ set(VCPKG_LIBRARY_LINKAGE static)
 
 set(VCPKG_BUILD_TYPE release)
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)
+
+# vcpkg runs an ELF RPATH rewrite after every Linux port unless a triplet says
+# otherwise, and that rewrite acquires `patchelf` by download, which this
+# offline lane forbids. The rewrite exists so that installed shared objects can
+# locate their siblings at load time; this triplet builds every dependency
+# statically, so it produces no shared object for the step to act on. Turning it
+# off removes a network dependency instead of hiding one.
+set(VCPKG_FIXUP_ELF_RPATH OFF)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE
     "${CMAKE_CURRENT_LIST_DIR}/../toolchains/linux-x86_64.cmake")
 
