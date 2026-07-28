@@ -32,8 +32,23 @@ set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
 # the linker, compiler-rt as the builtins runtime, and libunwind plus libc++ as
 # the C++ runtime. This is the intended configuration rather than a workaround,
 # because it keeps the toolchain closure inside the artifacts the lock verifies.
+#
+# That runtime is linked statically for the same reason. It exists only inside
+# the prepared LLVM tree, so a dynamic link would leave every produced binary
+# depending at run time on the location of a build directory, and the loader has
+# no reason to look there.
+#
+# `-static-libstdc++` covers libc++ itself. The C++ ABI library and the unwinder
+# are not covered, and both ship as an archive beside a shared object, so an
+# ordinary `-l` would silently prefer the shared one. `-l:` names the exact file
+# and leaves no room for that choice. They are named as standard libraries
+# rather than link flags because a linker only searches an archive for symbols
+# that are still undefined when it reaches it, which requires them to come after
+# the object files.
 set(rf_linux_link_flags
-    "-fuse-ld=lld --rtlib=compiler-rt --unwindlib=libunwind -stdlib=libc++")
+    "-fuse-ld=lld --rtlib=compiler-rt --unwindlib=none -stdlib=libc++ -static-libstdc++")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${rf_linux_link_flags}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "${rf_linux_link_flags}")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "${rf_linux_link_flags}")
+set(CMAKE_C_STANDARD_LIBRARIES_INIT "-l:libunwind.a")
+set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "-l:libc++abi.a -l:libunwind.a")
