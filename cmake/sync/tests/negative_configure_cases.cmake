@@ -3,28 +3,51 @@ cmake_minimum_required(VERSION 4.4.0)
 # Negative configure probes. Each case runs a real preset configure in a
 # scratch binary directory with one forbidden provider substitution and must
 # fail before any production compilation, emitting the exact RF diagnostic
-# that CTest asserts through PASS_REGULAR_EXPRESSION. The child inherits the
-# captured locked MSVC environment so compiler detection itself succeeds and
-# the policy check is what fails.
+# that CTest asserts through PASS_REGULAR_EXPRESSION.
+#
+# The provider-authority cases apply to every host, because the installed-tree
+# checks run before the Windows-specific section of the policy. The toolchain
+# substitution cases describe Windows providers and are rejected elsewhere.
 
-foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_CASE RF_SCRATCH)
+foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_HOST RF_CASE RF_SCRATCH)
     if(NOT DEFINED ${argument})
         message(FATAL_ERROR "RF1545 ${argument} is required")
     endif()
 endforeach()
 
-set(prepared_root "${RF_REPOSITORY_ROOT}/out/prepared/windows-x86_64")
-set(msvc_environment "${prepared_root}/msvc-environment.cmake")
-if(NOT EXISTS "${msvc_environment}")
-    message(FATAL_ERROR "RF1546 captured MSVC environment is required for negative configure probes")
+set(prepared_root "${RF_REPOSITORY_ROOT}/out/prepared/${RF_HOST}")
+set(preset "task-0001-${RF_HOST}-debug")
+set(child_environment "")
+if(RF_HOST STREQUAL "windows-x86_64")
+    set(expected_triplet "x64-windows-rawframe")
+    # The child inherits the captured locked MSVC environment so compiler
+    # detection itself succeeds and the policy check is what fails.
+    set(msvc_environment "${prepared_root}/msvc-environment.cmake")
+    if(NOT EXISTS "${msvc_environment}")
+        message(FATAL_ERROR "RF1546 captured MSVC environment is required for negative configure probes")
+    endif()
+    include("${msvc_environment}")
+    # Both values are semicolon-separated search paths, and this list is
+    # expanded unquoted into the command below, so the separators are escaped
+    # here to keep each variable one argument instead of many.
+    string(REPLACE ";" "\\;" msvc_include "${RF_MSVC_INCLUDE}")
+    string(REPLACE ";" "\\;" msvc_lib "${RF_MSVC_LIB}")
+    set(child_environment "INCLUDE=${msvc_include}" "LIB=${msvc_lib}")
+elseif(RF_HOST STREQUAL "linux-x86_64")
+    set(expected_triplet "x64-linux-rawframe")
+else()
+    message(FATAL_ERROR "RF1546 unsupported negative configure host: ${RF_HOST}")
 endif()
-include("${msvc_environment}")
 
 set(case_scratch "${RF_SCRATCH}/${RF_CASE}")
 file(REMOVE_RECURSE "${case_scratch}")
 file(MAKE_DIRECTORY "${case_scratch}")
 
 set(case_arguments "")
+if(RF_CASE MATCHES "^(msvc_frontend|vs_bundled_clang|wrong_sdk)$"
+   AND NOT RF_HOST STREQUAL "windows-x86_64")
+    message(FATAL_ERROR "RF1548 case '${RF_CASE}' describes a Windows provider substitution")
+endif()
 if(RF_CASE STREQUAL "msvc_frontend")
     # cl.exe try-compile linking needs mt.exe, which the locked closure does
     # not provide, so compiler validation would fail before the policy check.
@@ -52,9 +75,9 @@ elseif(RF_CASE STREQUAL "wrong_vcpkg_baseline")
     file(MAKE_DIRECTORY "${case_scratch}/installed")
     file(WRITE "${case_scratch}/installed/.rf-prepared.json"
         "{\n"
-        "  \"host\": \"windows-x86_64\",\n"
+        "  \"host\": \"${RF_HOST}\",\n"
         "  \"kind\": \"vcpkg-installed-closure\",\n"
-        "  \"triplet\": \"x64-windows-rawframe\",\n"
+        "  \"triplet\": \"${expected_triplet}\",\n"
         "  \"packages\": [\"gtest\", \"openssl\", \"simdjson\"],\n"
         "  \"registryBaseline\": \"ambient_wrong_baseline\",\n"
         "  \"offline\": true\n"
@@ -68,10 +91,8 @@ else()
 endif()
 
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env
-        "INCLUDE=${RF_MSVC_INCLUDE}"
-        "LIB=${RF_MSVC_LIB}"
-        "${CMAKE_COMMAND}" --preset task-0001-windows-x86_64-debug --fresh
+    COMMAND "${CMAKE_COMMAND}" -E env ${child_environment}
+        "${CMAKE_COMMAND}" --preset "${preset}" --fresh
         -B "${case_scratch}/build" ${case_arguments}
     WORKING_DIRECTORY "${RF_REPOSITORY_ROOT}"
     RESULT_VARIABLE configure_result
