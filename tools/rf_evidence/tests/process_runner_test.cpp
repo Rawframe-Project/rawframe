@@ -152,9 +152,17 @@ TEST(ProcessRunner, DoesNotLeakTheParentEnvironmentToTheChild) {
 
     auto result = runBoundedProcess(requestFor("environment", {"-E", "environment"}));
     ASSERT_TRUE(result.has_value()) << result.error().message;
-    // Without this the case would pass on an empty capture, which proves
-    // nothing about inheritance.
+#ifdef _WIN32
+    // Windows needs `SystemRoot` to initialize basic APIs, so the child gets
+    // exactly that one variable. Requiring a non-empty capture also keeps the
+    // case from passing on a capture that never happened.
     ASSERT_FALSE(result->standardOutput.empty()) << "the child printed no environment at all";
+#else
+    // A POSIX child needs nothing, so it receives nothing and the exact
+    // expected capture is empty. That is a measurement rather than a missing
+    // result: other cases in this file already prove output capture works.
+    EXPECT_TRUE(result->standardOutput.empty()) << "the child received an environment: " << result->standardOutput;
+#endif
     EXPECT_EQ(result->standardOutput.find("leaked-value"), std::string::npos)
         << "the child inherited an ambient environment variable";
     EXPECT_EQ(result->standardOutput.find(kMarker), std::string::npos);

@@ -161,6 +161,31 @@ function(rf_extract_debian_payload package destination required_path expected_by
     set(${output_path} "${destination}/${required_path}" PARENT_SCOPE)
 endfunction()
 
+# A Debian package index is a bare deflate stream rather than an archive
+# container, so it is decompressed by the prepared extractor Stage 0 verified,
+# not by the CMake archive reader.
+function(rf_read_debian_packages_index extractor archive scratch_root output_text)
+    if(NOT EXISTS "${extractor}")
+        rf_bootstrap_fail("RF1529" "prepared archive extractor is missing")
+    endif()
+    set(decompressed "${scratch_root}/Packages")
+    file(MAKE_DIRECTORY "${scratch_root}")
+    file(REMOVE "${decompressed}")
+    execute_process(
+        COMMAND "${extractor}" x -so "${archive}"
+        RESULT_VARIABLE extract_result OUTPUT_FILE "${decompressed}" ERROR_VARIABLE extract_error TIMEOUT 60
+    )
+    if(NOT extract_result EQUAL 0 OR NOT EXISTS "${decompressed}")
+        rf_bootstrap_fail("RF1529" "signed Packages index could not be decompressed")
+    endif()
+    file(SIZE "${decompressed}" packages_bytes)
+    if(packages_bytes GREATER 67108864)
+        rf_bootstrap_fail("RF1529" "signed Packages index exceeds 64 MiB")
+    endif()
+    file(READ "${decompressed}" packages_text LIMIT 67108865)
+    set(${output_text} "${packages_text}" PARENT_SCOPE)
+endfunction()
+
 function(rf_require_debian_package_record packages_text package version filename bytes sha256)
     set(marker "Package: ${package}\n")
     string(FIND "${packages_text}" "${marker}" first_offset)

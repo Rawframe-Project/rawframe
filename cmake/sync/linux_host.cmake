@@ -92,29 +92,11 @@ endfunction()
 function(rf_probe_linux_package_closure repository_root)
     rf_sync_cache_path("${repository_root}" "host.ubuntu.noble_packages"
         packages_archive ignored_root ignored_format)
-    # A Debian package index is a bare deflate stream rather than an archive
-    # container, so it is decompressed by the prepared extractor Stage 0
-    # verified, not by the CMake archive reader.
-    set(extractor "${repository_root}/out/prepared/linux-x86_64/tools/seven_zip/7zz")
-    if(NOT EXISTS "${extractor}")
-        rf_bootstrap_fail("RF1529" "prepared archive extractor is missing")
-    endif()
-    set(probe_root "${repository_root}/out/sync/linux-x86_64/host-probe")
-    set(decompressed "${probe_root}/Packages")
-    file(MAKE_DIRECTORY "${probe_root}")
-    file(REMOVE "${decompressed}")
-    execute_process(
-        COMMAND "${extractor}" x -so "${packages_archive}"
-        RESULT_VARIABLE extract_result OUTPUT_FILE "${decompressed}" ERROR_VARIABLE extract_error TIMEOUT 60
-    )
-    if(NOT extract_result EQUAL 0 OR NOT EXISTS "${decompressed}")
-        rf_bootstrap_fail("RF1529" "signed Packages index could not be decompressed")
-    endif()
-    file(SIZE "${decompressed}" packages_bytes)
-    if(packages_bytes GREATER 67108864)
-        rf_bootstrap_fail("RF1529" "signed Packages index exceeds 64 MiB")
-    endif()
-    file(READ "${decompressed}" packages_text LIMIT 67108865)
+    rf_read_debian_packages_index(
+        "${repository_root}/out/prepared/linux-x86_64/tools/seven_zip/7zz"
+        "${packages_archive}"
+        "${repository_root}/out/sync/linux-x86_64/host-probe"
+        packages_text)
 
     set(measured "")
     foreach(entry IN LISTS RF_LINUX_HOST_PACKAGES)

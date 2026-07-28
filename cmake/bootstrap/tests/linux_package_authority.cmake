@@ -3,16 +3,22 @@ cmake_minimum_required(VERSION 4.4)
 if(NOT DEFINED RF_PACKAGES_FILE OR NOT EXISTS "${RF_PACKAGES_FILE}")
     message(FATAL_ERROR "RF1310 RF_PACKAGES_FILE is required")
 endif()
+if(NOT DEFINED RF_REPOSITORY_ROOT OR NOT IS_DIRECTORY "${RF_REPOSITORY_ROOT}")
+    message(FATAL_ERROR "RF1310 RF_REPOSITORY_ROOT is required")
+endif()
 
 cmake_path(GET CMAKE_CURRENT_LIST_DIR PARENT_PATH bootstrap_root)
 include("${bootstrap_root}/common.cmake")
 include("${bootstrap_root}/verifier.cmake")
 
-file(SIZE "${RF_PACKAGES_FILE}" packages_bytes)
-if(packages_bytes GREATER 67108864)
-    message(FATAL_ERROR "RF1311 Packages fixture exceeds 64 MiB")
-endif()
-file(READ "${RF_PACKAGES_FILE}" packages_text LIMIT 67108865)
+# The locked artifact is the compressed index Canonical publishes, so the
+# fixture reads it through the same decompression the host probe uses instead of
+# treating the stored bytes as text.
+rf_read_debian_packages_index(
+    "${RF_REPOSITORY_ROOT}/out/prepared/linux-x86_64/tools/seven_zip/7zz"
+    "${RF_PACKAGES_FILE}"
+    "${RF_REPOSITORY_ROOT}/out/sync/linux-x86_64/package-authority-fixture"
+    packages_text)
 
 rf_require_debian_package_record(
     "${packages_text}" "gpgv" "2.4.4-2ubuntu17"
