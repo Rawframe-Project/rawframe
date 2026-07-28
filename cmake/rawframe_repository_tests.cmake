@@ -313,7 +313,7 @@ function(rawframe_register_repository_tests)
         # The signed Ubuntu Packages index is acquired by this lane's Stage-0
         # sync, so its exact locked gpgv/gpg/gpgconf/ubuntu-keyring records are
         # asserted here and nowhere else.
-        rawframe_locked_cache_object(ubuntu_packages "host.ubuntu.resolute_packages")
+        rawframe_locked_cache_object(ubuntu_packages "host.ubuntu.noble_packages")
         add_test(NAME "BootstrapFixtures.LinuxPackageAuthority"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_PACKAGES_FILE=${ubuntu_packages}"

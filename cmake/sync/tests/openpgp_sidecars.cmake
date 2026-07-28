@@ -55,12 +55,12 @@ if(DEFINED RF_UBUNTU_KEYRING_PACKAGE)
     )
     rf_verify_detached_openpgp(
         "${RF_GPGV}" "${ubuntu_keyring}" "${RF_UBUNTU_SIGNATURE}" "${RF_UBUNTU_CHECKSUMS}"
-        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 26.04 image checksums"
+        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 24.04 image checksums"
     )
     rf_require_exact_checksum_line(
         "${RF_UBUNTU_CHECKSUMS}"
-        "dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9 *ubuntu-26.04-live-server-amd64.iso"
-        "Ubuntu 26.04 server image"
+        "8762f7e74e4d64d72fceb5f70682e6b069932deedb4949c6975d0f0fe0a91be3 *ubuntu-24.04-live-server-amd64.iso"
+        "Ubuntu 24.04 server image"
     )
 endif()
 message(STATUS "RF1495 OpenPGP sidecar fixtures passed")

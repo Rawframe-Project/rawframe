@@ -8,8 +8,8 @@
       "authority.cmake_release_key.data",
       "authority.sigstore_trusted_root.data",
       "authority.ubuntu_archive_keyring.linux_all",
-      "host.ubuntu.resolute_inrelease",
-      "host.ubuntu.resolute_packages",
+      "host.ubuntu.noble_inrelease",
+      "host.ubuntu.noble_packages",
       "tool.archive_extractor.linux_x86_64",
       "tool.archive_extractor.windows_x86_64",
       "tool.cmake.checksums",
@@ -37,7 +37,7 @@
         "absolutePath": "/usr/bin/curl",
         "minimumVersion": "8.18.0",
         "vendorSignature": "distribution_package_chain",
-        "packageIdentity": "Ubuntu 26.04 inbox curl, serviced in place by the distribution"
+        "packageIdentity": "Ubuntu 24.04 inbox curl, serviced in place by the distribution"
       }
     ]
   },

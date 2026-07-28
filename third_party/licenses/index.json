@@ -9,7 +9,7 @@
     {
       "path": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
       "byteSize": 93811,
-      "sha256": "c05c422e9037b697a900fa0c75c6c0137bcc15b9344a94629ba8841ab3858c8d"
+      "sha256": "51f13fedd668b9e24564e0fd3db0ee262a56096d2acba1ca4f9f3aeef2df844b"
     },
     {
       "path": "third_party/licenses/cmake/LICENSE.rst",
@@ -159,7 +159,7 @@
       "catalogIds": ["host.ubuntu"],
       "spdxExpression": "LicenseRef-Ubuntu",
       "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
-      "sectionHeading": "Ubuntu 26.04 build-host media",
+      "sectionHeading": "Ubuntu 24.04 build-host media",
       "redistribution": "conditional",
       "approval": "approved"
     },

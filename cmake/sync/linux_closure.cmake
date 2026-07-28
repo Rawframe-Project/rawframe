@@ -54,12 +54,12 @@ function(rf_sync_verify_ubuntu_media repository_root transport output_ids output
     endif()
     rf_verify_detached_openpgp(
         "${gpgv}" "${archive_keyring}" "${checksums_signature_path}" "${checksums_path}"
-        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 26.04 image checksums"
+        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 24.04 image checksums"
     )
     rf_require_exact_checksum_line(
         "${checksums_path}"
-        "${image_sha256} *ubuntu-26.04-live-server-amd64.iso"
-        "Ubuntu 26.04 server image"
+        "${image_sha256} *ubuntu-24.04-live-server-amd64.iso"
+        "Ubuntu 24.04 server image"
     )
     set(${output_ids}
         "host.ubuntu.linux_x86_64;host.ubuntu.sha256sums;host.ubuntu.sha256sums_signature" PARENT_SCOPE)

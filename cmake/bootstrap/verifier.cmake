@@ -193,8 +193,8 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.gnupg.linux_x86_64_full" gpg_pkg)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.gnupg.linux_x86_64_config" gpgconf_pkg)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "authority.ubuntu_archive_keyring.linux_all" key_pkg)
-    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.resolute_inrelease" inrelease)
-    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.resolute_packages" packages)
+    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.noble_inrelease" inrelease)
+    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.noble_packages" packages)
 
     rf_load_required_file("${repository_root}" "tool.archive_extractor.linux_x86_64" "7zz" seven_zip_inner)
     rf_load_required_file("${repository_root}" "tool.gnupg.linux_x86_64" "usr/bin/gpgv" gpgv_inner)
@@ -216,7 +216,7 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
         RESULT_VARIABLE verify_result OUTPUT_VARIABLE verify_output ERROR_VARIABLE verify_error TIMEOUT 30
     )
     if(NOT verify_result EQUAL 0 OR NOT verify_output MATCHES "VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C")
-        rf_bootstrap_fail("RF1302" "Canonical resolute InRelease verification failed")
+        rf_bootstrap_fail("RF1302" "Canonical noble InRelease verification failed")
     endif()
 
     file(READ "${inrelease_path}" inrelease_text LIMIT 262144)
@@ -279,7 +279,7 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
     set(RF_LINUX_SEVEN_ZIP_TREE "${quarantine_root}/seven-zip-${seven_zip_sha256}" PARENT_SCOPE)
     set(RF_LINUX_ARCHIVE_KEYRING "${archive_keyring}" PARENT_SCOPE)
     set(RF_LINUX_VERIFIER_ARTIFACT_PATHS "${seven_zip_path};${gpgv_pkg_path};${gpg_pkg_path};${gpgconf_pkg_path};${key_pkg_path};${inrelease_path};${packages_path}" PARENT_SCOPE)
-    set(RF_LINUX_VERIFIER_ARTIFACT_IDS "tool.archive_extractor.linux_x86_64;tool.gnupg.linux_x86_64;tool.gnupg.linux_x86_64_full;tool.gnupg.linux_x86_64_config;authority.ubuntu_archive_keyring.linux_all;host.ubuntu.resolute_inrelease;host.ubuntu.resolute_packages" PARENT_SCOPE)
+    set(RF_LINUX_VERIFIER_ARTIFACT_IDS "tool.archive_extractor.linux_x86_64;tool.gnupg.linux_x86_64;tool.gnupg.linux_x86_64_full;tool.gnupg.linux_x86_64_config;authority.ubuntu_archive_keyring.linux_all;host.ubuntu.noble_inrelease;host.ubuntu.noble_packages" PARENT_SCOPE)
 endfunction()
 
 function(rf_verify_cmake_release repository_root bootstrap_root quarantine_root curl_executable gpg gpgv gpgconf cmake_origin cmake_sha256)

@@ -1776,6 +1776,6 @@ The files referenced by `license.openpgp_public_key` are public verification key
 
 ---
 
-## Ubuntu 26.04 build-host media
+## Ubuntu 24.04 build-host media
 
 The Ubuntu ISO is an installed build-host authority and is not a Rawframe distributable. Its redistribution classification remains conditional under `third_party/catalog.json`. Rawframe stores only the exact image identity, signed checksum authority, and package-index evidence required to reproduce the admitted host; downstream package copyright files remain governed by their individual packages.

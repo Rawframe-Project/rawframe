@@ -1,9 +1,9 @@
 include_guard(GLOBAL)
 
-# Probes the exact TASK-0001 locked Linux host tuple `host.ubuntu_26_04_x86_64`.
+# Probes the exact TASK-0001 locked Linux host tuple `host.ubuntu_24_04_x86_64`.
 #
 # The tuple has two separate authorities and the probe keeps them separate.
-# Package identity comes from the Canonical-signed `resolute` Packages index
+# Package identity comes from the Canonical-signed `noble` Packages index
 # that Stage 0 already published, so a locked identity is proven by a signature
 # chain rather than by the machine describing itself. Installation state comes
 # from the host package database, which can only answer which of those exact
@@ -11,25 +11,35 @@ include_guard(GLOBAL)
 
 include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/verifier.cmake")
 
-set(RF_LINUX_HOST_ID "host.ubuntu_26_04_x86_64")
+set(RF_LINUX_HOST_ID "host.ubuntu_24_04_x86_64")
 set(RF_LINUX_HOST_DISTRIBUTION "Ubuntu")
-set(RF_LINUX_HOST_RELEASE "26.04")
-set(RF_LINUX_HOST_CODENAME "resolute")
-set(RF_LINUX_HOST_GLIBC_VERSION "2.43-2ubuntu2")
+set(RF_LINUX_HOST_RELEASE "24.04")
+set(RF_LINUX_HOST_CODENAME "noble")
+set(RF_LINUX_HOST_GLIBC_VERSION "2.39-0ubuntu8")
 
 # Package, version, Filename, Size, SHA256 exactly as the locked signed index
-# publishes them. Order follows the Task packet table.
+# publishes them. The first ten entries follow the Task packet table order.
+#
+# The last four are the host shared libraries the locked LLVM primary loads by
+# `DT_NEEDED`. They were previously implicit, which is what let the toolchain
+# reach a host whose `libxml2` SONAME had moved past the one `ld.lld` requires.
+# A dependency the toolchain cannot start without is part of the tuple, so it is
+# pinned by the same signed-index evidence as everything else.
 set(RF_LINUX_HOST_PACKAGES
-    "libc6|2.43-2ubuntu2|pool/main/g/glibc/libc6_2.43-2ubuntu2_amd64.deb|2103270|c13775dc0c984403f3fcad229d14507a9f387763bd07ace1e5f93897ee6b8434"
-    "libc-bin|2.43-2ubuntu2|pool/main/g/glibc/libc-bin_2.43-2ubuntu2_amd64.deb|700930|c34230e6892fa95e498e51640f7131946120b83eb672f586e341fa53bf504359"
-    "libc-dev-bin|2.43-2ubuntu2|pool/main/g/glibc/libc-dev-bin_2.43-2ubuntu2_amd64.deb|23338|85ffc97dcc6c63c80693b07a984128b9e267992482f12e1c0dd87c65f014c769"
-    "libc6-dev|2.43-2ubuntu2|pool/main/g/glibc/libc6-dev_2.43-2ubuntu2_amd64.deb|2295266|6c8def1cafec89468fef8bd0d7a4eb66192a7850bf17c9decf7bca8fcf3dd5fa"
-    "linux-libc-dev|7.0.0-14.14|pool/main/l/linux/linux-libc-dev_7.0.0-14.14_amd64.deb|1548426|14bf36d574df2cacf2e50fa8c1f28b4b6b574b63e9561924cc942e4c9186e57e"
-    "libcrypt-dev|1:4.5.1-1|pool/main/libx/libxcrypt/libcrypt-dev_4.5.1-1_amd64.deb|121788|a5d86db4dde3de557a419aa3199e916de30b356717c4c1e8974270fda615c051"
-    "rpcsvc-proto|1.4.3-1build1|pool/main/r/rpcsvc-proto/rpcsvc-proto_1.4.3-1build1_amd64.deb|68294|d7102b9d3fd35fd7a66d94ba0765a9c8e87b2b80e3633ef4af401dd0c952bafd"
-    "make|4.4.1-3|pool/main/m/make-dfsg/make_4.4.1-3_amd64.deb|196620|a86f39d57a32b7c919c0ad721fc2f17ab533a42fda348c8d81a4eea1577a014f"
-    "perl|5.40.1-7build1|pool/main/p/perl/perl_5.40.1-7build1_amd64.deb|262182|b1def6b47f4f45852e4f79127fad9b947e2b9c1d5e2282e986b8bdb0ddd51b24"
-    "perl-base|5.40.1-7build1|pool/main/p/perl/perl-base_5.40.1-7build1_amd64.deb|1848640|3f8edc884ebb8c55120cb0535fb4e1029651d97fd380936ec5211bb4c926d809"
+    "libc6|2.39-0ubuntu8|pool/main/g/glibc/libc6_2.39-0ubuntu8_amd64.deb|3264806|af36c7ac770770fe3d3c10e85d6bc538e76e57570ba7db7d397fb9f654783ef3"
+    "libc-bin|2.39-0ubuntu8|pool/main/g/glibc/libc-bin_2.39-0ubuntu8_amd64.deb|681940|4ff873a8ae9622f0bc4e4be8cb1e5b3e94ff53a93a18af10e54f6e55cd7f92d0"
+    "libc-dev-bin|2.39-0ubuntu8|pool/main/g/glibc/libc-dev-bin_2.39-0ubuntu8_amd64.deb|20406|e1d2c6e9e6a4fa06a48703f57e1fad6dd643625eb0a4dd700c156d3a31e7689f"
+    "libc6-dev|2.39-0ubuntu8|pool/main/g/glibc/libc6-dev_2.39-0ubuntu8_amd64.deb|2123840|1f03b79223d9cf1a6ed3a648f6942619dcb97b2884dba8fd12e262b6771e247a"
+    "linux-libc-dev|6.8.0-31.31|pool/main/l/linux/linux-libc-dev_6.8.0-31.31_amd64.deb|1597672|21c631ba4da3d38d92a133e28a8a14278e1e00174ed135a20661d1e532e05ca5"
+    "libcrypt-dev|1:4.4.36-4build1|pool/main/libx/libxcrypt/libcrypt-dev_4.4.36-4build1_amd64.deb|111780|2edff420ef80b4a3f3751e65c33423ef30e563122a58b759e4854ea8d84ba1b1"
+    "rpcsvc-proto|1.4.2-0ubuntu7|pool/main/r/rpcsvc-proto/rpcsvc-proto_1.4.2-0ubuntu7_amd64.deb|67446|7eb710fe148d224c159ddec1ceb0ba53ead52a80a6793dcdae1474acf20d8f71"
+    "make|4.3-4.1build2|pool/main/m/make-dfsg/make_4.3-4.1build2_amd64.deb|179752|1fe6a815b56c7b6e9ce4086a363f09444bbd0a0d30e230c453d0b78e44b57a99"
+    "perl|5.38.2-3.2build2|pool/main/p/perl/perl_5.38.2-3.2build2_amd64.deb|231370|a59f3d152ed767cf3be0924890e64d1f9424ac75f4124672ba6830d2ac587e03"
+    "perl-base|5.38.2-3.2build2|pool/main/p/perl/perl-base_5.38.2-3.2build2_amd64.deb|1822564|82a75783b5b63b92d83c3f022e98dba9542e30d3a228b3e381d9c302b14df095"
+    "libstdc++6|14-20240412-0ubuntu1|pool/main/g/gcc-14/libstdc++6_14-20240412-0ubuntu1_amd64.deb|795158|4863e880d6ee538e4734c430c5579c1ac933b88a42c25bc9980d0f148c54b21e"
+    "libgcc-s1|14-20240412-0ubuntu1|pool/main/g/gcc-14/libgcc-s1_14-20240412-0ubuntu1_amd64.deb|78484|a39efdcaa2245f026dc3254ce14fcff255fc430a17064632b6ba7c5da974a912"
+    "zlib1g|1:1.3.dfsg-3.1ubuntu2|pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2_amd64.deb|62784|0b93d16d7498f092fa3070fbbad28cdbc6b3d640f1a7681b96fc37f20d1219f1"
+    "libxml2|2.9.14+dfsg-1.3ubuntu3|pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3ubuntu3_amd64.deb|762198|8c4efd7abe155df3cf0f9b64d659f2d866215785f8e8c44234fbb341d58cc967"
 )
 
 function(rf_probe_linux_os_identity)
@@ -71,7 +81,7 @@ function(rf_query_installed_package package output_version)
 endfunction()
 
 function(rf_probe_linux_package_closure repository_root)
-    rf_sync_cache_path("${repository_root}" "host.ubuntu.resolute_packages"
+    rf_sync_cache_path("${repository_root}" "host.ubuntu.noble_packages"
         packages_archive ignored_root ignored_format)
     # A Debian package index is a bare deflate stream rather than an archive
     # container, so it is decompressed by the prepared extractor Stage 0
@@ -115,8 +125,8 @@ function(rf_probe_linux_package_closure repository_root)
         list(APPEND measured "${package}")
     endforeach()
     list(LENGTH measured measured_count)
-    if(NOT measured_count EQUAL 10)
-        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly ten packages")
+    if(NOT measured_count EQUAL 14)
+        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly fourteen packages")
     endif()
 endfunction()
 
@@ -151,8 +161,8 @@ function(rf_probe_linux_host_tuple repository_root)
         "  \"release\": \"${RF_LINUX_HOST_RELEASE}\",\n"
         "  \"codename\": \"${RF_LINUX_HOST_CODENAME}\",\n"
         "  \"glibc\": \"${RF_LINUX_HOST_GLIBC_VERSION}\",\n"
-        "  \"lockedPackages\": 10,\n"
-        "  \"packageAuthority\": \"host.ubuntu.resolute_packages\",\n"
+        "  \"lockedPackages\": 14,\n"
+        "  \"packageAuthority\": \"host.ubuntu.noble_packages\",\n"
         "  \"state\": \"probed\"\n"
         "}\n")
     file(RENAME "${report_root}/host-tuple.json.tmp" "${report_root}/host-tuple.json")
