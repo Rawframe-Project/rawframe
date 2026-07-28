@@ -20,11 +20,17 @@ set(RF_LINUX_HOST_GLIBC_VERSION "2.39-0ubuntu8")
 # Package, version, Filename, Size, SHA256 exactly as the locked signed index
 # publishes them. The first ten entries follow the Task packet table order.
 #
-# The last four are the host shared libraries the locked LLVM primary loads by
-# `DT_NEEDED`. They were previously implicit, which is what let the toolchain
-# reach a host whose `libxml2` SONAME had moved past the one `ld.lld` requires.
-# A dependency the toolchain cannot start without is part of the tuple, so it is
-# pinned by the same signed-index evidence as everything else.
+# Entries eleven through fourteen are the host shared libraries the locked LLVM
+# primary loads by `DT_NEEDED`. They were previously implicit, which is what let
+# the toolchain reach a host whose `libxml2` SONAME had moved past the one
+# `ld.lld` requires. A dependency the toolchain cannot start without is part of
+# the tuple, so it is pinned by the same signed-index evidence as everything
+# else.
+#
+# The last three carry `pkg-config`, which the OpenSSL port's Autotools
+# configuration invokes and which vcpkg does not acquire on Linux. `pkgconf`
+# supplies the `pkg-config` name itself; the Ubuntu `pkg-config` package is only
+# a transitional shim over it and is deliberately not locked.
 set(RF_LINUX_HOST_PACKAGES
     "libc6|2.39-0ubuntu8|pool/main/g/glibc/libc6_2.39-0ubuntu8_amd64.deb|3264806|af36c7ac770770fe3d3c10e85d6bc538e76e57570ba7db7d397fb9f654783ef3"
     "libc-bin|2.39-0ubuntu8|pool/main/g/glibc/libc-bin_2.39-0ubuntu8_amd64.deb|681940|4ff873a8ae9622f0bc4e4be8cb1e5b3e94ff53a93a18af10e54f6e55cd7f92d0"
@@ -40,6 +46,9 @@ set(RF_LINUX_HOST_PACKAGES
     "libgcc-s1|14-20240412-0ubuntu1|pool/main/g/gcc-14/libgcc-s1_14-20240412-0ubuntu1_amd64.deb|78484|a39efdcaa2245f026dc3254ce14fcff255fc430a17064632b6ba7c5da974a912"
     "zlib1g|1:1.3.dfsg-3.1ubuntu2|pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2_amd64.deb|62784|0b93d16d7498f092fa3070fbbad28cdbc6b3d640f1a7681b96fc37f20d1219f1"
     "libxml2|2.9.14+dfsg-1.3ubuntu3|pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3ubuntu3_amd64.deb|762198|8c4efd7abe155df3cf0f9b64d659f2d866215785f8e8c44234fbb341d58cc967"
+    "libpkgconf3|1.8.1-2build1|pool/main/p/pkgconf/libpkgconf3_1.8.1-2build1_amd64.deb|30652|fc3a57e8f931ec06cb7c51acc56878f1fec247ff02a7adcab26905c2faeb2792"
+    "pkgconf-bin|1.8.1-2build1|pool/main/p/pkgconf/pkgconf-bin_1.8.1-2build1_amd64.deb|20730|7a812f05ee1610154b433e2ad54f6e4163fcbb306b9fb31afe959afb2e5e1545"
+    "pkgconf|1.8.1-2build1|pool/main/p/pkgconf/pkgconf_1.8.1-2build1_amd64.deb|16790|834a58031069d97d7cfb8b2f5bfd5effc69cecf7f30cc362071875f1f8dc1828"
 )
 
 function(rf_probe_linux_os_identity)
@@ -125,8 +134,8 @@ function(rf_probe_linux_package_closure repository_root)
         list(APPEND measured "${package}")
     endforeach()
     list(LENGTH measured measured_count)
-    if(NOT measured_count EQUAL 14)
-        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly fourteen packages")
+    if(NOT measured_count EQUAL 17)
+        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly seventeen packages")
     endif()
 endfunction()
 
@@ -161,7 +170,7 @@ function(rf_probe_linux_host_tuple repository_root)
         "  \"release\": \"${RF_LINUX_HOST_RELEASE}\",\n"
         "  \"codename\": \"${RF_LINUX_HOST_CODENAME}\",\n"
         "  \"glibc\": \"${RF_LINUX_HOST_GLIBC_VERSION}\",\n"
-        "  \"lockedPackages\": 14,\n"
+        "  \"lockedPackages\": 17,\n"
         "  \"packageAuthority\": \"host.ubuntu.noble_packages\",\n"
         "  \"state\": \"probed\"\n"
         "}\n")
