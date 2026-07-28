@@ -35,9 +35,9 @@
       {
         "hostId": "linux-x86_64",
         "absolutePath": "/usr/bin/curl",
-        "minimumVersion": "8.18.0",
+        "minimumVersion": "8.5.0",
         "vendorSignature": "distribution_package_chain",
-        "packageIdentity": "Ubuntu 24.04 inbox curl, serviced in place by the distribution"
+        "packageIdentity": "Ubuntu 24.04 inbox curl 8.5.0-2ubuntu10, serviced in place by the distribution"
       }
     ]
   },
