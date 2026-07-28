@@ -227,6 +227,7 @@ function(rawframe_register_repository_tests)
         add_test(NAME "SyncFixtures.OpenpgpSidecars"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_GPG=${prepared_tools}/gnupg/bin/gpg.exe"
+                "-DRF_GPGCONF=${prepared_tools}/gnupg/bin/gpgconf.exe"
                 "-DRF_GPGV=${prepared_tools}/gnupg/bin/gpgv.exe"
                 "-DRF_SOURCEMETA_KEY=${sourcemeta_key}"
                 "-DRF_SOURCEMETA_CHECKSUMS=${sourcemeta_checksums}"
@@ -310,7 +311,7 @@ function(rawframe_register_repository_tests)
             PASS_REGULAR_EXPRESSION "RF1269" LABELS "security;archive" TIMEOUT 60)
 
         # The signed Ubuntu Packages index is acquired by this lane's Stage-0
-        # sync, so its exact locked gpgv/gpg/ubuntu-keyring records are
+        # sync, so its exact locked gpgv/gpg/gpgconf/ubuntu-keyring records are
         # asserted here and nowhere else.
         rawframe_locked_cache_object(ubuntu_packages "host.ubuntu.resolute_packages")
         add_test(NAME "BootstrapFixtures.LinuxPackageAuthority"
@@ -334,6 +335,7 @@ function(rawframe_register_repository_tests)
         add_test(NAME "SyncFixtures.OpenpgpSidecars"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_GPG=${prepared_tools}/gnupg/bin/gpg"
+                "-DRF_GPGCONF=${prepared_tools}/gnupg/bin/gpgconf"
                 "-DRF_GPGV=${prepared_tools}/gnupg/bin/gpgv"
                 "-DRF_SOURCEMETA_KEY=${sourcemeta_key}"
                 "-DRF_SOURCEMETA_CHECKSUMS=${sourcemeta_checksums}"
@@ -344,5 +346,19 @@ function(rawframe_register_repository_tests)
                 -P "${fixture_scripts}/openpgp_sidecars.cmake")
         set_tests_properties("SyncFixtures.OpenpgpSidecars" PROPERTIES
             LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 120)
+
+        add_test(NAME "SyncFixtures.LinuxDependencyAuthority"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                -P "${fixture_scripts}/linux_dependency_authority.cmake")
+        set_tests_properties("SyncFixtures.LinuxDependencyAuthority" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1588" LABELS "repository;offline"
+            RUN_SERIAL TRUE TIMEOUT 900)
+
+        add_test(NAME "SyncFixtures.LinuxHost"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                -P "${fixture_scripts}/linux_host.cmake")
+        set_tests_properties("SyncFixtures.LinuxHost" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1559" LABELS "repository;host"
+            RUN_SERIAL TRUE TIMEOUT 300)
     endif()
 endfunction()

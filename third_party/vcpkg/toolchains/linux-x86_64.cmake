@@ -1,0 +1,11 @@
+cmake_path(GET CMAKE_CURRENT_LIST_DIR PARENT_PATH vcpkg_root)
+cmake_path(GET vcpkg_root PARENT_PATH third_party_root)
+cmake_path(GET third_party_root PARENT_PATH repository_root)
+set(prepared_tools "${repository_root}/out/prepared/linux-x86_64/tools")
+
+set(CMAKE_C_COMPILER "${prepared_tools}/llvm/bin/clang" CACHE FILEPATH "" FORCE)
+set(CMAKE_CXX_COMPILER "${prepared_tools}/llvm/bin/clang++" CACHE FILEPATH "" FORCE)
+set(CMAKE_LINKER "${prepared_tools}/llvm/bin/ld.lld" CACHE FILEPATH "" FORCE)
+set(CMAKE_AR "${prepared_tools}/llvm/bin/llvm-ar" CACHE FILEPATH "" FORCE)
+set(CMAKE_RANLIB "${prepared_tools}/llvm/bin/llvm-ranlib" CACHE FILEPATH "" FORCE)
+set(CMAKE_MAKE_PROGRAM "${prepared_tools}/ninja/ninja" CACHE FILEPATH "" FORCE)
