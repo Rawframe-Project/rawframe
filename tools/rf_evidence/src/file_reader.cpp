@@ -7,7 +7,22 @@
 namespace rawframe::tool::evidence {
 
 Result<simdjson::padded_string> readBoundedFile(const std::filesystem::path& path, std::size_t maximumBytes) {
+    // A directory or special file must fail the same way on every host. Left to
+    // the size probe alone it does not: Linux reports a size error and Windows
+    // reports a size, then fails later at open, so the same input yields two
+    // different typed failures. Deciding it here keeps the failure deterministic
+    // and keeps symlink policy with the store that owns it.
     std::error_code error;
+    const auto kStatus = std::filesystem::status(path, error);
+    if (error || !std::filesystem::exists(kStatus)) {
+        return std::unexpected(
+            Failure{FailureCode::MissingInput, path.generic_string(), "file is missing or unreadable"});
+    }
+    if (!std::filesystem::is_regular_file(kStatus)) {
+        return std::unexpected(
+            Failure{FailureCode::InvalidPath, path.generic_string(), "path does not name a regular file"});
+    }
+
     const auto kSize = std::filesystem::file_size(path, error);
     if (error) {
         return std::unexpected(

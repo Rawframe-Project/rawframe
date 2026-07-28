@@ -1,5 +1,7 @@
 add_executable(rawframe_tool_rf_evidence_tests
     command_test.cpp
+    diagnostic_test.cpp
+    file_reader_test.cpp
     json_policy_test.cpp
     path_policy_test.cpp
     report_writer_test.cpp
