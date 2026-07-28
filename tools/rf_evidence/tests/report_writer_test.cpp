@@ -67,6 +67,7 @@ TEST(ReportWriter, BuildsDeterministicGraphReport) {
     snapshot.tools.push_back(ToolInfo{
         .id = "rawframe.tool.evidence",
         .manifestPath = "tools/rf_evidence/tool.json",
+        .owner = "rawframe.build_engineering",
         .cmakeTarget = "rawframe_tool_rf_evidence",
         .thirdPartyDependencies = {"library.openssl", "library.simdjson"},
         .managedToolDependencies = {"tool.jsonschema_oracle"},

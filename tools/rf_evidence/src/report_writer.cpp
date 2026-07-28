@@ -198,11 +198,31 @@ std::string buildDependencyClosureReport(const ToolInfo& tool) {
 
 std::string buildSourceOwnershipReport(std::span<const SourceOwnershipEntry> entries) {
     std::ostringstream output;
+    std::size_t reviewCount = 0;
+    std::size_t growthStopCount = 0;
+    for (const auto& entry : entries) {
+        if (entry.gate == SourceGate::OwnershipReviewRequired) {
+            ++reviewCount;
+        } else if (entry.gate == SourceGate::FeatureGrowthStopped) {
+            ++growthStopCount;
+        }
+    }
+
     beginReport(output, "inspect_source_ownership");
     output << ',';
     writeField(output, "ok", true);
     output << ',';
     writeField(output, "fileCount", entries.size());
+    output << ',';
+    writeField(output, "ownershipReviewLines", kOwnershipReviewLines);
+    output << ',';
+    writeField(output, "featureGrowthStopLines", kFeatureGrowthStopLines);
+    output << ',';
+    writeField(output, "hardFailureLines", kHardFailureLines);
+    output << ',';
+    writeField(output, "ownershipReviewCount", reviewCount);
+    output << ',';
+    writeField(output, "featureGrowthStopCount", growthStopCount);
     output << ',';
     writeJsonString(output, "files");
     output << ":[";
@@ -218,6 +238,10 @@ std::string buildSourceOwnershipReport(std::span<const SourceOwnershipEntry> ent
         writeField(output, "lines", entry.lines);
         output << ',';
         writeField(output, "owner", entry.owner);
+        output << ',';
+        writeField(output, "gate", std::string{sourceGateName(entry.gate)});
+        output << ',';
+        writeField(output, "severity", std::string{sourceGateSeverity(entry.gate)});
         output << '}';
     }
     output << ']';

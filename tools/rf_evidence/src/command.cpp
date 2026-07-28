@@ -205,6 +205,20 @@ int sourceOperation(const ParsedOptions& options, std::ostream& output, std::ost
     for (const auto& entry : *report) {
         output << entry.lines << '\t' << entry.owner << '\t' << entry.path << '\n';
     }
+    // STD-0001 requires warning output at 600 physical lines and blocking output
+    // at 1,000. These go to the diagnostic stream so the ordinary machine-readable
+    // listing above stays parseable.
+    for (const auto& entry : *report) {
+        if (entry.gate == SourceGate::Ok) {
+            continue;
+        }
+        errors << sourceGateSeverity(entry.gate) << ": " << entry.path << " reaches " << entry.lines
+               << " physical lines and requires "
+               << (entry.gate == SourceGate::FeatureGrowthStopped
+                       ? "a decomposition or documented containment plan before unrelated feature growth"
+                       : "an explicit STD-0001 ownership review before further feature growth")
+               << '\n';
+    }
     return 0;
 }
 

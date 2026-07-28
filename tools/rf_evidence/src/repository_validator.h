@@ -11,6 +11,7 @@ namespace rawframe::tool::evidence {
 struct ToolInfo {
     std::string id;
     std::string manifestPath;
+    std::string owner;
     std::string cmakeTarget;
     std::vector<std::string> thirdPartyDependencies;
     std::vector<std::string> managedToolDependencies;
