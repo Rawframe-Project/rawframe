@@ -71,11 +71,20 @@ endfunction()
 function(rf_copy_rawframe_openssl_port repository_root registry_root)
     set(source "${repository_root}/third_party/vcpkg/registries/rawframe/ports/openssl/3.5.7")
     if(NOT IS_DIRECTORY "${source}" OR NOT EXISTS "${source}/vcpkg.json" OR
-       NOT EXISTS "${source}/portfile.cmake")
+       NOT EXISTS "${source}/portfile.cmake" OR NOT EXISTS "${source}/unix/configure")
         rf_bootstrap_fail("RF1484" "Rawframe OpenSSL 3.5.7 registry port is incomplete")
     endif()
     file(MAKE_DIRECTORY "${registry_root}/ports/openssl/3.5.7")
     file(COPY "${source}/" DESTINATION "${registry_root}/ports/openssl/3.5.7")
+    # The Unix lane runs `unix/configure` as a program, so its executable bit is
+    # a property of the build input rather than of the working tree. Stating it
+    # here keeps the result identical whether the repository was checked out on a
+    # filesystem that records the bit or on one that cannot.
+    file(CHMOD "${registry_root}/ports/openssl/3.5.7/unix/configure"
+        PERMISSIONS
+            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+            GROUP_READ GROUP_EXECUTE
+            WORLD_READ WORLD_EXECUTE)
 endfunction()
 
 function(rf_write_rawframe_registry_baseline registry_root)
