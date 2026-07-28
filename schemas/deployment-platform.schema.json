@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/deployment-platform.schema.json",
+  "$id": "https://schemas.rawframe.net/deployment-platform.schema.json",
   "title": "Rawframe deployment platform",
   "type": "object",
   "additionalProperties": false,

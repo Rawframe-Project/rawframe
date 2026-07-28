@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/repository.schema.json",
+  "$id": "https://schemas.rawframe.net/repository.schema.json",
   "title": "Rawframe repository index",
   "type": "object",
   "additionalProperties": false,

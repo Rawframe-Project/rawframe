@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/artifact-lock.schema.json",
+  "$id": "https://schemas.rawframe.net/artifact-lock.schema.json",
   "title": "Rawframe verified artifact lock",
   "type": "object",
   "additionalProperties": false,

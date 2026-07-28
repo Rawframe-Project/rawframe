@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/module.schema.json",
+  "$id": "https://schemas.rawframe.net/module.schema.json",
   "title": "Rawframe module manifest",
   "type": "object",
   "additionalProperties": false,

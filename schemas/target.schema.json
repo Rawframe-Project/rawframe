@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/target.schema.json",
+  "$id": "https://schemas.rawframe.net/target.schema.json",
   "title": "Rawframe target definition",
   "type": "object",
   "additionalProperties": false,

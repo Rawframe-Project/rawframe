@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/instrumentation.schema.json",
+  "$id": "https://schemas.rawframe.net/instrumentation.schema.json",
   "title": "Rawframe instrumentation policy",
   "type": "object",
   "additionalProperties": false,

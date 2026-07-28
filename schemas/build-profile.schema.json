@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/build-profile.schema.json",
+  "$id": "https://schemas.rawframe.net/build-profile.schema.json",
   "title": "Rawframe build profile",
   "type": "object",
   "additionalProperties": false,

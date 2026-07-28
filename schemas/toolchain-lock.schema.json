@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/toolchain-lock.schema.json",
+  "$id": "https://schemas.rawframe.net/toolchain-lock.schema.json",
   "title": "Rawframe toolchain lock",
   "type": "object",
   "additionalProperties": false,

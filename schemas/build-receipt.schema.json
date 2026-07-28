@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.rawframe.dev/build-receipt.schema.json",
+  "$id": "https://schemas.rawframe.net/build-receipt.schema.json",
   "title": "Rawframe build receipt",
   "type": "object",
   "additionalProperties": false,
@@ -10,7 +10,7 @@
     "buildMachine", "trust", "artifacts", "verification", "releaseEligible"
   ],
   "properties": {
-    "$schema": { "const": "https://schemas.rawframe.dev/build-receipt.schema.json" },
+    "$schema": { "const": "https://schemas.rawframe.net/build-receipt.schema.json" },
     "schemaVersion": { "const": 1 },
     "receiptVersion": { "type": "integer", "minimum": 1 },
     "source": {
