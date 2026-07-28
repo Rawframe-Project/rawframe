@@ -6,6 +6,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     repository_audit_test.cpp
     repository_validator_test.cpp
     sha256_test.cpp
+    source_inspector_test.cpp
 )
 target_link_libraries(rawframe_tool_rf_evidence_tests PRIVATE
     rawframe_tool_rf_evidence_private

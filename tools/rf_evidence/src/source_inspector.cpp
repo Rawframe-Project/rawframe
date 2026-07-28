@@ -46,7 +46,7 @@ Result<std::vector<SourceOwnershipEntry>> inspectSourceOwnership(const std::file
         while (std::getline(input, line)) {
             ++lines;
         }
-        if (lines >= 1'500) {
+        if (lines >= kHardFailureLines) {
             return std::unexpected(Failure{FailureCode::LimitExceeded,
                                            iterator->path().generic_string(),
                                            "source file reaches the 1500-line hard failure gate"});
@@ -58,7 +58,8 @@ Result<std::vector<SourceOwnershipEntry>> inspectSourceOwnership(const std::file
                                            iterator->path().generic_string(),
                                            "failed to calculate source ownership path"});
         }
-        entries.push_back(SourceOwnershipEntry{kRelative, lines, "rawframe.build_engineering"});
+        entries.push_back(
+            SourceOwnershipEntry{kRelative, lines, "rawframe.build_engineering", sourceGateForLines(lines)});
     }
 
     std::ranges::sort(entries, {}, &SourceOwnershipEntry::path);
