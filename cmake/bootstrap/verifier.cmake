@@ -268,8 +268,8 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
     execute_process(COMMAND "${gpg_executable}" --version RESULT_VARIABLE gpg_version_result OUTPUT_VARIABLE gpg_version_output ERROR_QUIET TIMEOUT 10)
     execute_process(COMMAND "${gpgconf_executable}" --version RESULT_VARIABLE gpgconf_version_result OUTPUT_VARIABLE gpgconf_version_output ERROR_QUIET TIMEOUT 10)
     if(NOT gpgv_version_result EQUAL 0 OR NOT gpg_version_result EQUAL 0 OR NOT gpgconf_version_result EQUAL 0 OR
-       NOT gpgv_version_output MATCHES "^gpgv \\(GnuPG\\) 2\\.4\\.8" OR NOT gpg_version_output MATCHES "^gpg \\(GnuPG\\) 2\\.4\\.8" OR
-       NOT gpgconf_version_output MATCHES "^gpgconf \\(GnuPG\\) 2\\.4\\.8")
+       NOT gpgv_version_output MATCHES "^gpgv \\(GnuPG\\) 2\\.4\\.4" OR NOT gpg_version_output MATCHES "^gpg \\(GnuPG\\) 2\\.4\\.4" OR
+       NOT gpgconf_version_output MATCHES "^gpgconf \\(GnuPG\\) 2\\.4\\.4")
         rf_bootstrap_fail("RF1307" "Linux GnuPG verifier version mismatch")
     endif()
 
