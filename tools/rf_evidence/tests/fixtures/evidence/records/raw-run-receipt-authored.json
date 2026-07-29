@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "recordKind": "raw_run_receipt",
+  "runId": "6f1c2d3e-4a5b-4c7d-8e9f-0a1b2c3d4e5f",
+  "attempt": {
+    "attemptId": "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d6e",
+    "attemptOrdinal": 1,
+    "repetitionOrdinal": 1
+  },
+  "source": {
+    "revision": "973c8f7000000000000000000000000000000000",
+    "dirty": false
+  },
+  "build": {
+    "buildReceiptDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+    "artifactDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+    "targetId": "rawframe.host.dedicated_server",
+    "platformId": "platform.linux",
+    "configuration": "shipping",
+    "instrumentation": [],
+    "packagingPolicyId": "packaging.server_remote",
+    "closureFingerprint": "closure-v1-0001"
+  },
+  "toolchain": {
+    "compilerId": "clang-20.1.0",
+    "sdkId": "linux-glibc-2.39",
+    "toolchainLockDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+    "dependencyCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000004",
+    "dependencyLockDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000005"
+  },
+  "harness": {
+    "harnessId": "rawframe.tool.run_harness",
+    "executableDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000006",
+    "buildId": "harness-v1-0001",
+    "configurationDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000007"
+  },
+  "metricRegistryGeneration": 1,
+  "profile": {
+    "profileId": "headless_networked_luau_world_v1",
+    "workloadFingerprint": "workload-v1-0001"
+  },
+  "runner": {
+    "runnerGeneration": 1,
+    "cellFingerprint": "cell-v1-0001",
+    "observed": {
+      "cpuModel": "Reference SUT CPU",
+      "physicalCoreCount": 8,
+      "simultaneousMultithreading": false,
+      "numaNodeCount": 1,
+      "measuredCoreIds": [
+        2,
+        3
+      ],
+      "memoryLimitBytes": 1073741824,
+      "operatingSystem": "Linux",
+      "kernelVersion": "6.8.0",
+      "imageId": "image-v1-0001",
+      "virtualization": "none",
+      "frequencyGovernor": "performance",
+      "boostEnabled": false
+    }
+  },
+  "execution": {
+    "cacheState": "warm",
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "clientCount": 64,
+    "plannedWarmupMilliseconds": 60000,
+    "plannedMeasurementMilliseconds": 1800000
+  },
+  "timing": {
+    "monotonicStartNanoseconds": 1000000000,
+    "monotonicEndNanoseconds": 1861000000000,
+    "wallStartTimestamp": "2026-07-29T10:00:00Z",
+    "wallEndTimestamp": "2026-07-29T10:31:00Z"
+  },
+  "observations": {
+    "sampleCount": 108000,
+    "metrics": [
+      {
+        "metricId": "tick.duration",
+        "unit": "millisecond",
+        "statistic": "p99",
+        "value": 12250,
+        "scaleExponent": -3,
+        "sampleCount": 108000
+      },
+      {
+        "metricId": "process.resident_memory",
+        "unit": "byte",
+        "statistic": "max",
+        "value": 486539264
+      }
+    ],
+    "lifecycleEvents": [
+      {
+        "eventId": "tick.catch_up",
+        "count": 2,
+        "firstOccurrenceNanoseconds": 45000000000
+      }
+    ],
+    "attachments": [
+      {
+        "role": "raw_samples",
+        "descriptor": {
+          "mediaType": "application/vnd.rawframe.evidence.samples.v1+octet-stream",
+          "byteLength": 4194304,
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000008"
+        },
+        "required": true,
+        "sensitivity": "internal"
+      }
+    ]
+  },
+  "status": "completed",
+  "trust": {
+    "provenance": "diagnostic_untrusted"
+  }
+}

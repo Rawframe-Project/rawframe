@@ -12,8 +12,10 @@ namespace {
 
 constexpr std::size_t kMaximumAuditedFiles = 65'536;
 
-// The frozen TASK-0001 write envelope from the accepted Task Packet's
-// "Allowed paths" section, expressed as lowercase repository-relative paths.
+// The frozen write envelopes from the accepted Task Packets' "Allowed paths"
+// sections, expressed as lowercase repository-relative paths. TASK-0001 is
+// complete and TASK-0002 is active; a completed Task's output stays listed,
+// because the audit reports what the envelope admits and not what is in flight.
 constexpr std::array kEnvelopeFiles{
     std::string_view{".gitignore"},
     // Root .clang-tidy joined the envelope through the accepted 2026-07-16
@@ -27,6 +29,12 @@ constexpr std::array kEnvelopeFiles{
     std::string_view{"schemas/dependency-catalog.schema.json"},
     std::string_view{"schemas/toolchain-lock.schema.json"},
     std::string_view{"schemas/artifact-lock.schema.json"},
+    // TASK-0002 envelope. The two evidence schemas are named individually
+    // rather than admitted by the pre-existing schemas/*.schema.json rule,
+    // because that rule classifies a schema as accepted pre-existing material
+    // and would absorb this Task's own output without widening anything.
+    std::string_view{"schemas/evidence-common-v1.schema.json"},
+    std::string_view{"schemas/raw-run-receipt-v1.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},

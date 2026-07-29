@@ -61,15 +61,25 @@ Status verifySchemaOracleVersion(const std::filesystem::path& repositoryRoot) {
 
 Status validateJsonShape(const std::filesystem::path& repositoryRoot,
                          const std::filesystem::path& schemaPath,
-                         const std::filesystem::path& instancePath) {
+                         const std::filesystem::path& instancePath,
+                         std::span<const std::filesystem::path> imports) {
     if (auto schemaAdmission = validateJsonAdmission(schemaPath); !schemaAdmission) {
         return schemaAdmission;
     }
     if (auto instanceAdmission = validateJsonAdmission(instancePath); !instanceAdmission) {
         return instanceAdmission;
     }
-    auto result = runBoundedProcess(
-        requestFor(repositoryRoot, {"validate", schemaPath.generic_string(), instancePath.generic_string(), "--json"}));
+    std::vector<std::string> arguments{
+        "validate", schemaPath.generic_string(), instancePath.generic_string(), "--json"};
+    for (const auto& kImport : imports) {
+        // Each import is admitted on its own before it can influence a verdict.
+        if (auto importAdmission = validateJsonAdmission(kImport); !importAdmission) {
+            return importAdmission;
+        }
+        arguments.emplace_back("--resolve");
+        arguments.push_back(kImport.generic_string());
+    }
+    auto result = runBoundedProcess(requestFor(repositoryRoot, std::move(arguments)));
     if (!result) {
         return std::unexpected(result.error());
     }

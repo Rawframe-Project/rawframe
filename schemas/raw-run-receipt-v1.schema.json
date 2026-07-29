@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/raw-run-receipt-v1.schema.json",
+  "title": "Rawframe RawRunReceipt, generation 1",
+  "description": "One immutable observation of one scheduled benchmark attempt, per ADR-0019 and SPEC-0014. A Raw Run Receipt reports what happened. It never reports whether that was acceptable: no field may declare pass, fail, regressed, accepted, promoted, or baseline, and only a separate evaluator may reach a verdict over these observations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "runId",
+    "attempt",
+    "source",
+    "build",
+    "toolchain",
+    "harness",
+    "metricRegistryGeneration",
+    "profile",
+    "runner",
+    "execution",
+    "timing",
+    "observations",
+    "status",
+    "trust"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "recordKind": { "const": "raw_run_receipt" },
+    "runId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" },
+
+    "attempt": {
+      "description": "Every scheduled attempt is represented. A retry adds a linked attempt and never erases one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attemptId", "attemptOrdinal", "repetitionOrdinal"],
+      "properties": {
+        "attemptId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" },
+        "attemptOrdinal": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "repetitionOrdinal": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "supersedesAttemptId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" }
+      }
+    },
+
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "dirty"],
+      "properties": {
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "dirty": { "type": "boolean" },
+        "dirtyEvidence": { "$ref": "evidence-common-v1.schema.json#/$defs/descriptor" }
+      }
+    },
+
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "buildReceiptDigest",
+        "artifactDigest",
+        "targetId",
+        "platformId",
+        "configuration",
+        "instrumentation",
+        "packagingPolicyId",
+        "closureFingerprint"
+      ],
+      "properties": {
+        "buildReceiptDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" },
+        "artifactDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" },
+        "targetId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "platformId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "configuration": { "enum": ["debug", "development", "shipping"] },
+        "instrumentation": {
+          "description": "Instrumentation is a policy over a configuration, never a fourth configuration, so it is a set and may be empty.",
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" }
+        },
+        "packagingPolicyId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "closureFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" }
+      }
+    },
+
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compilerId",
+        "sdkId",
+        "toolchainLockDigest",
+        "dependencyCatalogDigest",
+        "dependencyLockDigest"
+      ],
+      "properties": {
+        "compilerId": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "sdkId": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "toolchainLockDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" },
+        "dependencyCatalogDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" },
+        "dependencyLockDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" }
+      }
+    },
+
+    "harness": {
+      "description": "The controller-side run harness that produced this record. Its identity is bound here even though its producer is delivered at a later gate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["harnessId", "executableDigest", "buildId", "configurationDigest"],
+      "properties": {
+        "harnessId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "executableDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" },
+        "buildId": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "configurationDigest": { "$ref": "evidence-common-v1.schema.json#/$defs/digest" }
+      }
+    },
+
+    "metricRegistryGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileId", "workloadFingerprint"],
+      "properties": {
+        "profileId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "workloadFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "packageFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "schemaFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "contentFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "networkFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "luauFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "snapshotFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" }
+      }
+    },
+
+    "runner": {
+      "description": "Runner generation plus what was observed on the machine. Any material change to the cell is a new generation and a new fingerprint, never an edit to an old one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runnerGeneration", "cellFingerprint", "observed"],
+      "properties": {
+        "runnerGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "cellFingerprint": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "observed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpuModel",
+            "physicalCoreCount",
+            "simultaneousMultithreading",
+            "numaNodeCount",
+            "measuredCoreIds",
+            "memoryLimitBytes",
+            "operatingSystem",
+            "kernelVersion",
+            "imageId",
+            "virtualization",
+            "frequencyGovernor",
+            "boostEnabled"
+          ],
+          "properties": {
+            "cpuModel": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "physicalCoreCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
+            "simultaneousMultithreading": { "type": "boolean" },
+            "numaNodeCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
+            "measuredCoreIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4096,
+              "uniqueItems": true,
+              "items": { "type": "integer", "minimum": 0, "maximum": 4095 }
+            },
+            "memoryLimitBytes": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+            "operatingSystem": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "kernelVersion": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "imageId": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+            "virtualization": { "enum": ["none", "hypervisor", "container", "unknown"] },
+            "frequencyGovernor": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "boostEnabled": { "type": "boolean" },
+            "thermalThrottlingObserved": { "type": "boolean" }
+          }
+        }
+      }
+    },
+
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cacheState",
+        "seeds",
+        "clientCount",
+        "plannedWarmupMilliseconds",
+        "plannedMeasurementMilliseconds"
+      ],
+      "properties": {
+        "cacheState": { "enum": ["cold", "warm"] },
+        "seeds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" }
+        },
+        "clientCount": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+        "clientTopology": { "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint" },
+        "plannedWarmupMilliseconds": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+        "plannedMeasurementMilliseconds": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" }
+      }
+    },
+
+    "timing": {
+      "description": "Monotonic durations decide elapsed time. Wall timestamps are audit evidence only and never a measurement, which is why they are separate fields rather than one clock.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "monotonicStartNanoseconds",
+        "monotonicEndNanoseconds",
+        "wallStartTimestamp",
+        "wallEndTimestamp"
+      ],
+      "properties": {
+        "monotonicStartNanoseconds": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+        "monotonicEndNanoseconds": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+        "wallStartTimestamp": { "$ref": "#/$defs/timestamp" },
+        "wallEndTimestamp": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+
+    "observations": {
+      "description": "What was measured. A miss, a ceiling event, a queue growth, or a slow start is recorded here and leaves the terminal status completed; failing it is the evaluator's job and not this record's.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleCount", "metrics", "lifecycleEvents", "attachments"],
+      "properties": {
+        "sampleCount": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+        "metrics": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metricId", "unit", "statistic", "value"],
+            "properties": {
+              "metricId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+              "unit": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+              "statistic": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+              "value": { "$ref": "evidence-common-v1.schema.json#/$defs/safeInteger" },
+              "scaleExponent": {
+                "description": "SPEC-0017's fixed-point subset. The represented quantity is value times ten to this power, so a fractional observation is carried exactly by an integer pair and never by a float.",
+                "type": "integer",
+                "minimum": -18,
+                "maximum": 18
+              },
+              "sampleCount": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" }
+            }
+          }
+        },
+        "lifecycleEvents": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["eventId", "count"],
+            "properties": {
+              "eventId": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+              "count": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" },
+              "firstOccurrenceNanoseconds": { "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger" }
+            }
+          }
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 256,
+          "items": { "$ref": "evidence-common-v1.schema.json#/$defs/attachment" }
+        }
+      }
+    },
+
+    "status": {
+      "description": "The exact SPEC-0014 terminal vocabulary. There is no sixth value, and none of these five is a verdict.",
+      "enum": [
+        "completed",
+        "invalid_environment",
+        "invalid_harness",
+        "infrastructure_error",
+        "workload_failure"
+      ]
+    },
+
+    "statusReason": {
+      "description": "Required whenever the status is not completed, with a policy-defined reason code fixed before execution and machine-readable evidence for it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "evidence"],
+      "properties": {
+        "reasonCode": { "$ref": "evidence-common-v1.schema.json#/$defs/identifier" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "evidence-common-v1.schema.json#/$defs/attachment" }
+        }
+      }
+    },
+
+    "trust": { "$ref": "evidence-common-v1.schema.json#/$defs/trust" }
+  },
+
+  "allOf": [
+    {
+      "description": "A non-completed status carries its typed reason. A completed one carries none, so a reason code can never be attached to a run that finished.",
+      "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+      "then": { "not": { "required": ["statusReason"] } },
+      "else": { "required": ["statusReason"] }
+    }
+  ],
+
+  "$defs": {
+    "timestamp": {
+      "description": "RFC 3339 UTC with second precision and a literal Z. One spelling only, because an offset form and a Z form of one instant would be two byte sequences for one fact.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  }
+}

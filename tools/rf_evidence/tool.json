@@ -14,10 +14,12 @@
     "entryPoints": [
       "audit_paths",
       "audit_shipping_closure",
+      "canonicalize_record",
       "explain_dependency",
       "graph_repository",
       "inspect_source_ownership",
       "review_licenses",
+      "validate_record",
       "validate_repository",
       "verify_offline"
     ],

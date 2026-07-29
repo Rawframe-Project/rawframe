@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/evidence-common-v1.schema.json",
+  "title": "Rawframe evidence common definitions, generation 1",
+  "description": "Shared definitions for ADR-0019 evidence records. This document defines no record of its own and is referenced by every generation-1 evidence schema.",
+  "$defs": {
+    "identifier": {
+      "description": "The controlled key and identifier grammar. ASCII only, so canonical JCS member ordering by UTF-16 code unit and by byte are the same ordering.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*$"
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "digest": {
+      "description": "An external content digest. The algorithm prefix is explicit so an unknown algorithm fails closed rather than being guessed from length.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "fingerprint": {
+      "description": "An exact identity emitted by an accepted producer. Opaque here: this schema fixes its shape, never its meaning.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[!-~]+$"
+    },
+    "safeInteger": {
+      "description": "SPEC-0017's integer subset. No fraction, no exponent, no negative zero, and inside the range both a 64-bit integer and a JSON consumer using IEEE 754 doubles represent exactly.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "mediaType": {
+      "description": "The exact media type of an external artifact. The evidence grammar is application/vnd.rawframe.evidence.<kind>.v<generation>+json; other artifacts carry their own registered or vendor type.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[a-z][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+    },
+    "descriptor": {
+      "description": "External content identity. A descriptor identifies bytes and is never part of the bytes it identifies, so nothing here may carry its own digest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mediaType", "byteLength", "digest"],
+      "properties": {
+        "mediaType": { "$ref": "#/$defs/mediaType" },
+        "byteLength": { "$ref": "#/$defs/nonNegativeInteger" },
+        "digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "attachment": {
+      "description": "A required or diagnostic artifact bound to a record. The storage reference is a hint for retrieval and never an identity: retrieval verifies byte length and digest from the descriptor before use.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "descriptor", "required", "sensitivity"],
+      "properties": {
+        "role": { "$ref": "#/$defs/identifier" },
+        "descriptor": { "$ref": "#/$defs/descriptor" },
+        "required": { "type": "boolean" },
+        "sensitivity": { "enum": ["public", "internal", "restricted"] },
+        "storageReference": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "producer": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "trust": {
+      "description": "Provenance, not a verdict. diagnostic_untrusted is the only admitted value: trusted CI provenance does not exist at this gate, and admitting the value it would carry would be a future flag with nothing behind it. A later generation widens this by being a later generation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance"],
+      "properties": {
+        "provenance": { "const": "diagnostic_untrusted" },
+        "reference": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  }
+}

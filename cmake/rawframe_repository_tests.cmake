@@ -224,6 +224,40 @@ function(rawframe_register_repository_tests)
             PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
     endforeach()
 
+    # The two record commands take an input record instead of only a root, so
+    # they cannot join the loop above. Both are driven against the committed
+    # fixtures rather than a scratch file: canonicalize reads the authored form
+    # and validate reads the canonical form, which is the pairing that would
+    # break first if the committed golden bytes ever drifted from the code.
+    foreach(record_entry IN ITEMS
+            "CanonicalizeRecord|canonicalize|records/raw-run-receipt-authored.json"
+            "ValidateRecord|validate|canonical/raw-run-receipt-v1.canonical.json")
+        string(REPLACE "|" ";" record_fields "${record_entry}")
+        list(GET record_fields 0 record_name)
+        list(GET record_fields 1 record_operation)
+        list(GET record_fields 2 record_relative)
+        add_test(NAME "Command.${record_name}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>"
+                "${record_operation}" record
+                --root "${CMAKE_SOURCE_DIR}"
+                --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/${record_relative}"
+                --format json)
+        set_tests_properties("Command.${record_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
+    endforeach()
+
+    # The strongest statement of the decision that `validate` cannot write a
+    # corrected form is that it has nowhere to write one. A report destination
+    # is refused rather than ignored, so the absence stays observable.
+    add_test(NAME "Command.ValidateRecordRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/canonical/raw-run-receipt-v1.canonical.json"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json" --format json)
+    set_tests_properties("Command.ValidateRecordRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "record operations write no report"
+        LABELS "repository;security" TIMEOUT 300)
+
     # Kept apart from the loop above because it takes the host rather than a
     # subject, and because it is the one command that hashes the whole locked
     # closure and runs the prepared signing tool.
