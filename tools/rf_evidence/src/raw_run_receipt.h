@@ -2,6 +2,7 @@
 
 #include "canonical_json.h"
 #include "descriptor.h"
+#include "record_gate.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -11,7 +12,7 @@
 namespace rawframe::tool::evidence {
 
 inline constexpr std::string_view kRawRunReceiptSchemaPath = "schemas/raw-run-receipt-v1.schema.json";
-inline constexpr std::string_view kEvidenceCommonSchemaPath = "schemas/evidence-common-v1.schema.json";
+inline constexpr std::string_view kRawRunReceiptRecordKind = "raw_run_receipt";
 inline constexpr std::int64_t kRawRunReceiptGeneration = 1;
 
 // What a caller learns from a record without being handed a verdict. Every
@@ -25,28 +26,19 @@ struct RawRunReceiptSummary {
     std::size_t attachmentCount = 0;
 };
 
-// No member name anywhere in a record may claim an outcome. The schema already
-// closes every object, so this cannot fire against the accepted schema; it
-// exists so that widening a schema by accident cannot quietly open the door
-// this rule closes.
-[[nodiscard]] RecordStatus checkProducerAuthority(const CanonicalValue& record);
-
-// The generation recorded in the bytes and the generation named by the media
-// type must agree. Neither is preferred over the other, because a preference
-// order is how one of two cross-checks becomes decorative.
-[[nodiscard]] RecordStatus checkGenerationAgreement(const CanonicalValue& record, std::string_view mediaType);
-
-// Generic Draft 2020-12 validation through the pinned offline oracle. The
-// instance is passed by path because the oracle reads files, and the canonical
-// bytes of a record carry the same semantics as the authored bytes they came
-// from, so validating either proves the same thing.
+// The receipt's own bindings of the generic gate: this record kind's schema and
+// this record kind's generation. They exist so that "check this receipt against
+// its schema" has one name and one meaning, distinct from record_gate's "check
+// this record against the schema I am handing you".
 [[nodiscard]] RecordStatus checkSchema(const std::filesystem::path& repositoryRoot,
                                        const std::filesystem::path& instancePath);
+[[nodiscard]] RecordStatus checkGenerationAgreement(const CanonicalValue& record, std::string_view mediaType);
 
 [[nodiscard]] RecordResult<RawRunReceiptSummary> summarizeRawRunReceipt(const CanonicalValue& record);
 
-// The full semantic gate, in the order SPEC-0017 requires: producer authority,
-// then schema, then generation agreement.
+// The full semantic gate for this record kind, composing record_gate's checks
+// in the order SPEC-0017 requires: producer authority, kind, schema, then
+// generation agreement.
 [[nodiscard]] RecordResult<RawRunReceiptSummary> validateRawRunReceipt(const std::filesystem::path& repositoryRoot,
                                                                        const std::filesystem::path& instancePath,
                                                                        const CanonicalValue& record,

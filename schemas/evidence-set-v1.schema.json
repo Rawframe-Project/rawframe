@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/evidence-set-v1.schema.json",
+  "title": "Rawframe EvidenceSet, generation 1",
+  "description": "The complete attempt ledger for one declared schedule, per ADR-0019 and SPEC-0014. It accounts for every scheduled attempt exactly once and preserves each attempt's terminal status and compatibility facts as its receipt stated them. It reaches no verdict: eligibility here is a mechanical consequence of a typed status, never a judgement about performance, and only a separate evaluator may decide whether the evidence in this set passes anything.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "evidenceSetId",
+    "planId",
+    "tier",
+    "compatibility",
+    "schedule",
+    "attempts",
+    "eligibleAttemptIds",
+    "trust"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordKind": {
+      "const": "evidence_set"
+    },
+    "evidenceSetId": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+    },
+    "planId": {
+      "description": "The schedule this set was assembled against. It binds the ledger to what was declared, so the ledger cannot later be read as if it had been assembled against a smaller schedule.",
+      "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+    },
+    "tier": {
+      "enum": [
+        "tier_0"
+      ]
+    },
+    "compatibility": {
+      "description": "The compatibility facts every member receipt agreed on, copied exactly. Assembly never repairs, normalizes, or reconciles these: receipts that disagree are a failure to assemble, not a set with a chosen answer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileId",
+        "workloadFingerprint",
+        "targetId",
+        "platformId",
+        "configuration",
+        "closureFingerprint",
+        "harnessId",
+        "metricRegistryGeneration",
+        "runnerGeneration",
+        "cellFingerprint"
+      ],
+      "properties": {
+        "profileId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "workloadFingerprint": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint"
+        },
+        "targetId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "platformId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "configuration": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "closureFingerprint": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint"
+        },
+        "harnessId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "metricRegistryGeneration": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+        },
+        "runnerGeneration": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cellFingerprint": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/fingerprint"
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repetitionCount",
+        "attemptCount"
+      ],
+      "properties": {
+        "repetitionCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "attemptCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        }
+      }
+    },
+    "attempts": {
+      "description": "Every scheduled attempt, exactly once, in declared ordinal order. A slow run and a workload failure are members exactly as a fast successful run is: the only thing that varies is the typed status recorded here.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attemptId",
+          "attemptOrdinal",
+          "repetitionOrdinal",
+          "status",
+          "receipt"
+        ],
+        "properties": {
+          "attemptId": {
+            "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+          },
+          "attemptOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "repetitionOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "supersedesAttemptId": {
+            "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+          },
+          "status": {
+            "description": "The exact SPEC-0014 terminal vocabulary, copied from the attempt's receipt. Absent when the attempt produced no receipt, which is itself accounted for rather than inferred.",
+            "enum": [
+              "completed",
+              "invalid_environment",
+              "invalid_harness",
+              "infrastructure_error",
+              "workload_failure",
+              "no_receipt"
+            ]
+          },
+          "receipt": {
+            "oneOf": [
+              {
+                "$ref": "evidence-common-v1.schema.json#/$defs/descriptor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "eligibleAttemptIds": {
+      "description": "The attempts a later authority may draw on: completed, and not superseded by a retry. This is a mechanical restatement of the statuses above and carries no judgement, which is why an empty array is a valid Evidence Set rather than a failure.",
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+      }
+    },
+    "trust": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/trust"
+    }
+  }
+}

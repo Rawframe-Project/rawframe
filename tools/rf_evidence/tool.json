@@ -12,6 +12,7 @@
     "buildSystem": "cmake",
     "cmakeTarget": "rawframe_tool_rf_evidence",
     "entryPoints": [
+      "assemble_evidence_set",
       "audit_paths",
       "audit_shipping_closure",
       "canonicalize_record",

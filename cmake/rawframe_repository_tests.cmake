@@ -231,7 +231,8 @@ function(rawframe_register_repository_tests)
     # break first if the committed golden bytes ever drifted from the code.
     foreach(record_entry IN ITEMS
             "CanonicalizeRecord|canonicalize|records/raw-run-receipt-authored.json"
-            "ValidateRecord|validate|canonical/raw-run-receipt-v1.canonical.json")
+            "ValidateRecord|validate|canonical/raw-run-receipt-v1.canonical.json"
+            "ValidateEvidenceSet|validate|canonical/evidence-set-v1.canonical.json")
         string(REPLACE "|" ";" record_fields "${record_entry}")
         list(GET record_fields 0 record_name)
         list(GET record_fields 1 record_operation)
@@ -246,6 +247,15 @@ function(rawframe_register_repository_tests)
             PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
     endforeach()
 
+    add_test(NAME "Command.ValidateRejectsARelabelledRecord"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/records/reject-kind-disagreement.json"
+            --format json)
+    set_tests_properties("Command.ValidateRejectsARelabelledRecord" PROPERTIES
+        PASS_REGULAR_EXPRESSION "schema_invalid"
+        LABELS "repository;security" TIMEOUT 300)
+
     # The strongest statement of the decision that `validate` cannot write a
     # corrected form is that it has nowhere to write one. A report destination
     # is refused rather than ignored, so the absence stays observable.
@@ -256,6 +266,53 @@ function(rawframe_register_repository_tests)
             --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json" --format json)
     set_tests_properties("Command.ValidateRecordRefusesAReportDestination" PROPERTIES
         PASS_REGULAR_EXPRESSION "record operations write no report"
+        LABELS "repository;security" TIMEOUT 300)
+
+    # Assembly at the process level. The unit suite drives the ledger directly;
+    # these cases prove the installed command reaches the same two answers, and
+    # in particular that the favorable subset is refused by the shipped binary
+    # rather than only by a test that calls the library.
+    # Assembly reads its receipts from the store by digest, so the store must
+    # hold them first. Seeding them here rather than assuming they are present
+    # is what keeps the case independent of whatever a previous run left behind.
+    foreach(ledger_receipt IN ITEMS 1 2 3 4 5)
+        add_test(NAME "Command.SeedLedgerReceipt${ledger_receipt}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+                --root "${CMAKE_SOURCE_DIR}"
+                --source "tools/rf_evidence/tests/fixtures/evidence/receipts/completed-${ledger_receipt}.json"
+                --media "application/vnd.rawframe.evidence.raw-run-receipt.v1+json")
+        set_tests_properties("Command.SeedLedgerReceipt${ledger_receipt}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"digest\":\"sha256:"
+            FIXTURES_SETUP rawframe_ledger_seed LABELS "repository" TIMEOUT 300)
+    endforeach()
+
+    add_test(NAME "Command.AssembleEvidenceSet"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/complete.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    set_tests_properties("Command.AssembleEvidenceSet" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"recordKind\":\"evidence_set\""
+        FIXTURES_REQUIRED rawframe_ledger_seed LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.AssembleRefusesAFavorableSubset"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/favorable-subset.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    set_tests_properties("Command.AssembleRefusesAFavorableSubset" PROPERTIES
+        PASS_REGULAR_EXPRESSION "has no attempt" LABELS "repository;security" TIMEOUT 300)
+
+    # A ledger with two outputs is a ledger that can disagree with itself, so
+    # assembly refuses a report destination rather than ignoring one.
+    add_test(NAME "Command.AssembleRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/complete.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json")
+    set_tests_properties("Command.AssembleRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "assembly writes no report"
         LABELS "repository;security" TIMEOUT 300)
 
     # The store at the process level. The unit suite drives it against scratch
