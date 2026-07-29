@@ -9,6 +9,7 @@
 #include "repository_validator.h"
 #include "shipping_closure.h"
 #include "source_inspector.h"
+#include "store_command.h"
 
 #include <algorithm>
 #include <filesystem>

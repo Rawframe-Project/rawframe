@@ -30,6 +30,7 @@ target_sources(rawframe_tool_rf_evidence_private PRIVATE
     src/sha256.cpp
     src/shipping_closure.cpp
     src/source_inspector.cpp
+    src/store_command.cpp
 )
 target_include_directories(rawframe_tool_rf_evidence_private PUBLIC src)
 target_link_libraries(rawframe_tool_rf_evidence_private PUBLIC
@@ -120,6 +121,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/shipping_closure.h
         src/source_inspector.cpp
         src/source_inspector.h
+        src/store_command.cpp
+        src/store_command.h
         tests/blob_store_test.cpp
         tests/evaluation_policy_test.cpp
         tests/evaluator_test.cpp
