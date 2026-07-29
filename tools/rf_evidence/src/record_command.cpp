@@ -4,6 +4,7 @@
 #include "canonical_json.h"
 #include "descriptor.h"
 #include "evaluation_policy.h"
+#include "evaluator.h"
 #include "evidence_set.h"
 #include "file_reader.h"
 #include "file_security.h"
@@ -13,6 +14,7 @@
 #include "record_gate.h"
 #include "repository_validator.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -152,6 +154,9 @@ RecordResult<RecordKindBinding> bindRecordKind(const CanonicalValue& record) {
     if (*kind == kEvaluationPolicyRecordKind) {
         return RecordKindBinding{kEvaluationPolicyMediaType};
     }
+    if (*kind == kEvaluationReceiptRecordKind) {
+        return RecordKindBinding{kEvaluationReceiptMediaType};
+    }
     return std::unexpected(RecordFailure{RecordRejection::SchemaInvalid, "record declares an unknown kind: " + *kind});
 }
 
@@ -185,6 +190,28 @@ RecordResult<std::string> gateRecord(const std::filesystem::path& repositoryRoot
             return std::unexpected(policy.error());
         }
         return "evaluation policy generation " + std::to_string(policy->policyGeneration);
+    }
+    // The EvaluationReceipt is gated before the producer-authority check rather
+    // than after it. That check refuses any member naming an outcome, and this
+    // record exists to state one: it is the single kind in the chain permitted
+    // to, and holding it to a producer's restriction would make the verdict
+    // authority unrepresentable.
+    if (mediaType == kEvaluationReceiptMediaType) {
+        if (auto status = checkRecordKind(record, kEvaluationReceiptRecordKind); !status) {
+            return std::unexpected(status.error());
+        }
+        if (auto status = validateAgainstSchema(repositoryRoot, kEvaluationReceiptSchemaPath, instancePath); !status) {
+            return std::unexpected(status.error());
+        }
+        if (auto status = checkGenerationMatches(record, mediaType, kEvaluationReceiptGeneration); !status) {
+            return std::unexpected(status.error());
+        }
+        const auto* kIdentity = record.find("evaluationId");
+        if (kIdentity == nullptr || kIdentity->kind() != CanonicalValue::Kind::String) {
+            return std::unexpected(
+                RecordFailure{RecordRejection::SchemaInvalid, "evaluation receipt carries no identity"});
+        }
+        return kIdentity->text();
     }
     if (auto status = checkProducerAuthority(record); !status) {
         return std::unexpected(status.error());
@@ -389,6 +416,103 @@ int assembleOperation(const ParsedOptions& options, std::ostream& output, std::o
     return 0;
 }
 
+// Every maintained authority the registered index names, each gated as a
+// record and each carrying the descriptor of the exact bytes that were read.
+// Two operations need this and they differ only in what they do with it, so it
+// is loaded once here rather than twice: a second loader would be a second
+// authority for what the repository maintains.
+struct LoadedAuthorities {
+    std::vector<MetricRegistry> registries;
+    std::vector<Descriptor> registryDescriptors;
+    std::vector<EvaluationPolicy> policies;
+    std::vector<Descriptor> policyDescriptors;
+    std::size_t metricCount = 0;
+    std::size_t boundEntryCount = 0;
+};
+
+// Renders its own failure and reports the exit code through `exitCode`, because
+// the callers differ in what they produce on success and not at all in what a
+// load failure should look like.
+std::optional<LoadedAuthorities> loadAuthorities(const ParsedOptions& options,
+                                                 const RepositorySnapshot& snapshot,
+                                                 std::ostream& output,
+                                                 std::ostream& errors,
+                                                 int& exitCode) {
+    LoadedAuthorities loaded;
+    for (const auto& authority : snapshot.evidenceAuthorities) {
+        const std::filesystem::path kPath = snapshot.root / std::filesystem::path(authority.path);
+        auto bytes = readRecordBytes(kPath);
+        if (!bytes) {
+            exitCode = fail(errors, bytes.error(), options.format);
+            return std::nullopt;
+        }
+        // Maintained authorities are held to the canonical form they claim.
+        // Parsing them leniently and reserializing would repair them, and a
+        // repaired authority is one nobody reviewed.
+        auto record = ingestCanonicalBytes(*bytes);
+        if (!record) {
+            exitCode = failRecord(output, errors, record.error(), options.format);
+            return std::nullopt;
+        }
+        auto descriptor = describeBytes(*bytes, authority.mediaType);
+        if (!descriptor) {
+            exitCode = failRecord(output, errors, descriptor.error(), options.format);
+            return std::nullopt;
+        }
+        if (authority.authorityClass == "metric_registry") {
+            auto registry = parseMetricRegistry(options.repositoryRoot, kPath, *record);
+            if (!registry) {
+                exitCode = failRecord(output, errors, registry.error(), options.format);
+                return std::nullopt;
+            }
+            loaded.metricCount += registry->metrics.size();
+            loaded.registries.push_back(std::move(*registry));
+            loaded.registryDescriptors.push_back(std::move(*descriptor));
+            continue;
+        }
+        auto policy = parseEvaluationPolicy(options.repositoryRoot, kPath, *record);
+        if (!policy) {
+            exitCode = failRecord(output, errors, policy.error(), options.format);
+            return std::nullopt;
+        }
+        loaded.policies.push_back(std::move(*policy));
+        loaded.policyDescriptors.push_back(std::move(*descriptor));
+    }
+
+    for (const auto& policy : loaded.policies) {
+        const MetricRegistry* match = nullptr;
+        for (const auto& candidate : loaded.registries) {
+            if (candidate.registryGeneration != policy.metricRegistryGeneration) {
+                continue;
+            }
+            if (match != nullptr) {
+                exitCode =
+                    failRecord(output,
+                               errors,
+                               RecordFailure{RecordRejection::SchemaInvalid, "two registries claim one generation"},
+                               options.format);
+                return std::nullopt;
+            }
+            match = &candidate;
+        }
+        if (match == nullptr) {
+            exitCode = failRecord(
+                output,
+                errors,
+                RecordFailure{RecordRejection::SchemaInvalid, "no registry exists at the generation a policy names"},
+                options.format);
+            return std::nullopt;
+        }
+        auto bound = bindPolicyToRegistry(policy, *match);
+        if (!bound) {
+            exitCode = failRecord(output, errors, bound.error(), options.format);
+            return std::nullopt;
+        }
+        loaded.boundEntryCount += bound->size();
+    }
+    return loaded;
+}
+
 int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
     // Membership first. Repository validation proves the index resolves, is an
     // ordinary file, lists nothing twice, and leaves nothing under `evidence/`
@@ -399,65 +523,10 @@ int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& outpu
         return fail(errors, snapshot.error(), options.format);
     }
 
-    std::vector<MetricRegistry> registries;
-    std::vector<EvaluationPolicy> policies;
-    std::size_t metricCount = 0;
-    for (const auto& authority : snapshot->evidenceAuthorities) {
-        const std::filesystem::path kPath = snapshot->root / std::filesystem::path(authority.path);
-        auto bytes = readRecordBytes(kPath);
-        if (!bytes) {
-            return fail(errors, bytes.error(), options.format);
-        }
-        // Maintained authorities are held to the canonical form they claim.
-        // Parsing them leniently and reserializing would repair them, and a
-        // repaired authority is one nobody reviewed.
-        auto record = ingestCanonicalBytes(*bytes);
-        if (!record) {
-            return failRecord(output, errors, record.error(), options.format);
-        }
-        if (authority.authorityClass == "metric_registry") {
-            auto registry = parseMetricRegistry(options.repositoryRoot, kPath, *record);
-            if (!registry) {
-                return failRecord(output, errors, registry.error(), options.format);
-            }
-            metricCount += registry->metrics.size();
-            registries.push_back(std::move(*registry));
-            continue;
-        }
-        auto policy = parseEvaluationPolicy(options.repositoryRoot, kPath, *record);
-        if (!policy) {
-            return failRecord(output, errors, policy.error(), options.format);
-        }
-        policies.push_back(std::move(*policy));
-    }
-
-    std::size_t boundEntryCount = 0;
-    for (const auto& policy : policies) {
-        const MetricRegistry* match = nullptr;
-        for (const auto& candidate : registries) {
-            if (candidate.registryGeneration != policy.metricRegistryGeneration) {
-                continue;
-            }
-            if (match != nullptr) {
-                return failRecord(output,
-                                  errors,
-                                  RecordFailure{RecordRejection::SchemaInvalid, "two registries claim one generation"},
-                                  options.format);
-            }
-            match = &candidate;
-        }
-        if (match == nullptr) {
-            return failRecord(
-                output,
-                errors,
-                RecordFailure{RecordRejection::SchemaInvalid, "no registry exists at the generation a policy names"},
-                options.format);
-        }
-        auto bound = bindPolicyToRegistry(policy, *match);
-        if (!bound) {
-            return failRecord(output, errors, bound.error(), options.format);
-        }
-        boundEntryCount += bound->size();
+    int exitCode = 0;
+    auto loaded = loadAuthorities(options, *snapshot, output, errors, exitCode);
+    if (!loaded) {
+        return exitCode;
     }
 
     if (options.format == OutputFormat::Json) {
@@ -466,9 +535,10 @@ int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& outpu
         members.emplace_back(
             "authorityCount",
             CanonicalValue::makeInteger(static_cast<std::int64_t>(snapshot->evidenceAuthorities.size())));
-        members.emplace_back("metricCount", CanonicalValue::makeInteger(static_cast<std::int64_t>(metricCount)));
+        members.emplace_back("metricCount",
+                             CanonicalValue::makeInteger(static_cast<std::int64_t>(loaded->metricCount)));
         members.emplace_back("boundEntryCount",
-                             CanonicalValue::makeInteger(static_cast<std::int64_t>(boundEntryCount)));
+                             CanonicalValue::makeInteger(static_cast<std::int64_t>(loaded->boundEntryCount)));
         members.emplace_back("ok", CanonicalValue::makeBoolean(true));
         output << serializeCanonical(CanonicalValue::makeObject(std::move(members)));
         return 0;
@@ -476,9 +546,98 @@ int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& outpu
     renderSuccess(output,
                   "load_evidence_index",
                   std::to_string(snapshot->evidenceAuthorities.size()) + " maintained evidence authority(ies) valid, " +
-                      std::to_string(boundEntryCount) + " policy entry(ies) bound",
+                      std::to_string(loaded->boundEntryCount) + " policy entry(ies) bound",
                   options.format);
     return 0;
+}
+
+// Evaluation reads one Evidence Set, the receipts it names, and the maintained
+// registry and policy, and emits one EvaluationReceipt on standard output. It
+// writes no file, exactly as assembly does not: a caller stores the bytes with
+// `put blob`, which keeps the thing that decides separate from the thing that
+// holds what it decided.
+//
+// The exit code projects the verdict and is not the verdict. 0 is a receipt
+// whose checks all passed, 4 is a receipt whose verdict is failed, and 3 is no
+// receipt at all because nothing could be evaluated. A caller that needs the
+// reason reads the record, which is the authority.
+int evaluateOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    if (!options.evaluationId) {
+        return fail(errors,
+                    Failure{FailureCode::InvalidArguments, "--evaluation-id", "an evaluation identity is required"},
+                    options.format);
+    }
+    auto setPath = resolveRecordArgument(options, options.setPath, "--set");
+    if (!setPath) {
+        return fail(errors, setPath.error(), options.format);
+    }
+
+    auto snapshot = validateRepository(options.repositoryRoot);
+    if (!snapshot) {
+        return fail(errors, snapshot.error(), options.format);
+    }
+    int exitCode = 0;
+    auto loaded = loadAuthorities(options, *snapshot, output, errors, exitCode);
+    if (!loaded) {
+        return exitCode;
+    }
+    // The registry and the policy come from the repository's own index rather
+    // than from arguments. A caller that could name a policy could bring a
+    // permissive one, and a verdict against a policy the caller chose is a
+    // verdict about nothing.
+    if (loaded->policies.size() != 1) {
+        return failRecord(
+            output,
+            errors,
+            RecordFailure{RecordRejection::SchemaInvalid, "evaluation needs exactly one maintained evaluation policy"},
+            options.format);
+    }
+    const EvaluationPolicy& kPolicy = loaded->policies.front();
+    const MetricRegistry* registry = nullptr;
+    const Descriptor* registryDescriptor = nullptr;
+    for (std::size_t index = 0; index < loaded->registries.size(); ++index) {
+        if (loaded->registries.at(index).registryGeneration != kPolicy.metricRegistryGeneration) {
+            continue;
+        }
+        registry = &loaded->registries.at(index);
+        registryDescriptor = &loaded->registryDescriptors.at(index);
+    }
+    if (registry == nullptr || registryDescriptor == nullptr) {
+        return failRecord(
+            output,
+            errors,
+            RecordFailure{RecordRejection::SchemaInvalid, "no registry exists at the generation the policy names"},
+            options.format);
+    }
+
+    auto bytes = readRecordBytes(*setPath);
+    if (!bytes) {
+        return fail(errors, bytes.error(), options.format);
+    }
+    auto descriptor = describeBytes(*bytes, kEvidenceSetMediaType);
+    if (!descriptor) {
+        return failRecord(output, errors, descriptor.error(), options.format);
+    }
+    auto evidenceSet = ingestCanonicalBytes(*bytes);
+    if (!evidenceSet) {
+        return failRecord(output, errors, evidenceSet.error(), options.format);
+    }
+
+    const EvaluationInputs kInputs{.repositoryRoot = options.repositoryRoot,
+                                   .evidenceSetPath = *setPath,
+                                   .evidenceSetDescriptor = *descriptor,
+                                   .metricRegistryDescriptor = *registryDescriptor,
+                                   .evaluationPolicyDescriptor = loaded->policyDescriptors.front()};
+    const BlobStore kStore = storeFor(options);
+    auto receipt = evaluateEvidenceSet(kStore, kInputs, *evidenceSet, *registry, kPolicy, *options.evaluationId);
+    if (!receipt) {
+        return failRecord(output, errors, receipt.error(), options.format);
+    }
+    output << serializeCanonical(*receipt);
+
+    const auto* kVerdict = receipt->find("verdict");
+    const auto* kOutcome = kVerdict == nullptr ? nullptr : kVerdict->find("outcome");
+    return kOutcome != nullptr && kOutcome->text() == "failed" ? 4 : 0;
 }
 
 int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {

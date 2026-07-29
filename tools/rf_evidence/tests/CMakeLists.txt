@@ -6,6 +6,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     descriptor_test.cpp
     diagnostic_test.cpp
     evaluation_policy_test.cpp
+    evaluator_test.cpp
     evidence_set_test.cpp
     file_reader_test.cpp
     file_security_test.cpp

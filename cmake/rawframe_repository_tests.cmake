@@ -380,6 +380,75 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "schema_invalid"
         LABELS "repository;security" TIMEOUT 300)
 
+    # Evaluation at the process level. The unit suite drives the evaluator
+    # directly; these cases prove the installed command reaches the maintained
+    # authorities, retrieves the receipts the set names from the repository's own
+    # store, and emits a verdict record rather than a summary line.
+    foreach(evaluable_receipt IN ITEMS "1" "2" "breach")
+        add_test(NAME "Command.SeedEvaluableReceipt${evaluable_receipt}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+                --root "${CMAKE_SOURCE_DIR}"
+                --source "tools/rf_evidence/tests/fixtures/evidence/receipts/evaluable-${evaluable_receipt}.json"
+                --media "application/vnd.rawframe.evidence.raw-run-receipt.v1+json")
+        set_tests_properties("Command.SeedEvaluableReceipt${evaluable_receipt}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"digest\":\"sha256:"
+            FIXTURES_SETUP rawframe_evaluable_seed LABELS "repository" TIMEOUT 300)
+    endforeach()
+
+    add_test(NAME "Command.EvaluateEvidenceSet"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" evaluate evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --set "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/sets/passing.json"
+            --evaluation-id "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
+    set_tests_properties("Command.EvaluateEvidenceSet" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"outcome\":\"passed\""
+        FIXTURES_REQUIRED rawframe_evaluable_seed LABELS "repository" TIMEOUT 300)
+
+    # A breached ceiling is the evidence's verdict, so the command still emits a
+    # complete receipt. The record says failed and names the phase that blocked.
+    add_test(NAME "Command.EvaluateReportsABreachInTheRecord"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" evaluate evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --set "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/sets/breaching.json"
+            --evaluation-id "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
+    set_tests_properties("Command.EvaluateReportsABreachInTheRecord" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"blockingPhase\":\"hard_ceiling\""
+        FIXTURES_REQUIRED rawframe_evaluable_seed LABELS "repository" TIMEOUT 300)
+
+    # And the exit code follows the verdict. The case above ignores the return
+    # code because it matches output; this one asserts the process exits nonzero
+    # so a caller scripting the gate cannot read a failed verdict as success.
+    add_test(NAME "Command.EvaluateExitsNonzeroOnAFailedVerdict"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" evaluate evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --set "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/sets/breaching.json"
+            --evaluation-id "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
+    set_tests_properties("Command.EvaluateExitsNonzeroOnAFailedVerdict" PROPERTIES
+        WILL_FAIL TRUE FIXTURES_REQUIRED rawframe_evaluable_seed
+        LABELS "repository;security" TIMEOUT 300)
+
+    # Evaluation emits one record on standard output. A second destination is a
+    # second place a verdict could differ from itself, so it is refused.
+    add_test(NAME "Command.EvaluateRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" evaluate evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --set "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/sets/passing.json"
+            --evaluation-id "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json")
+    set_tests_properties("Command.EvaluateRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "evaluation writes no report"
+        LABELS "repository;security" TIMEOUT 300)
+
+    # The verdict record is itself a record. A receipt this tool emits but cannot
+    # then validate would be a link in the chain nobody could check.
+    add_test(NAME "Command.ValidateEvaluationReceipt"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/canonical/evaluation-receipt-v1.canonical.json")
+    set_tests_properties("Command.ValidateEvaluationReceipt" PROPERTIES
+        PASS_REGULAR_EXPRESSION "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff is canonical and valid"
+        LABELS "repository" TIMEOUT 300)
+
     # The store at the process level. The unit suite drives it against scratch
     # space; these cases prove the installed command derives the same path in
     # the repository's own store and hands the bytes back unaltered, which is

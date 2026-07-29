@@ -43,6 +43,7 @@ constexpr std::array kEnvelopeFiles{
     std::string_view{"schemas/evidence-index-v1.schema.json"},
     std::string_view{"schemas/metric-registry-v1.schema.json"},
     std::string_view{"schemas/evaluation-policy-v1.schema.json"},
+    std::string_view{"schemas/evaluation-receipt-v1.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},
