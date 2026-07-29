@@ -28,7 +28,7 @@ std::filesystem::path baselineRoot() {
 // tool resolves it the same way, and this restates the one fact a scratch root
 // needs rather than exposing the resolver.
 std::filesystem::path oracleRelativePath() {
-#if defined(_WIN32)
+#ifdef _WIN32
     return std::filesystem::path("out/prepared/windows-x86_64/tools/jsonschema/bin/jsonschema.exe");
 #else
     return std::filesystem::path("out/prepared/linux-x86_64/tools/jsonschema/bin/jsonschema");
@@ -110,7 +110,7 @@ readAgainstWidenedSchema(std::string_view name, std::string_view keyword, std::s
     const std::filesystem::path kSchema = kRoot / "schemas" / "baseline-record-v1.schema.json";
     std::string text = readAllBytes(kSchema);
     EXPECT_EQ(keyword.size(), ignoredKeyword.size()) << "the replacement must not change the byte length";
-    if (text.find(keyword) == std::string::npos) {
+    if (!text.contains(keyword)) {
         EXPECT_TRUE(false) << "the keyword this case widens is gone: " << keyword;
         return std::unexpected(RecordFailure{RecordRejection::SchemaInvalid, "keyword absent"});
     }

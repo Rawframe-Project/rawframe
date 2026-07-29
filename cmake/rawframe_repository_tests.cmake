@@ -485,6 +485,188 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "numeric token carries a fraction"
         LABELS "repository;security" TIMEOUT 300)
 
+    # The baseline record at the process level. A well-formed fixture validates;
+    # every promotion-shaped defect is refused. Validating one is not promoting
+    # one, and the cases below prove nothing can be.
+    add_test(NAME "Command.ValidateBaselineRecord"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/baselines/well-formed.json")
+    set_tests_properties("Command.ValidateBaselineRecord" PROPERTIES
+        PASS_REGULAR_EXPRESSION "f1000000-0000-4000-8000-000000000001 is canonical and valid"
+        LABELS "repository" TIMEOUT 300)
+
+    foreach(refused_baseline IN ITEMS
+            "self-update"
+            "self-promotion"
+            "missing-predecessor"
+            "mutable-role"
+            "incompatible-scope"
+            "missing-evidence"
+            "candidate-controlled-policy"
+            "unsupported-provenance"
+            "contradictory-chain"
+            "active-with-successor"
+            "headroom-out-of-scope"
+            "too-many-metrics"
+            "long-chain"
+            "claims-trusted-provenance"
+            "claims-a-higher-tier"
+            "claims-an-unpassed-verdict"
+            "claims-an-agent-approval"
+            "claims-promotion-is-effective"
+            "claims-an-active-baseline"
+            "claims-a-relative-comparison"
+            "claims-runner-qualification"
+            "claims-performance"
+            "claims-an-unknown-role")
+        add_test(NAME "Command.ValidateRejectsABaselineThat.${refused_baseline}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+                --root "${CMAKE_SOURCE_DIR}"
+                --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/baselines/${refused_baseline}.json"
+                --format json)
+        set_tests_properties("Command.ValidateRejectsABaselineThat.${refused_baseline}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "schema_invalid|limit_exceeded"
+            LABELS "repository;security" TIMEOUT 300)
+    endforeach()
+
+    # No verb promotes, activates, signs, uploads, or attests anything, and the
+    # proof is that none of them exists. Each is refused as an unsupported
+    # operation, which is what a caller scripting a promotion actually hits.
+    foreach(forbidden_verb IN ITEMS
+            "promote;baseline"
+            "activate;baseline"
+            "revoke;baseline"
+            "emit;baseline-record"
+            "sign;record"
+            "attest;record"
+            "upload;blob"
+            "trust;evidence-set")
+        string(REPLACE ";" "_" forbidden_label "${forbidden_verb}")
+        add_test(NAME "Command.RefusesTheVerb.${forbidden_label}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" ${forbidden_verb}
+                --root "${CMAKE_SOURCE_DIR}")
+        set_tests_properties("Command.RefusesTheVerb.${forbidden_label}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "unsupported operation"
+            LABELS "repository;security" TIMEOUT 300)
+    endforeach()
+
+    # And no argument raises trust, tier, provenance, qualification, or a
+    # baseline role. An unknown option is refused rather than ignored, because
+    # an ignored option is an option a caller believes had an effect.
+    foreach(refused_argument IN ITEMS
+            "--trust;trusted_ci"
+            "--tier;tier_2"
+            "--provenance;trusted_ci"
+            "--runner-qualified;true"
+            "--baseline-role;anchor")
+        string(REPLACE ";" "_" refused_label "${refused_argument}")
+        string(REPLACE "--" "" refused_label "${refused_label}")
+        add_test(NAME "Command.RefusesTheArgument.${refused_label}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+                --root "${CMAKE_SOURCE_DIR}"
+                --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/baselines/well-formed.json"
+                ${refused_argument})
+        set_tests_properties("Command.RefusesTheArgument.${refused_label}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "invalid_arguments"
+            LABELS "repository;security" TIMEOUT 300)
+    endforeach()
+
+    # The ambient route. The same command with four trust-flavoured variables in
+    # its environment must produce the same answer, because the tool reads no
+    # ambient authority at all. The expectation is the identical one asserted by
+    # Command.ValidateBaselineRecord above, which is the point.
+    add_test(NAME "Command.IgnoresTrustFlavouredEnvironmentVariables"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/baselines/well-formed.json")
+    set_tests_properties("Command.IgnoresTrustFlavouredEnvironmentVariables" PROPERTIES
+        ENVIRONMENT "RF_EVIDENCE_TRUST=trusted_ci;RF_EVIDENCE_TIER=tier_2;RAWFRAME_EVIDENCE_PROVENANCE=trusted_ci;RAWFRAME_TRUSTED_CI=1"
+        PASS_REGULAR_EXPRESSION "f1000000-0000-4000-8000-000000000001 is canonical and valid"
+        LABELS "repository;security" TIMEOUT 300)
+
+    # The complete Tier-0 chain, driven through the shipped command.
+    #
+    # The driver is generated into the build tree rather than committed, because
+    # everything it produces is generated output and the script is one more of
+    # them. It runs through the locked CMake, which launches each step directly:
+    # no shell, no command processor, and no capture harness of its own.
+    set(rawframe_chain_script "${CMAKE_BINARY_DIR}/rawframe_tier0_chain.cmake")
+    file(WRITE "${rawframe_chain_script}" [=[
+# Generated. The maintained source of this file is
+# cmake/rawframe_repository_tests.cmake in the accepted TASK-0007 envelope.
+file(MAKE_DIRECTORY "${RF_WORK}")
+
+function(rawframe_step)
+    cmake_parse_arguments(step "" "OUTPUT" "COMMAND" ${ARGN})
+    if(step_OUTPUT)
+        execute_process(COMMAND ${step_COMMAND} RESULT_VARIABLE code
+            OUTPUT_FILE "${step_OUTPUT}" ERROR_VARIABLE errors)
+    else()
+        execute_process(COMMAND ${step_COMMAND} RESULT_VARIABLE code
+            OUTPUT_VARIABLE output ERROR_VARIABLE errors)
+        set(rawframe_step_output "${output}" PARENT_SCOPE)
+    endif()
+    if(NOT code EQUAL 0)
+        message(FATAL_ERROR "step failed with ${code}: ${step_COMMAND}\n${errors}")
+    endif()
+endfunction()
+
+# Link one: every receipt the plan names is put into the store by content.
+foreach(receipt IN ITEMS "evaluable-1" "evaluable-2")
+    rawframe_step(COMMAND "${RF_EVIDENCE}" put blob --root "${RF_ROOT}"
+        --source "tools/rf_evidence/tests/fixtures/evidence/receipts/${receipt}.json"
+        --media "application/vnd.rawframe.evidence.raw-run-receipt.v1+json")
+    if(NOT rawframe_step_output MATCHES "\"digest\":\"sha256:")
+        message(FATAL_ERROR "put blob emitted no descriptor: ${rawframe_step_output}")
+    endif()
+endforeach()
+
+# Link two: the ledger, assembled from the plan and never enumerated.
+rawframe_step(OUTPUT "${RF_WORK}/assembled-set.json"
+    COMMAND "${RF_EVIDENCE}" assemble evidence-set --root "${RF_ROOT}"
+        --plan "tools/rf_evidence/tests/fixtures/evidence/plans/evaluable-pass.json"
+        --set-id "dddddddd-eeee-4fff-8000-000000000001")
+rawframe_step(COMMAND "${RF_EVIDENCE}" validate record --root "${RF_ROOT}"
+    --record "${RF_WORK}/assembled-set.json")
+
+# Link three: the verdict, reached from the stored receipts and the maintained
+# authorities, and validated as a record in its own right.
+rawframe_step(OUTPUT "${RF_WORK}/evaluation-receipt.json"
+    COMMAND "${RF_EVIDENCE}" evaluate evidence-set --root "${RF_ROOT}"
+        --set "${RF_WORK}/assembled-set.json"
+        --evaluation-id "dddddddd-eeee-4fff-8000-000000000002")
+file(READ "${RF_WORK}/evaluation-receipt.json" receipt_bytes)
+if(NOT receipt_bytes MATCHES "\"outcome\":\"passed\"")
+    message(FATAL_ERROR "the chain did not reach a passing verdict")
+endif()
+rawframe_step(COMMAND "${RF_EVIDENCE}" validate record --root "${RF_ROOT}"
+    --record "${RF_WORK}/evaluation-receipt.json")
+
+# Link four: the promotion pointer, which validates and promotes nothing.
+rawframe_step(COMMAND "${RF_EVIDENCE}" validate record --root "${RF_ROOT}"
+    --record "tools/rf_evidence/tests/fixtures/evidence/baselines/well-formed.json")
+
+# And the chain ends there. Nothing advanced it, and the index still names
+# exactly the authorities it named before any of this ran.
+rawframe_step(COMMAND "${RF_EVIDENCE}" load evidence-index --root "${RF_ROOT}")
+if(rawframe_step_output MATCHES "baseline")
+    message(FATAL_ERROR "a baseline entered the maintained index")
+endif()
+message(STATUS "tier_0 chain complete")
+]=])
+
+    add_test(NAME "Command.Tier0ChainRunsThroughTheShippedCommand"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRF_EVIDENCE=$<TARGET_FILE:rawframe_tool_rf_evidence>"
+            "-DRF_ROOT=${CMAKE_SOURCE_DIR}"
+            "-DRF_WORK=${CMAKE_BINARY_DIR}/tier0_chain"
+            -P "${rawframe_chain_script}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    set_tests_properties("Command.Tier0ChainRunsThroughTheShippedCommand" PROPERTIES
+        PASS_REGULAR_EXPRESSION "tier_0 chain complete"
+        LABELS "repository" TIMEOUT 600)
+
     # The store at the process level. The unit suite drives it against scratch
     # space; these cases prove the installed command derives the same path in
     # the repository's own store and hands the bytes back unaltered, which is
