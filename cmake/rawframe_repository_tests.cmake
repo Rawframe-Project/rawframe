@@ -262,13 +262,28 @@ function(rawframe_register_repository_tests)
     # these cases prove the installed command reaches the same two answers, and
     # in particular that the favorable subset is refused by the shipped binary
     # rather than only by a test that calls the library.
+    # Assembly reads its receipts from the store by digest, so the store must
+    # hold them first. Seeding them here rather than assuming they are present
+    # is what keeps the case independent of whatever a previous run left behind.
+    foreach(ledger_receipt IN ITEMS 1 2 3 4 5)
+        add_test(NAME "Command.SeedLedgerReceipt${ledger_receipt}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+                --root "${CMAKE_SOURCE_DIR}"
+                --source "tools/rf_evidence/tests/fixtures/evidence/receipts/completed-${ledger_receipt}.json"
+                --media "application/vnd.rawframe.evidence.raw-run-receipt.v1+json")
+        set_tests_properties("Command.SeedLedgerReceipt${ledger_receipt}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"digest\":\"sha256:"
+            FIXTURES_SETUP rawframe_ledger_seed LABELS "repository" TIMEOUT 300)
+    endforeach()
+
     add_test(NAME "Command.AssembleEvidenceSet"
         COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
             --root "${CMAKE_SOURCE_DIR}"
             --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/complete.json"
             --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
     set_tests_properties("Command.AssembleEvidenceSet" PROPERTIES
-        PASS_REGULAR_EXPRESSION "\"recordKind\":\"evidence_set\"" LABELS "repository" TIMEOUT 300)
+        PASS_REGULAR_EXPRESSION "\"recordKind\":\"evidence_set\""
+        FIXTURES_REQUIRED rawframe_ledger_seed LABELS "repository" TIMEOUT 300)
 
     add_test(NAME "Command.AssembleRefusesAFavorableSubset"
         COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
