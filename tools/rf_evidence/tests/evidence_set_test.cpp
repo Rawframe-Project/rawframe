@@ -4,7 +4,7 @@
 #include "record_gate.h"
 
 #include <algorithm>
-#include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -39,10 +39,26 @@ std::string readAllBytes(const std::filesystem::path& path) {
 
 // A store holding every receipt the fixture plans reference. Each case builds
 // its own, so no case can pass because of what another one stored.
+// The leaf is derived from the running case's own name rather than from a
+// counter. Each case is discovered as its own CTest test and so runs in its own
+// process, where a per-process counter would hand every case the same directory
+// and let them delete each other's store under parallel execution. It is
+// shortened to a hash because the store appends two more path components and
+// the case names here are long enough to exceed the Windows path limit.
 BlobStore populatedStore() {
-    static std::atomic<unsigned long long> leaves{0};
-    const std::filesystem::path kRoot = std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "evidence_set" /
-                                        std::to_string(leaves.fetch_add(1U)) / "blobs" / "sha256";
+    const auto* kInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+    const std::string kName =
+        kInfo == nullptr ? std::string{"unknown"} : std::string(kInfo->test_suite_name()) + "." + kInfo->name();
+    std::uint32_t leaf = 2166136261U;
+    for (const char kCharacter : kName) {
+        leaf = (leaf ^ static_cast<unsigned char>(kCharacter)) * 16777619U;
+    }
+    std::string label(8, '0');
+    for (std::size_t index = 0; index < 8; ++index) {
+        label[7 - index] = "0123456789abcdef"[(leaf >> (index * 4)) & 0xFU];
+    }
+    const std::filesystem::path kRoot =
+        std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "es" / label / "blobs" / "sha256";
     std::filesystem::remove_all(kRoot.parent_path().parent_path());
     std::filesystem::create_directories(kRoot);
     BlobStore store(kRoot);
