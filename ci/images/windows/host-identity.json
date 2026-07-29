@@ -1,0 +1,6 @@
+{
+  "hostClass": "container",
+  "hostId": "host.container_windows_servercore_ltsc2025_x86_64",
+  "probeHostId": "windows-x86_64",
+  "authority": "ADR-0083"
+}
