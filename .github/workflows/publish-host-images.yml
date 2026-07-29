@@ -78,6 +78,27 @@ jobs:
         with:
           persist-credentials: false
 
+      # The Windows runner image ships the engine but does not start it, unlike
+      # the Linux one. Starting it explicitly is the difference, not a missing
+      # dependency.
+      - name: Start the container engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $service = Get-Service -Name docker -ErrorAction SilentlyContinue
+          if ($null -eq $service) {
+              throw 'rf: the runner image has no docker service'
+          }
+          if ($service.Status -ne 'Running') {
+              Start-Service -Name docker
+          }
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              docker version --format '{{.Server.Os}}' 2>$null
+              if ($LASTEXITCODE -eq 0) { break }
+              Start-Sleep -Seconds 2
+          }
+          docker version
+
       - name: Sign in to the container registry
         shell: bash
         env:
