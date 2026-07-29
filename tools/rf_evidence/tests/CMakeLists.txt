@@ -40,6 +40,10 @@ target_compile_definitions(rawframe_tool_rf_evidence_tests PRIVATE
     # configure this tree, so process tests drive it as their child rather than
     # acquiring or assuming any other executable.
     RAWFRAME_TEST_CMAKE_COMMAND="${CMAKE_COMMAND}"
+    # The shipped binary, so the end-to-end chain runs through the artifact a
+    # caller would run rather than through the library it links. A chain proven
+    # only in process would not have proven the command line.
+    RAWFRAME_TEST_RF_EVIDENCE="$<TARGET_FILE:rawframe_tool_rf_evidence>"
 )
 
 include(GoogleTest)
