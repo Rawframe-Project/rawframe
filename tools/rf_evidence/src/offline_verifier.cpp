@@ -79,8 +79,8 @@ Status verifyPreparedCommands(const std::filesystem::path& repositoryRoot, std::
     const auto kCmake = kToolsRoot / "cmake/bin/cmake.exe";
     const auto kCosign = kToolsRoot / "cosign/bin/cosign.exe";
 #else
-    const auto cmake = toolsRoot / "cmake/bin/cmake";
-    const auto cosign = toolsRoot / "cosign/bin/cosign";
+    const auto kCmake = kToolsRoot / "cmake/bin/cmake";
+    const auto kCosign = kToolsRoot / "cosign/bin/cosign";
 #endif
     auto cmakeResult = runBoundedProcess(ProcessRequest{
         .executable = kCmake,
@@ -218,7 +218,7 @@ Result<OfflineVerificationReport> verifyOfflineInputs(const std::filesystem::pat
 #ifdef _WIN32
             const auto* const kRelative = "cosign/bin/cosign.exe";
 #else
-            const auto relative = "cosign/bin/cosign";
+            const auto* const kRelative = "cosign/bin/cosign";
 #endif
             preparedExpectations.push_back({kPreparedTools / kRelative, expectedBytes, *expectedDigest, *id});
         } else if (*id == (hostId == "windows-x86_64" ? "tool.cosign.windows_x86_64_bundle"
@@ -234,7 +234,8 @@ Result<OfflineVerificationReport> verifyOfflineInputs(const std::filesystem::pat
                                                                            : "tool.archive_extractor.linux_x86_64");
         const bool kIsPreparedGpg =
             *id == (hostId == "windows-x86_64" ? "tool.gnupg.windows_x86_64" : "tool.gnupg.linux_x86_64") ||
-            (hostId == "linux-x86_64" && *id == "tool.gnupg.linux_x86_64_full");
+            (hostId == "linux-x86_64" &&
+             (*id == "tool.gnupg.linux_x86_64_full" || *id == "tool.gnupg.linux_x86_64_config"));
         if (kIsPreparedArchive || kIsPreparedGpg) {
             simdjson::dom::object archive;
             simdjson::dom::array requiredFiles;

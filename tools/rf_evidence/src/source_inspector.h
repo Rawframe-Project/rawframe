@@ -68,11 +68,48 @@ enum class SourceGate : std::uint8_t {
 // and trip the gate during ordinary runs.
 [[nodiscard]] Status admitPhysicalLineCount(std::string_view path, std::size_t lines);
 
+// STD-0001 exempts generated output and vendored third-party source from the
+// numerical thresholds, but only while they are mechanically identifiable and
+// segregated from maintained source. This repository declares both by location,
+// which is what the standard asks for: ADR-0022 places generated material
+// beneath `out/` and vendored material beneath `third_party/`. Classification
+// therefore reads a path and never a file's size, name, or content.
+//
+// Today no tool root contains either, so every reported file is maintained.
+// That is the property worth measuring rather than assuming, because the day a
+// generated header lands inside a tool root, the difference between a warning
+// and a false hard failure is exactly this classification.
+enum class SourceClassification : std::uint8_t {
+    Maintained,
+    Generated,
+    Vendored,
+};
+
+[[nodiscard]] constexpr std::string_view sourceClassificationName(SourceClassification classification) noexcept {
+    switch (classification) {
+    case SourceClassification::Generated:
+        return "generated";
+    case SourceClassification::Vendored:
+        return "vendored";
+    case SourceClassification::Maintained:
+        break;
+    }
+    return "maintained";
+}
+
+[[nodiscard]] constexpr bool isExemptFromLineThresholds(SourceClassification classification) noexcept {
+    return classification != SourceClassification::Maintained;
+}
+
+// Takes a repository-relative path with forward slashes, as the reports use.
+[[nodiscard]] SourceClassification classifyRepositoryPath(std::string_view relativePath) noexcept;
+
 struct SourceOwnershipEntry {
     std::string path;
     std::size_t lines;
     std::string owner;
     SourceGate gate;
+    SourceClassification classification{SourceClassification::Maintained};
 };
 
 [[nodiscard]] Result<std::vector<SourceOwnershipEntry>>

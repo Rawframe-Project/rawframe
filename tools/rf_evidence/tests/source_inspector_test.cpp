@@ -93,6 +93,40 @@ TEST(SourceInspector, ClassifiesEveryMaintainedFileAgainstTheMeasuredLineCount) 
     }
 }
 
+// STD-0001 exempts generated and vendored material from the numerical
+// thresholds and declares that classification by location, never by size. The
+// rule is checked directly, because no tool root currently contains either kind
+// and a repository sweep alone could pass while the rule was inverted.
+TEST(SourceInspector, DeclaresExemptionByLocationRatherThanBySize) {
+    EXPECT_EQ(classifyRepositoryPath("tools/rf_evidence/src/command.cpp"), SourceClassification::Maintained);
+    EXPECT_EQ(classifyRepositoryPath("out/reports/task-0001/generated.h"), SourceClassification::Generated);
+    EXPECT_EQ(classifyRepositoryPath("third_party/vcpkg/toolchains/windows-x86_64.cmake"),
+              SourceClassification::Vendored);
+
+    // A prefix is a path segment, not a string fragment. `outbound/` and
+    // `third_party_notes/` are maintained source that merely start with the
+    // same letters.
+    EXPECT_EQ(classifyRepositoryPath("outbound/thing.cpp"), SourceClassification::Maintained);
+    EXPECT_EQ(classifyRepositoryPath("third_party_notes/thing.cpp"), SourceClassification::Maintained);
+
+    EXPECT_FALSE(isExemptFromLineThresholds(SourceClassification::Maintained));
+    EXPECT_TRUE(isExemptFromLineThresholds(SourceClassification::Generated));
+    EXPECT_TRUE(isExemptFromLineThresholds(SourceClassification::Vendored));
+}
+
+// Every file the sweep reports today is maintained, because tool roots are
+// segregated from the exempt locations. Asserting it keeps that segregation a
+// measured property instead of an assumption about the directory layout.
+TEST(SourceInspector, ReportsOnlyMaintainedFilesWhileToolRootsStaySegregated) {
+    const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
+    auto result = inspectSourceOwnership(kRoot);
+    ASSERT_TRUE(result.has_value()) << result.error().path << ": " << result.error().message;
+    ASSERT_FALSE(result->empty());
+    for (const auto& entry : *result) {
+        EXPECT_EQ(entry.classification, SourceClassification::Maintained) << entry.path;
+    }
+}
+
 TEST(SourceInspector, ReportsThresholdsAndGateCountsMachineReadably) {
     const std::vector<SourceOwnershipEntry> kEntries{
         SourceOwnershipEntry{"tools/rf_evidence/src/small.cpp", 10, "rawframe.build_engineering", SourceGate::Ok},
@@ -104,6 +138,11 @@ TEST(SourceInspector, ReportsThresholdsAndGateCountsMachineReadably) {
                              kFeatureGrowthStopLines,
                              "rawframe.build_engineering",
                              SourceGate::FeatureGrowthStopped},
+        SourceOwnershipEntry{"third_party/vendored/huge.h",
+                             kHardFailureLines * 2,
+                             "rawframe.build_engineering",
+                             SourceGate::Ok,
+                             SourceClassification::Vendored},
     };
 
     const std::string kReport = buildSourceOwnershipReport(kEntries);
@@ -115,6 +154,15 @@ TEST(SourceInspector, ReportsThresholdsAndGateCountsMachineReadably) {
     EXPECT_NE(kReport.find("\"gate\":\"ownership_review_required\""), std::string::npos) << kReport;
     EXPECT_NE(kReport.find("\"gate\":\"feature_growth_stopped\""), std::string::npos) << kReport;
     EXPECT_NE(kReport.find("\"severity\":\"blocking\""), std::string::npos) << kReport;
+
+    // The exempt entry is longer than the hard failure gate on purpose: STD-0001
+    // exempts it from the numerical thresholds, so it must be counted apart and
+    // must not appear in either gate count.
+    EXPECT_NE(kReport.find("\"fileCount\":4"), std::string::npos) << kReport;
+    EXPECT_NE(kReport.find("\"maintainedFileCount\":3"), std::string::npos) << kReport;
+    EXPECT_NE(kReport.find("\"exemptFileCount\":1"), std::string::npos) << kReport;
+    EXPECT_NE(kReport.find("\"classification\":\"vendored\",\"exempt\":true"), std::string::npos) << kReport;
+    EXPECT_NE(kReport.find("\"classification\":\"maintained\",\"exempt\":false"), std::string::npos) << kReport;
 }
 
 } // namespace rawframe::tool::evidence

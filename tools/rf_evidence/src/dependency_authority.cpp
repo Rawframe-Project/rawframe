@@ -14,6 +14,17 @@
 #include <utility>
 #include <vector>
 
+// The dependency closure is built with its upstream defaults rather than the
+// ADR-0008 first-party flags, so simdjson's own objects carry exception and RTTI
+// support. What matters is the boundary, not the archive: simdjson derives
+// `SIMDJSON_EXCEPTIONS` from the translation unit that includes it, and this one
+// compiles without exceptions, so the throwing accessors are not declared here
+// at all and every result must be consumed through its error code. That is the
+// property this file depends on, so it is checked by the compiler instead of
+// being argued in a document.
+static_assert(SIMDJSON_EXCEPTIONS == 0,
+              "first-party translation units must see the error-code simdjson API, never the throwing one");
+
 namespace rawframe::tool::evidence {
 
 namespace {
@@ -372,10 +383,10 @@ Status loadArtifacts(const std::filesystem::path& repositoryRoot, AuthoritySets&
             }
         }
     }
-    if (sets.artifactIds.size() != 49U) {
+    if (sets.artifactIds.size() != 50U) {
         return std::unexpected(Failure{FailureCode::InvalidManifest,
                                        kPath.generic_string(),
-                                       "TASK-0001 artifact lock must contain exactly 49 admitted inputs"});
+                                       "TASK-0001 artifact lock must contain exactly 50 admitted inputs"});
     }
     for (const auto& [owner, reference] : sets.artifactVerificationReferences) {
         if (!sets.artifactIds.contains(lowercase(reference))) {
@@ -420,10 +431,10 @@ Status loadToolchain(const std::filesystem::path& repositoryRoot, AuthoritySets&
                                            "bootstrap verifier artifact is missing or duplicated"});
         }
     }
-    if (verifierIds.size() != 17U) {
+    if (verifierIds.size() != 18U) {
         return std::unexpected(Failure{FailureCode::InvalidManifest,
                                        kPath.generic_string(),
-                                       "bootstrap verifier contract must contain exactly 17 artifacts"});
+                                       "bootstrap verifier contract must contain exactly 18 artifacts"});
     }
     simdjson::dom::array tools;
     if ((*root).at_key("managedTools").get_array().get(tools) != 0) {

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 4.4.0)
 # only when its arguments are provided, because the ubuntu-keyring package,
 # SHA256SUMS, and SHA256SUMS.gpg objects are acquired by the Linux host lane;
 # the Windows lane never possesses them and tests perform no acquisition.
-foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_GPG RF_GPGV RF_SOURCEMETA_KEY
+foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_GPG RF_GPGV RF_GPGCONF RF_SOURCEMETA_KEY
                           RF_SOURCEMETA_CHECKSUMS RF_SOURCEMETA_SIGNATURE)
     if(NOT DEFINED ${argument})
         message(FATAL_ERROR "RF1494 ${argument} is required")
@@ -17,7 +17,7 @@ set(work_root "${RF_REPOSITORY_ROOT}/out/sync/tests")
 file(MAKE_DIRECTORY "${work_root}")
 
 rf_prepare_release_keyring(
-    "${RF_GPG}" "${RF_SOURCEMETA_KEY}"
+    "${RF_GPG}" "${RF_GPGCONF}" "${RF_SOURCEMETA_KEY}"
     "F1CCCE7BD9D52CB76FE05C9B9C6328B7F7D5AA04" "${work_root}" "sourcemeta" sourcemeta_keyring
 )
 rf_verify_detached_openpgp(
@@ -55,12 +55,12 @@ if(DEFINED RF_UBUNTU_KEYRING_PACKAGE)
     )
     rf_verify_detached_openpgp(
         "${RF_GPGV}" "${ubuntu_keyring}" "${RF_UBUNTU_SIGNATURE}" "${RF_UBUNTU_CHECKSUMS}"
-        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 26.04 image checksums"
+        "843938DF228D22F7B3742BC0D94AA3F0EFE21092" "Ubuntu 24.04 image checksums"
     )
     rf_require_exact_checksum_line(
         "${RF_UBUNTU_CHECKSUMS}"
-        "dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9 *ubuntu-26.04-live-server-amd64.iso"
-        "Ubuntu 26.04 server image"
+        "8762f7e74e4d64d72fceb5f70682e6b069932deedb4949c6975d0f0fe0a91be3 *ubuntu-24.04-live-server-amd64.iso"
+        "Ubuntu 24.04 server image"
     )
 endif()
 message(STATUS "RF1495 OpenPGP sidecar fixtures passed")

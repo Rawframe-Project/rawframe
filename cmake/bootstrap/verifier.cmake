@@ -59,7 +59,7 @@ function(rf_extract_seven_zip sfx_path destination output_executable)
     set(${output_executable} "${destination}/7z.exe" PARENT_SCOPE)
 endfunction()
 
-function(rf_extract_gnupg_windows seven_zip installer destination output_gpg output_gpgv output_keyring)
+function(rf_extract_gnupg_windows seven_zip installer destination output_gpg output_gpgv output_gpgconf output_keyring)
     if(NOT EXISTS "${destination}")
         set(incoming "${destination}.incoming")
         file(REMOVE_RECURSE "${incoming}")
@@ -77,7 +77,7 @@ function(rf_extract_gnupg_windows seven_zip installer destination output_gpg out
             rf_bootstrap_fail("RF1283" "registry-free GnuPG extraction failed")
         endif()
         rf_assert_owned_tree("${incoming}")
-        foreach(required IN ITEMS bin/gpg.exe bin/gpgv.exe share/gnupg/distsigkey.gpg)
+        foreach(required IN ITEMS bin/gpg.exe bin/gpgv.exe bin/gpgconf.exe share/gnupg/distsigkey.gpg)
             if(NOT EXISTS "${incoming}/${required}")
                 file(REMOVE_RECURSE "${incoming}")
                 rf_bootstrap_fail("RF1284" "GnuPG quarantine tree is incomplete")
@@ -91,6 +91,7 @@ function(rf_extract_gnupg_windows seven_zip installer destination output_gpg out
     endif()
     set(${output_gpg} "${destination}/bin/gpg.exe" PARENT_SCOPE)
     set(${output_gpgv} "${destination}/bin/gpgv.exe" PARENT_SCOPE)
+    set(${output_gpgconf} "${destination}/bin/gpgconf.exe" PARENT_SCOPE)
     set(${output_keyring} "${destination}/share/gnupg/distsigkey.gpg" PARENT_SCOPE)
 endfunction()
 
@@ -160,6 +161,31 @@ function(rf_extract_debian_payload package destination required_path expected_by
     set(${output_path} "${destination}/${required_path}" PARENT_SCOPE)
 endfunction()
 
+# A Debian package index is a bare deflate stream rather than an archive
+# container, so it is decompressed by the prepared extractor Stage 0 verified,
+# not by the CMake archive reader.
+function(rf_read_debian_packages_index extractor archive scratch_root output_text)
+    if(NOT EXISTS "${extractor}")
+        rf_bootstrap_fail("RF1529" "prepared archive extractor is missing")
+    endif()
+    set(decompressed "${scratch_root}/Packages")
+    file(MAKE_DIRECTORY "${scratch_root}")
+    file(REMOVE "${decompressed}")
+    execute_process(
+        COMMAND "${extractor}" x -so "${archive}"
+        RESULT_VARIABLE extract_result OUTPUT_FILE "${decompressed}" ERROR_VARIABLE extract_error TIMEOUT 60
+    )
+    if(NOT extract_result EQUAL 0 OR NOT EXISTS "${decompressed}")
+        rf_bootstrap_fail("RF1529" "signed Packages index could not be decompressed")
+    endif()
+    file(SIZE "${decompressed}" packages_bytes)
+    if(packages_bytes GREATER 67108864)
+        rf_bootstrap_fail("RF1529" "signed Packages index exceeds 64 MiB")
+    endif()
+    file(READ "${decompressed}" packages_text LIMIT 67108865)
+    set(${output_text} "${packages_text}" PARENT_SCOPE)
+endfunction()
+
 function(rf_require_debian_package_record packages_text package version filename bytes sha256)
     set(marker "Package: ${package}\n")
     string(FIND "${packages_text}" "${marker}" first_offset)
@@ -186,24 +212,27 @@ function(rf_require_debian_package_record packages_text package version filename
     endforeach()
 endfunction()
 
-function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root curl_executable output_gpg output_gpgv)
+function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root curl_executable output_gpg output_gpgv output_gpgconf)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.archive_extractor.linux_x86_64" seven_zip)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.gnupg.linux_x86_64" gpgv_pkg)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.gnupg.linux_x86_64_full" gpg_pkg)
+    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.gnupg.linux_x86_64_config" gpgconf_pkg)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "authority.ubuntu_archive_keyring.linux_all" key_pkg)
-    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.resolute_inrelease" inrelease)
-    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.resolute_packages" packages)
+    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.noble_inrelease" inrelease)
+    rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "host.ubuntu.noble_packages" packages)
 
     rf_load_required_file("${repository_root}" "tool.archive_extractor.linux_x86_64" "7zz" seven_zip_inner)
     rf_load_required_file("${repository_root}" "tool.gnupg.linux_x86_64" "usr/bin/gpgv" gpgv_inner)
     rf_load_required_file("${repository_root}" "tool.gnupg.linux_x86_64_full" "usr/bin/gpg" gpg_inner)
+    rf_load_required_file("${repository_root}" "tool.gnupg.linux_x86_64_config" "usr/bin/gpgconf" gpgconf_inner)
     rf_load_required_file("${repository_root}" "authority.ubuntu_archive_keyring.linux_all" "usr/share/keyrings/ubuntu-archive-keyring.gpg" key_inner)
 
     rf_extract_flat_archive("${seven_zip_path}" "${quarantine_root}/seven-zip-${seven_zip_sha256}" "7zz" "${seven_zip_inner_byteSize}" "${seven_zip_inner_sha256}" seven_zip_executable)
     rf_extract_debian_payload("${gpgv_pkg_path}" "${quarantine_root}/gpgv-${gpgv_pkg_sha256}" "usr/bin/gpgv" "${gpgv_inner_byteSize}" "${gpgv_inner_sha256}" gpgv_executable)
     rf_extract_debian_payload("${gpg_pkg_path}" "${quarantine_root}/gpg-${gpg_pkg_sha256}" "usr/bin/gpg" "${gpg_inner_byteSize}" "${gpg_inner_sha256}" gpg_executable)
+    rf_extract_debian_payload("${gpgconf_pkg_path}" "${quarantine_root}/gpgconf-${gpgconf_pkg_sha256}" "usr/bin/gpgconf" "${gpgconf_inner_byteSize}" "${gpgconf_inner_sha256}" gpgconf_executable)
     rf_extract_debian_payload("${key_pkg_path}" "${quarantine_root}/ubuntu-keyring-${key_pkg_sha256}" "usr/share/keyrings/ubuntu-archive-keyring.gpg" "${key_inner_byteSize}" "${key_inner_sha256}" archive_keyring)
-    file(CHMOD "${gpgv_executable}" "${gpg_executable}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    file(CHMOD "${gpgv_executable}" "${gpg_executable}" "${gpgconf_executable}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
     set(home "${quarantine_root}/ubuntu-package-signing-home")
     file(MAKE_DIRECTORY "${home}")
@@ -212,7 +241,7 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
         RESULT_VARIABLE verify_result OUTPUT_VARIABLE verify_output ERROR_VARIABLE verify_error TIMEOUT 30
     )
     if(NOT verify_result EQUAL 0 OR NOT verify_output MATCHES "VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C")
-        rf_bootstrap_fail("RF1302" "Canonical resolute InRelease verification failed")
+        rf_bootstrap_fail("RF1302" "Canonical noble InRelease verification failed")
     endif()
 
     file(READ "${inrelease_path}" inrelease_text LIMIT 262144)
@@ -246,12 +275,14 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
         rf_bootstrap_fail("RF1306" "decompressed Packages index exceeds 64 MiB")
     endif()
     file(READ "${packages_tree}/Packages" packages_text LIMIT 67108865)
-    foreach(prefix IN ITEMS gpgv_pkg gpg_pkg key_pkg)
+    foreach(prefix IN ITEMS gpgv_pkg gpg_pkg gpgconf_pkg key_pkg)
         string(REGEX REPLACE "^https://archive\\.ubuntu\\.com/ubuntu/" "" filename "${${prefix}_origin}")
         if(prefix STREQUAL "gpgv_pkg")
             set(package_name gpgv)
         elseif(prefix STREQUAL "gpg_pkg")
             set(package_name gpg)
+        elseif(prefix STREQUAL "gpgconf_pkg")
+            set(package_name gpgconf)
         else()
             set(package_name ubuntu-keyring)
         endif()
@@ -260,20 +291,23 @@ function(rf_verify_gnupg_linux repository_root bootstrap_root quarantine_root cu
 
     execute_process(COMMAND "${gpgv_executable}" --version RESULT_VARIABLE gpgv_version_result OUTPUT_VARIABLE gpgv_version_output ERROR_QUIET TIMEOUT 10)
     execute_process(COMMAND "${gpg_executable}" --version RESULT_VARIABLE gpg_version_result OUTPUT_VARIABLE gpg_version_output ERROR_QUIET TIMEOUT 10)
-    if(NOT gpgv_version_result EQUAL 0 OR NOT gpg_version_result EQUAL 0 OR
-       NOT gpgv_version_output MATCHES "^gpgv \\(GnuPG\\) 2\\.4\\.8" OR NOT gpg_version_output MATCHES "^gpg \\(GnuPG\\) 2\\.4\\.8")
+    execute_process(COMMAND "${gpgconf_executable}" --version RESULT_VARIABLE gpgconf_version_result OUTPUT_VARIABLE gpgconf_version_output ERROR_QUIET TIMEOUT 10)
+    if(NOT gpgv_version_result EQUAL 0 OR NOT gpg_version_result EQUAL 0 OR NOT gpgconf_version_result EQUAL 0 OR
+       NOT gpgv_version_output MATCHES "^gpgv \\(GnuPG\\) 2\\.4\\.4" OR NOT gpg_version_output MATCHES "^gpg \\(GnuPG\\) 2\\.4\\.4" OR
+       NOT gpgconf_version_output MATCHES "^gpgconf \\(GnuPG\\) 2\\.4\\.4")
         rf_bootstrap_fail("RF1307" "Linux GnuPG verifier version mismatch")
     endif()
 
     set(${output_gpg} "${gpg_executable}" PARENT_SCOPE)
     set(${output_gpgv} "${gpgv_executable}" PARENT_SCOPE)
+    set(${output_gpgconf} "${gpgconf_executable}" PARENT_SCOPE)
     set(RF_LINUX_SEVEN_ZIP_TREE "${quarantine_root}/seven-zip-${seven_zip_sha256}" PARENT_SCOPE)
     set(RF_LINUX_ARCHIVE_KEYRING "${archive_keyring}" PARENT_SCOPE)
-    set(RF_LINUX_VERIFIER_ARTIFACT_PATHS "${seven_zip_path};${gpgv_pkg_path};${gpg_pkg_path};${key_pkg_path};${inrelease_path};${packages_path}" PARENT_SCOPE)
-    set(RF_LINUX_VERIFIER_ARTIFACT_IDS "tool.archive_extractor.linux_x86_64;tool.gnupg.linux_x86_64;tool.gnupg.linux_x86_64_full;authority.ubuntu_archive_keyring.linux_all;host.ubuntu.resolute_inrelease;host.ubuntu.resolute_packages" PARENT_SCOPE)
+    set(RF_LINUX_VERIFIER_ARTIFACT_PATHS "${seven_zip_path};${gpgv_pkg_path};${gpg_pkg_path};${gpgconf_pkg_path};${key_pkg_path};${inrelease_path};${packages_path}" PARENT_SCOPE)
+    set(RF_LINUX_VERIFIER_ARTIFACT_IDS "tool.archive_extractor.linux_x86_64;tool.gnupg.linux_x86_64;tool.gnupg.linux_x86_64_full;tool.gnupg.linux_x86_64_config;authority.ubuntu_archive_keyring.linux_all;host.ubuntu.noble_inrelease;host.ubuntu.noble_packages" PARENT_SCOPE)
 endfunction()
 
-function(rf_verify_cmake_release repository_root bootstrap_root quarantine_root curl_executable gpg gpgv cmake_origin cmake_sha256)
+function(rf_verify_cmake_release repository_root bootstrap_root quarantine_root curl_executable gpg gpgv gpgconf cmake_origin cmake_sha256)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "authority.cmake_release_key.data" key)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.cmake.checksums" sums)
     rf_quarantine_artifact("${repository_root}" "${bootstrap_root}" "${quarantine_root}" "${curl_executable}" "tool.cmake.checksums_signature" sums_sig)
@@ -302,7 +336,7 @@ function(rf_verify_cmake_release repository_root bootstrap_root quarantine_root 
     if(NOT verify_result EQUAL 0 OR NOT verify_output MATCHES "VALIDSIG C6C265324BBEBDC350B513D02D2CEF1034921684")
         rf_bootstrap_fail("RF1290" "CMake checksum OpenPGP signature verification failed")
     endif()
-    rf_shutdown_gnupg_home("${gpg}" "${home}")
+    rf_shutdown_gnupg_home("${gpgconf}" "${home}")
 
     string(REGEX REPLACE "^.*/" "" archive_name "${cmake_origin}")
     file(READ "${sums_path}" checksum_text LIMIT 4096)

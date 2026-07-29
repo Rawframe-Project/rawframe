@@ -4,12 +4,17 @@ add_executable(rawframe_tool_rf_evidence_tests
     diagnostic_test.cpp
     file_reader_test.cpp
     json_policy_test.cpp
+    license_review_test.cpp
+    offline_verifier_test.cpp
+    path_audit_test.cpp
     path_policy_test.cpp
     process_runner_test.cpp
     report_writer_test.cpp
     repository_audit_test.cpp
     repository_validator_test.cpp
+    schema_oracle_test.cpp
     sha256_test.cpp
+    shipping_closure_test.cpp
     source_inspector_test.cpp
 )
 target_link_libraries(rawframe_tool_rf_evidence_tests PRIVATE

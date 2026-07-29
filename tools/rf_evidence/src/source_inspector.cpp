@@ -54,9 +54,6 @@ Status inspectToolRoot(const std::filesystem::path& repositoryRoot,
         if (!lines) {
             return std::unexpected(lines.error());
         }
-        if (auto admitted = admitPhysicalLineCount(iterator->path().generic_string(), *lines); !admitted) {
-            return std::unexpected(admitted.error());
-        }
 
         const auto kRelative = std::filesystem::relative(iterator->path(), repositoryRoot, error).generic_string();
         if (error) {
@@ -64,18 +61,40 @@ Status inspectToolRoot(const std::filesystem::path& repositoryRoot,
                                            iterator->path().generic_string(),
                                            "failed to calculate source ownership path"});
         }
-        entries.push_back(SourceOwnershipEntry{kRelative, *lines, owner, sourceGateForLines(*lines)});
+
+        // An exempt file is reported with its measured length and no gate, so a
+        // vendored or generated file that reached a tool root stays visible
+        // rather than either disappearing from the listing or failing a
+        // threshold STD-0001 does not apply to it.
+        const auto kClassification = classifyRepositoryPath(kRelative);
+        if (isExemptFromLineThresholds(kClassification)) {
+            entries.push_back(SourceOwnershipEntry{kRelative, *lines, owner, SourceGate::Ok, kClassification});
+            continue;
+        }
+        if (auto admitted = admitPhysicalLineCount(kRelative, *lines); !admitted) {
+            return std::unexpected(admitted.error());
+        }
+        entries.push_back(SourceOwnershipEntry{kRelative, *lines, owner, sourceGateForLines(*lines), kClassification});
     }
     return {};
 }
 
 } // namespace
 
+SourceClassification classifyRepositoryPath(std::string_view relativePath) noexcept {
+    if (relativePath.starts_with("out/")) {
+        return SourceClassification::Generated;
+    }
+    if (relativePath.starts_with("third_party/")) {
+        return SourceClassification::Vendored;
+    }
+    return SourceClassification::Maintained;
+}
+
 Status admitPhysicalLineCount(std::string_view path, std::size_t lines) {
     if (lines >= kHardFailureLines) {
-        return std::unexpected(Failure{FailureCode::LimitExceeded,
-                                       std::string{path},
-                                       "source file reaches the 1500-line hard failure gate"});
+        return std::unexpected(Failure{
+            FailureCode::LimitExceeded, std::string{path}, "source file reaches the 1500-line hard failure gate"});
     }
     return {};
 }

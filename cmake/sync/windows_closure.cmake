@@ -13,71 +13,8 @@ function(rf_sync_verify_windows_vcpkg repository_root transport output_ids outpu
     set(${output_paths} "${vcpkg_windows_path}" PARENT_SCOPE)
 endfunction()
 
-function(rf_sync_verify_openssl repository_root transport output_ids output_paths)
-    foreach(pair IN ITEMS
-            "library.openssl.source|openssl"
-            "library.openssl.source_signature|openssl_signature"
-            "authority.openssl_release_keys.data|openssl_keys")
-        string(REPLACE "|" ";" fields "${pair}")
-        list(GET fields 0 artifact_id)
-        list(GET fields 1 prefix)
-        rf_sync_acquire_artifact("${repository_root}" "windows-x86_64" "${transport}" "${artifact_id}" ${prefix})
-    endforeach()
-    rf_sync_require_prepared_verifiers("${repository_root}" "windows-x86_64" gpg gpgv cosign trusted_root)
-    set(work_root "${repository_root}/out/sync/windows-x86_64/quarantine")
-    rf_prepare_release_keyring(
-        "${gpg}" "${openssl_keys_path}" "BA5473A2B0587B07FB27CF2D216094DFD0CB81EF"
-        "${work_root}" "openssl" openssl_keyring
-    )
-    rf_verify_detached_openpgp(
-        "${gpgv}" "${openssl_keyring}" "${openssl_signature_path}" "${openssl_path}"
-        "BA5473A2B0587B07FB27CF2D216094DFD0CB81EF" "OpenSSL 3.5.7 source"
-    )
-    rf_validate_archive_listing("${openssl_path}" "openssl-3.5.7")
-    set(${output_ids}
-        "library.openssl.source;library.openssl.source_signature;authority.openssl_release_keys.data" PARENT_SCOPE)
-    set(${output_paths} "${openssl_path};${openssl_signature_path};${openssl_keys_path}" PARENT_SCOPE)
-endfunction()
-
-function(rf_sync_verify_windows_oracle repository_root transport output_ids output_paths)
-    foreach(pair IN ITEMS
-            "tool.jsonschema_oracle.windows_x86_64|oracle"
-            "tool.jsonschema_oracle.checksums|checksums"
-            "tool.jsonschema_oracle.checksums_signature|checksums_signature"
-            "authority.sourcemeta_release_key.data|sourcemeta_key")
-        string(REPLACE "|" ";" fields "${pair}")
-        list(GET fields 0 artifact_id)
-        list(GET fields 1 prefix)
-        rf_sync_acquire_artifact("${repository_root}" "windows-x86_64" "${transport}" "${artifact_id}" ${prefix})
-    endforeach()
-    rf_sync_require_prepared_verifiers("${repository_root}" "windows-x86_64" gpg gpgv cosign trusted_root)
-    set(work_root "${repository_root}/out/sync/windows-x86_64/quarantine")
-    rf_prepare_release_keyring(
-        "${gpg}" "${sourcemeta_key_path}" "F1CCCE7BD9D52CB76FE05C9B9C6328B7F7D5AA04"
-        "${work_root}" "sourcemeta" sourcemeta_keyring
-    )
-    rf_verify_detached_openpgp(
-        "${gpgv}" "${sourcemeta_keyring}" "${checksums_signature_path}" "${checksums_path}"
-        "74349365D546399E77BE3943C92F4034F60CEC38" "Sourcemeta v16.1.0 checksums"
-    )
-    rf_require_exact_checksum_line(
-        "${checksums_path}"
-        "SHA256 (jsonschema-16.1.0-windows-x86_64.zip) = ${oracle_sha256}"
-        "Sourcemeta Windows oracle"
-    )
-    rf_validate_archive_listing("${oracle_path}" "jsonschema-16.1.0-windows-x86_64")
-    set(${output_ids}
-        "tool.jsonschema_oracle.windows_x86_64;tool.jsonschema_oracle.checksums;tool.jsonschema_oracle.checksums_signature;authority.sourcemeta_release_key.data"
-        PARENT_SCOPE)
-    set(${output_paths} "${oracle_path};${checksums_path};${checksums_signature_path};${sourcemeta_key_path}"
-        PARENT_SCOPE)
-endfunction()
-
 function(rf_sync_verify_windows_unsigned repository_root transport output_ids output_paths)
     set(ids
-        library.simdjson.source
-        registry.vcpkg_builtin.source
-        test.googletest.source
         tool.nasm.windows_x86_64
         tool.ninja.windows_x86_64
         tool.perl.windows_x86_64
@@ -87,13 +24,7 @@ function(rf_sync_verify_windows_unsigned repository_root transport output_ids ou
     foreach(id IN LISTS ids)
         rf_sync_acquire_artifact("${repository_root}" "windows-x86_64" "${transport}" "${id}" artifact)
         list(APPEND paths "${artifact_path}")
-        if(id STREQUAL "library.simdjson.source")
-            rf_validate_archive_listing("${artifact_path}" "simdjson-4.6.4")
-        elseif(id STREQUAL "registry.vcpkg_builtin.source")
-            rf_validate_archive_listing("${artifact_path}" "vcpkg-8e8dfb4ba483886936ded5ca201b500b8d8b0096")
-        elseif(id STREQUAL "test.googletest.source")
-            rf_validate_archive_listing("${artifact_path}" "googletest-1.17.0")
-        elseif(id STREQUAL "tool.nasm.windows_x86_64")
+        if(id STREQUAL "tool.nasm.windows_x86_64")
             rf_validate_archive_listing("${artifact_path}" "nasm-3.01")
         elseif(id STREQUAL "tool.ninja.windows_x86_64")
             rf_validate_archive_listing("${artifact_path}" "ninja.exe")
@@ -110,18 +41,19 @@ endfunction()
 
 function(rf_sync_verify_complete_windows_closure repository_root transport output_ids output_paths)
     rf_sync_verify_windows_vcpkg("${repository_root}" "${transport}" vcpkg_ids vcpkg_paths)
-    rf_sync_verify_openssl("${repository_root}" "${transport}" openssl_ids openssl_paths)
-    rf_sync_verify_windows_oracle("${repository_root}" "${transport}" oracle_ids oracle_paths)
+    rf_sync_verify_openssl_source("${repository_root}" "windows-x86_64" "${transport}" openssl_ids openssl_paths)
+    rf_sync_verify_schema_oracle("${repository_root}" "windows-x86_64" "${transport}" oracle_ids oracle_paths)
     rf_sync_verify_llvm_closure("${repository_root}" "windows-x86_64" "${transport}" llvm_ids llvm_paths)
     rf_validate_archive_listing(
         "${repository_root}/out/sync/windows-x86_64/quarantine/artifact-d96c2cc1736f4eb7fa43cb9bbdf56d93551a9ae0a9aadb9c99c3c3b2b712a234"
         "clang+llvm-22.1.8-x86_64-pc-windows-msvc"
     )
+    rf_sync_verify_portable_sources("${repository_root}" "windows-x86_64" "${transport}" source_ids source_paths)
     rf_sync_verify_windows_unsigned("${repository_root}" "${transport}" unsigned_ids unsigned_paths)
     rf_sync_verify_license_closure("${repository_root}")
 
-    set(ids "${vcpkg_ids};${openssl_ids};${oracle_ids};${llvm_ids};${unsigned_ids}")
-    set(paths "${vcpkg_paths};${openssl_paths};${oracle_paths};${llvm_paths};${unsigned_paths}")
+    set(ids "${vcpkg_ids};${openssl_ids};${oracle_ids};${llvm_ids};${source_ids};${unsigned_ids}")
+    set(paths "${vcpkg_paths};${openssl_paths};${oracle_paths};${llvm_paths};${source_paths};${unsigned_paths}")
     list(LENGTH ids id_count)
     set(unique_ids "${ids}")
     list(REMOVE_DUPLICATES unique_ids)

@@ -173,6 +173,85 @@ function(rawframe_register_repository_tests)
     set_tests_properties("SyncFixtures.MultiRootArchive" PROPERTIES
         PASS_REGULAR_EXPRESSION "RF1477" LABELS "archive" TIMEOUT 60)
 
+    # The next three fixtures read only committed indexes, locked artifacts, and
+    # the published verification corpus, so each one is registered once and takes
+    # the host as an argument. Keeping a single registration is what stops the
+    # two lanes from drifting into different coverage.
+    #
+    # No transport argument at all. Every input is a published verification
+    # corpus artifact, so this fixture has no acquisition path to deny.
+    add_test(NAME "SyncFixtures.ReleasePrimaries"
+        COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+            "-DRF_HOST=${RAWFRAME_HOST_ID}"
+            -P "${fixture_scripts}/release_primaries.cmake")
+    set_tests_properties("SyncFixtures.ReleasePrimaries" PROPERTIES
+        PASS_REGULAR_EXPRESSION "RF1497" LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 300)
+
+    add_test(NAME "SyncFixtures.LlvmClosure"
+        COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+            "-DRF_HOST=${RAWFRAME_HOST_ID}" "-DRF_TRANSPORT=${denied_transport}"
+            -P "${fixture_scripts}/llvm_closure.cmake")
+    set_tests_properties("SyncFixtures.LlvmClosure" PROPERTIES
+        PASS_REGULAR_EXPRESSION "RF1481" LABELS "security;signature" TIMEOUT 300)
+
+    add_test(NAME "SyncFixtures.Licenses"
+        COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+            -P "${fixture_scripts}/licenses.cmake")
+    set_tests_properties("SyncFixtures.Licenses" PROPERTIES
+        PASS_REGULAR_EXPRESSION "RF1475" LABELS "license" TIMEOUT 120)
+
+    # Every delivered command, run once against this repository on this host.
+    # The unit suites drive the same code through scratch and synthetic roots,
+    # which is what lets them break one rule at a time, but that means no test
+    # had ever executed a delivered command against the real tree. A defect that
+    # only appears against real inputs on one host was invisible to all of them.
+    foreach(command_entry IN ITEMS
+            "ValidateRepository|validate;repository"
+            "GraphRepository|graph;repository"
+            "InspectSourceOwnership|inspect;source-ownership"
+            "ReviewLicenses|review;licenses"
+            "AuditPaths|audit;paths"
+            "AuditShippingClosure|audit;shipping-closure")
+        string(REPLACE "|" ";" command_fields "${command_entry}")
+        list(GET command_fields 0 command_name)
+        list(GET command_fields 1 command_operation)
+        list(GET command_fields 2 command_subject)
+        add_test(NAME "Command.${command_name}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>"
+                "${command_operation}" "${command_subject}"
+                --root "${CMAKE_SOURCE_DIR}" --format json)
+        set_tests_properties("Command.${command_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
+    endforeach()
+
+    # Kept apart from the loop above because it takes the host rather than a
+    # subject, and because it is the one command that hashes the whole locked
+    # closure and runs the prepared signing tool.
+    add_test(NAME "Command.VerifyOffline"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" verify-offline
+            --root "${CMAKE_SOURCE_DIR}" "--host" "${RAWFRAME_HOST_ID}" --format json)
+    set_tests_properties("Command.VerifyOffline" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository;offline"
+        RUN_SERIAL TRUE TIMEOUT 900)
+
+    # A substituted dependency provider must be rejected before any production
+    # compilation. The installed-tree authority is checked ahead of the
+    # host-specific section of the policy, so both cases apply to every lane and
+    # each one configures that lane's own preset.
+    foreach(case_entry IN ITEMS "wrong_vcpkg_baseline|RF1113" "ambient_provider|RF1112")
+        string(REPLACE "|" ";" case_fields "${case_entry}")
+        list(GET case_fields 0 case_name)
+        list(GET case_fields 1 case_code)
+        add_test(NAME "NegativeConfigure.${case_name}"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_HOST=${RAWFRAME_HOST_ID}" "-DRF_CASE=${case_name}"
+                "-DRF_SCRATCH=${scratch_root}/negative_configure"
+                -P "${fixture_scripts}/negative_configure_cases.cmake")
+        set_tests_properties("NegativeConfigure.${case_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "${case_code}" LABELS "security;build"
+            RUN_SERIAL TRUE TIMEOUT 300)
+    endforeach()
+
     if(RAWFRAME_HOST_ID STREQUAL "windows-x86_64")
         rawframe_locked_cache_object(nasm_archive "tool.nasm.windows_x86_64")
         add_test(NAME "SyncFixtures.RootedArchive"
@@ -227,6 +306,7 @@ function(rawframe_register_repository_tests)
         add_test(NAME "SyncFixtures.OpenpgpSidecars"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_GPG=${prepared_tools}/gnupg/bin/gpg.exe"
+                "-DRF_GPGCONF=${prepared_tools}/gnupg/bin/gpgconf.exe"
                 "-DRF_GPGV=${prepared_tools}/gnupg/bin/gpgv.exe"
                 "-DRF_SOURCEMETA_KEY=${sourcemeta_key}"
                 "-DRF_SOURCEMETA_CHECKSUMS=${sourcemeta_checksums}"
@@ -234,28 +314,6 @@ function(rawframe_register_repository_tests)
                 -P "${fixture_scripts}/openpgp_sidecars.cmake")
         set_tests_properties("SyncFixtures.OpenpgpSidecars" PROPERTIES
             LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 120)
-
-        # No transport argument at all. Every input is a published verification
-        # corpus artifact, so this fixture has no acquisition path to deny.
-        add_test(NAME "SyncFixtures.ReleasePrimaries"
-            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
-                "-DRF_HOST=windows-x86_64"
-                -P "${fixture_scripts}/release_primaries.cmake")
-        set_tests_properties("SyncFixtures.ReleasePrimaries" PROPERTIES
-            PASS_REGULAR_EXPRESSION "RF1497" LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 300)
-
-        add_test(NAME "SyncFixtures.LlvmClosure"
-            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
-                "-DRF_HOST=windows-x86_64" "-DRF_TRANSPORT=${denied_transport}"
-                -P "${fixture_scripts}/llvm_closure.cmake")
-        set_tests_properties("SyncFixtures.LlvmClosure" PROPERTIES
-            PASS_REGULAR_EXPRESSION "RF1481" LABELS "security;signature" TIMEOUT 300)
-
-        add_test(NAME "SyncFixtures.Licenses"
-            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
-                -P "${fixture_scripts}/licenses.cmake")
-        set_tests_properties("SyncFixtures.Licenses" PROPERTIES
-            PASS_REGULAR_EXPRESSION "RF1475" LABELS "license" TIMEOUT 120)
 
         include("${CMAKE_SOURCE_DIR}/cmake/sync/windows_host.cmake")
         add_test(NAME "SyncFixtures.Authenticode"
@@ -280,17 +338,18 @@ function(rawframe_register_repository_tests)
             PASS_REGULAR_EXPRESSION "RF1514" LABELS "repository;host"
             RUN_SERIAL TRUE TIMEOUT 300)
 
-        # Forbidden provider substitutions must fail before any production
-        # compilation with their exact configure-time diagnostic.
+        # Forbidden toolchain substitutions must fail before any production
+        # compilation with their exact configure-time diagnostic. These three
+        # name Windows providers; the host-neutral provider cases are registered
+        # once for both lanes above.
         foreach(case_entry IN ITEMS
-                "msvc_frontend|RF1104" "vs_bundled_clang|RF1108" "wrong_sdk|RF1116"
-                "wrong_vcpkg_baseline|RF1113" "ambient_provider|RF1112")
+                "msvc_frontend|RF1104" "vs_bundled_clang|RF1108" "wrong_sdk|RF1116")
             string(REPLACE "|" ";" case_fields "${case_entry}")
             list(GET case_fields 0 case_name)
             list(GET case_fields 1 case_code)
             add_test(NAME "NegativeConfigure.${case_name}"
                 COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
-                    "-DRF_CASE=${case_name}"
+                    "-DRF_HOST=${RAWFRAME_HOST_ID}" "-DRF_CASE=${case_name}"
                     "-DRF_SCRATCH=${scratch_root}/negative_configure"
                     -P "${fixture_scripts}/negative_configure_cases.cmake")
             set_tests_properties("NegativeConfigure.${case_name}" PROPERTIES
@@ -309,10 +368,45 @@ function(rawframe_register_repository_tests)
         set_tests_properties("SyncFixtures.ArchiveNegative.symlink_escape" PROPERTIES
             PASS_REGULAR_EXPRESSION "RF1269" LABELS "security;archive" TIMEOUT 60)
 
+        # The positive archive contracts run against this lane's own locked
+        # artifacts rather than the other host's. The rooted case deliberately
+        # uses the CMake tarball, because it is the only committed lock entry
+        # whose format is tar_gz and no other fixture proves that reader.
+        rawframe_locked_cache_object(cmake_archive "tool.cmake.linux_x86_64")
+        add_test(NAME "SyncFixtures.RootedArchive"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_ARCHIVE=${cmake_archive}"
+                "-DRF_EXPECTED_ROOT=cmake-4.4.0-linux-x86_64"
+                "-DRF_DESTINATION=${scratch_root}/cmake_rooted"
+                -P "${fixture_scripts}/archive.cmake")
+        set_tests_properties("SyncFixtures.RootedArchive" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1489" LABELS "archive"
+            RUN_SERIAL TRUE TIMEOUT 600)
+
+        rawframe_locked_cache_object(oracle_archive "tool.jsonschema_oracle.linux_x86_64")
+        add_test(NAME "SyncFixtures.ArchiveListing"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_ARCHIVE=${oracle_archive}"
+                "-DRF_EXPECTED_ROOT=jsonschema-16.1.0-linux-x86_64"
+                -P "${fixture_scripts}/archive_listing.cmake")
+        set_tests_properties("SyncFixtures.ArchiveListing" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1479" LABELS "archive" TIMEOUT 60)
+
+        rawframe_locked_cache_object(ninja_archive "tool.ninja.linux_x86_64")
+        add_test(NAME "SyncFixtures.SingleFileArchive"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                "-DRF_ARCHIVE=${ninja_archive}" "-DRF_EXPECTED_FILE=ninja"
+                "-DRF_EXPECTED_BYTES=290928"
+                "-DRF_EXPECTED_SHA256=607e668f90dd6cd82e1a42ae572647ad1b1fd43063964295b9547836d8c15d99"
+                "-DRF_DESTINATION=${scratch_root}/ninja"
+                -P "${fixture_scripts}/single_file_archive.cmake")
+        set_tests_properties("SyncFixtures.SingleFileArchive" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1485" LABELS "archive" TIMEOUT 60)
+
         # The signed Ubuntu Packages index is acquired by this lane's Stage-0
-        # sync, so its exact locked gpgv/gpg/ubuntu-keyring records are
+        # sync, so its exact locked gpgv/gpg/gpgconf/ubuntu-keyring records are
         # asserted here and nowhere else.
-        rawframe_locked_cache_object(ubuntu_packages "host.ubuntu.resolute_packages")
+        rawframe_locked_cache_object(ubuntu_packages "host.ubuntu.noble_packages")
         add_test(NAME "BootstrapFixtures.LinuxPackageAuthority"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_PACKAGES_FILE=${ubuntu_packages}"
@@ -334,6 +428,7 @@ function(rawframe_register_repository_tests)
         add_test(NAME "SyncFixtures.OpenpgpSidecars"
             COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
                 "-DRF_GPG=${prepared_tools}/gnupg/bin/gpg"
+                "-DRF_GPGCONF=${prepared_tools}/gnupg/bin/gpgconf"
                 "-DRF_GPGV=${prepared_tools}/gnupg/bin/gpgv"
                 "-DRF_SOURCEMETA_KEY=${sourcemeta_key}"
                 "-DRF_SOURCEMETA_CHECKSUMS=${sourcemeta_checksums}"
@@ -344,5 +439,19 @@ function(rawframe_register_repository_tests)
                 -P "${fixture_scripts}/openpgp_sidecars.cmake")
         set_tests_properties("SyncFixtures.OpenpgpSidecars" PROPERTIES
             LABELS "security;signature" RUN_SERIAL TRUE TIMEOUT 120)
+
+        add_test(NAME "SyncFixtures.LinuxDependencyAuthority"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                -P "${fixture_scripts}/linux_dependency_authority.cmake")
+        set_tests_properties("SyncFixtures.LinuxDependencyAuthority" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1588" LABELS "repository;offline"
+            RUN_SERIAL TRUE TIMEOUT 900)
+
+        add_test(NAME "SyncFixtures.LinuxHost"
+            COMMAND "${CMAKE_COMMAND}" "${repository_root_argument}"
+                -P "${fixture_scripts}/linux_host.cmake")
+        set_tests_properties("SyncFixtures.LinuxHost" PROPERTIES
+            PASS_REGULAR_EXPRESSION "RF1559" LABELS "repository;host"
+            RUN_SERIAL TRUE TIMEOUT 300)
     endif()
 endfunction()

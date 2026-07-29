@@ -66,13 +66,10 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "RAWFRAME_HOST_ID": "linux-x86_64",
-        "CMAKE_C_COMPILER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang",
-        "CMAKE_CXX_COMPILER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang++",
-        "CMAKE_LINKER": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/ld.lld",
-        "CMAKE_AR": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/llvm-ar",
         "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/prepared/linux-x86_64/tools/ninja/ninja",
         "RAWFRAME_CLANG_TIDY_EXECUTABLE": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang-tidy",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/out/prepared/linux-x86_64/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/third_party/vcpkg/toolchains/linux-x86_64.cmake",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/out/prepared/linux-x86_64/installed",
         "VCPKG_MANIFEST_DIR": "${sourceDir}/third_party/vcpkg",
         "VCPKG_TARGET_TRIPLET": "x64-linux-rawframe"

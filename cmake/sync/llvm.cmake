@@ -165,7 +165,7 @@ function(rf_prepare_llvm_keyring gpg key_file work_root output_keyring)
     set(${output_keyring} "${keyring}" PARENT_SCOPE)
 endfunction()
 
-function(rf_verify_llvm_openpgp gpg gpgv key_file signature_file artifact_file work_root)
+function(rf_verify_llvm_openpgp gpg gpgv gpgconf key_file signature_file artifact_file work_root)
     set(home "${work_root}/llvm-gnupg-home")
     rf_prepare_llvm_keyring("${gpg}" "${key_file}" "${work_root}" keyring)
     execute_process(
@@ -179,7 +179,7 @@ function(rf_verify_llvm_openpgp gpg gpgv key_file signature_file artifact_file w
     if(NOT verify_result EQUAL 0 OR verify_bytes GREATER 524288 OR NOT valid_count EQUAL 1)
         rf_bootstrap_fail("RF1426" "LLVM detached OpenPGP signature verification failed")
     endif()
-    rf_shutdown_gnupg_home("${gpg}" "${home}")
+    rf_shutdown_gnupg_home("${gpgconf}" "${home}")
 endfunction()
 
 function(rf_verify_llvm_sigstore cosign trusted_root bundle artifact_sha256)
@@ -227,10 +227,10 @@ function(rf_sync_verify_llvm_closure repository_root host_id transport output_id
        NOT primary_verification_artifact_ids STREQUAL expected_ids)
         rf_bootstrap_fail("RF1429" "LLVM composite verification authority differs from the closed contract")
     endif()
-    rf_sync_require_prepared_verifiers("${repository_root}" "${host_id}" gpg gpgv cosign trusted_root)
+    rf_sync_require_prepared_verifiers("${repository_root}" "${host_id}" gpg gpgv gpgconf cosign trusted_root)
     rf_verify_llvm_provenance_semantics("${provenance_path}" "${artifact_name}" "${primary_sha256}")
     rf_verify_llvm_sigstore("${cosign}" "${trusted_root}" "${provenance_path}" "${primary_sha256}")
-    rf_verify_llvm_openpgp("${gpg}" "${gpgv}" "${keys_path}" "${signature_path}" "${primary_path}"
+    rf_verify_llvm_openpgp("${gpg}" "${gpgv}" "${gpgconf}" "${keys_path}" "${signature_path}" "${primary_path}"
         "${repository_root}/out/sync/${host_id}/quarantine")
     set(${output_ids} "${primary_id};${provenance_id};${signature_id};${key_id}" PARENT_SCOPE)
     set(${output_paths} "${primary_path};${provenance_path};${signature_path};${keys_path}" PARENT_SCOPE)

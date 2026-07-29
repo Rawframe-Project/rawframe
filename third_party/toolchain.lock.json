@@ -8,8 +8,8 @@
       "authority.cmake_release_key.data",
       "authority.sigstore_trusted_root.data",
       "authority.ubuntu_archive_keyring.linux_all",
-      "host.ubuntu.resolute_inrelease",
-      "host.ubuntu.resolute_packages",
+      "host.ubuntu.noble_inrelease",
+      "host.ubuntu.noble_packages",
       "tool.archive_extractor.linux_x86_64",
       "tool.archive_extractor.windows_x86_64",
       "tool.cmake.checksums",
@@ -20,6 +20,7 @@
       "tool.cosign.windows_x86_64_bundle",
       "tool.gnupg.linux_x86_64",
       "tool.gnupg.linux_x86_64_full",
+      "tool.gnupg.linux_x86_64_config",
       "tool.gnupg.windows_x86_64",
       "tool.gnupg.windows_x86_64_signature"
     ],
@@ -34,9 +35,9 @@
       {
         "hostId": "linux-x86_64",
         "absolutePath": "/usr/bin/curl",
-        "minimumVersion": "8.18.0",
+        "minimumVersion": "8.5.0",
         "vendorSignature": "distribution_package_chain",
-        "packageIdentity": "Ubuntu 26.04 inbox curl, serviced in place by the distribution"
+        "packageIdentity": "Ubuntu 24.04 inbox curl 8.5.0-2ubuntu10, serviced in place by the distribution"
       }
     ]
   },
@@ -62,7 +63,7 @@
     {
       "id": "tool.gnupg",
       "version": "2.5.21",
-      "artifactIds": ["tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.windows_x86_64"],
+      "artifactIds": ["tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.linux_x86_64_config", "tool.gnupg.windows_x86_64"],
       "licenseExpression": "GPL-3.0-or-later"
     },
     {
