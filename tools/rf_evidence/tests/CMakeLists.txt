@@ -5,11 +5,13 @@ add_executable(rawframe_tool_rf_evidence_tests
     dependency_authority_test.cpp
     descriptor_test.cpp
     diagnostic_test.cpp
+    evaluation_policy_test.cpp
     evidence_set_test.cpp
     file_reader_test.cpp
     file_security_test.cpp
     json_policy_test.cpp
     license_review_test.cpp
+    metric_registry_test.cpp
     offline_verifier_test.cpp
     path_audit_test.cpp
     path_policy_test.cpp

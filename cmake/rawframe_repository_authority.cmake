@@ -13,8 +13,8 @@ function(rawframe_validate_repository_authority)
     endif()
 
     string(JSON schema_version ERROR_VARIABLE schema_error GET "${repository_json}" schemaVersion)
-    if(schema_error OR NOT schema_version EQUAL 3)
-        message(FATAL_ERROR "RF1003 repository schemaVersion must be exactly 3")
+    if(schema_error OR NOT schema_version EQUAL 4)
+        message(FATAL_ERROR "RF1003 repository schemaVersion must be exactly 4")
     endif()
 
     string(JSON tool_count ERROR_VARIABLE tools_error LENGTH "${repository_json}" tools)
@@ -47,6 +47,21 @@ function(rawframe_validate_repository_authority)
     endif()
     if(tool_target_error OR NOT tool_target STREQUAL "rawframe_tool_rf_evidence")
         message(FATAL_ERROR "RF1009 TASK-0001 CMake target identity is invalid")
+    endif()
+
+    # Maintained evidence membership is one registered index. Configure only
+    # proves the registration exists and resolves inside the repository; every
+    # semantic proof about what it lists belongs to rf-evidence, which is the
+    # authority for it. Two authorities for one property is the thing this
+    # repository does not do.
+    string(JSON evidence_index ERROR_VARIABLE evidence_index_error GET "${repository_json}" evidenceIndex)
+    if(evidence_index_error OR NOT evidence_index STREQUAL "evidence/evidence.json")
+        message(FATAL_ERROR "RF1010 repository.evidenceIndex must name evidence/evidence.json")
+    endif()
+
+    set(evidence_index_path "${CMAKE_SOURCE_DIR}/${evidence_index}")
+    if(NOT EXISTS "${evidence_index_path}")
+        message(FATAL_ERROR "RF1011 registered evidence index is missing: ${evidence_index}")
     endif()
 
     set(RAWFRAME_EVIDENCE_TOOL_TARGET "${tool_target}" PARENT_SCOPE)

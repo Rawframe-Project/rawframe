@@ -20,6 +20,7 @@
       "get_blob",
       "graph_repository",
       "inspect_source_ownership",
+      "load_evidence_index",
       "put_blob",
       "review_licenses",
       "validate_record",

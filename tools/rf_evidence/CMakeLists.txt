@@ -10,8 +10,10 @@ target_sources(rawframe_tool_rf_evidence_private PRIVATE
     src/dependency_authority.cpp
     src/descriptor.cpp
     src/diagnostic.cpp
+    src/evaluation_policy.cpp
     src/file_reader.cpp
     src/file_security.cpp
+    src/metric_registry.cpp
     src/record_command.cpp
     src/record_gate.cpp
     src/json_policy.cpp
@@ -63,8 +65,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
     set(rawframe_tool_rf_evidence_maintained_sources
         src/blob_store.cpp
         src/blob_store.h
-    src/evidence_set.cpp
-    src/evidence_set.h
+        src/evidence_set.cpp
+        src/evidence_set.h
         src/canonical_json.cpp
         src/canonical_json.h
         src/command.cpp
@@ -75,20 +77,24 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/descriptor.h
         src/diagnostic.cpp
         src/diagnostic.h
+        src/evaluation_policy.cpp
+        src/evaluation_policy.h
         src/failure.h
         src/file_reader.cpp
         src/file_reader.h
         src/file_security.cpp
         src/file_security.h
-    src/record_command.cpp
-    src/record_command.h
-    src/record_gate.cpp
-    src/record_gate.h
+        src/record_command.cpp
+        src/record_command.h
+        src/record_gate.cpp
+        src/record_gate.h
         src/json_policy.cpp
         src/json_policy.h
         src/license_review.cpp
         src/license_review.h
         src/main.cpp
+        src/metric_registry.cpp
+        src/metric_registry.h
         src/offline_verifier.cpp
         src/offline_verifier.h
         src/path_audit.cpp
@@ -112,8 +118,10 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/source_inspector.cpp
         src/source_inspector.h
         tests/blob_store_test.cpp
-    tests/evidence_set_test.cpp
-    tests/record_gate_test.cpp
+        tests/evaluation_policy_test.cpp
+        tests/evidence_set_test.cpp
+        tests/metric_registry_test.cpp
+        tests/record_gate_test.cpp
         tests/canonical_json_test.cpp
         tests/command_test.cpp
         tests/dependency_authority_test.cpp

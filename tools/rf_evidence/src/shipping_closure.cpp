@@ -180,9 +180,15 @@ Result<ShippingClosureAudit> auditShippingClosure(const std::filesystem::path& r
         audit.checks.push_back(ShippingClosureCheck{"no_install_or_export_surface", tool.id, *noExportSurface});
     }
 
+    // Product roots that must not exist yet. `evidence` was one of them until
+    // ADR-0022 admitted maintained evidence as repository material and TASK-0005
+    // created it; its absence was never the invariant, and asserting it now
+    // would make a legitimate root look like a shipping leak. What must stay
+    // true of it is that nothing there is a production module, which
+    // noProductionModuleManifests below proves over the whole repository, and
+    // that nothing there is generated, which the path audit proves.
     constexpr std::array kForbiddenRoots{
         std::string_view{"apps"},
-        std::string_view{"evidence"},
         std::string_view{"games"},
         std::string_view{"packages"},
         std::string_view{"sdk"},

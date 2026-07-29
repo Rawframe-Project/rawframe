@@ -4,6 +4,7 @@
 #include "record_gate.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -53,9 +54,11 @@ BlobStore populatedStore() {
     for (const char kCharacter : kName) {
         leaf = (leaf ^ static_cast<unsigned char>(kCharacter)) * 16777619U;
     }
+    constexpr std::array<char, 16> kDigits{
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     std::string label(8, '0');
     for (std::size_t index = 0; index < 8; ++index) {
-        label[7 - index] = "0123456789abcdef"[(leaf >> (index * 4)) & 0xFU];
+        label.at(7 - index) = kDigits.at((leaf >> (index * 4)) & 0xFU);
     }
     const std::filesystem::path kRoot =
         std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "es" / label / "blobs" / "sha256";

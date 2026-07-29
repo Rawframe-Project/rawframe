@@ -1,0 +1,1 @@
+{"entries":[{"bound":{"scaleExponent":18,"value":9007199254740991},"checkClass":"correctness","comparison":"at_most","metricGeneration":1,"metricId":"tick.duration.p99","policyKey":"tick_ceiling"}],"metricRegistryGeneration":1,"policyGeneration":1,"recordKind":"evaluation_policy","schemaVersion":1,"tier":"tier_0","trust":{"provenance":"diagnostic_untrusted"}}
