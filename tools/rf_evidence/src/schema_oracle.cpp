@@ -69,8 +69,14 @@ Status validateJsonShape(const std::filesystem::path& repositoryRoot,
     if (auto instanceAdmission = validateJsonAdmission(instancePath); !instanceAdmission) {
         return instanceAdmission;
     }
-    std::vector<std::string> arguments{
-        "validate", schemaPath.generic_string(), instancePath.generic_string(), "--json"};
+    // The verdict is the exit code, and nothing here reads the oracle's report.
+    // `--json` asked for one anyway: an annotated result whose size grows with
+    // the instance, measured at 10,004,050 bytes for a registry at its accepted
+    // 1,024-metric limit, against a bounded 1 MiB of captured output. That made
+    // an accepted limit unverifiable in exchange for bytes no code consumed.
+    // Without it the capture holds the human-readable reason instead, which is
+    // both smaller and the thing a reader actually wants.
+    std::vector<std::string> arguments{"validate", schemaPath.generic_string(), instancePath.generic_string()};
     for (const auto& kImport : imports) {
         // Each import is admitted on its own before it can influence a verdict.
         if (auto importAdmission = validateJsonAdmission(kImport); !importAdmission) {

@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/metric-registry-v1.schema.json",
+  "title": "Typed metric registry, generation 1",
+  "description": "The one place a metric's meaning is fixed. SPEC-0014 admits only stable typed registry entries as gating material, so a metric that is not declared here has no agreed unit, scale, statistic, polarity, sampling, or derivation, and nothing may compare two observations of it. The registry carries no bound and no threshold: it states what a quantity is, never whether any value of it is acceptable. It also carries no trust member, because a dictionary makes no observation and therefore has no provenance to declare.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "registryGeneration",
+    "metrics"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordKind": {
+      "const": "metric_registry"
+    },
+    "registryGeneration": {
+      "description": "Which generation of the registry this is. A raw run receipt names the generation it was produced against, and evidence is comparable only across an equal one.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": {
+        "$ref": "#/$defs/metric"
+      }
+    }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricId",
+        "metricGeneration",
+        "stability",
+        "owner",
+        "scope",
+        "unit",
+        "statistic",
+        "scaleExponent",
+        "polarity",
+        "budgetClass",
+        "sampling",
+        "rescaling",
+        "queryId"
+      ],
+      "properties": {
+        "metricId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "metricGeneration": {
+          "description": "Half of the metric's identity. Changing a unit, scale, statistic, polarity, sampling, or derivation produces a new generation and never edits an existing entry, because an evaluator comparing across a silent redefinition would be comparing two different quantities under one name.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stability": {
+          "description": "Only a stable entry may be bound by a policy. A diagnostic entry exists to be read by a human and can never gate anything.",
+          "enum": [
+            "stable",
+            "diagnostic"
+          ]
+        },
+        "owner": {
+          "description": "Who answers for this quantity's definition. A label, not a module reference, and naming an accepted inventory identity here neither creates nor admits that module.",
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "scope": {
+          "description": "What one observation covers.",
+          "enum": [
+            "run",
+            "process",
+            "world_tick",
+            "connection"
+          ]
+        },
+        "unit": {
+          "description": "Base units only. A scaled view such as a millisecond or a mebibyte is expressed by scaleExponent rather than by a second spelling, because two spellings of one quantity are two authorities for it.",
+          "enum": [
+            "nanosecond",
+            "byte",
+            "count",
+            "tick",
+            "hertz"
+          ]
+        },
+        "statistic": {
+          "description": "The single statistic this entry denotes. A metric reported at several statistics is several entries with distinct identifiers, so that a bound can never silently attach to the wrong one.",
+          "enum": [
+            "p50",
+            "p95",
+            "p99",
+            "maximum",
+            "count",
+            "total"
+          ]
+        },
+        "scaleExponent": {
+          "description": "SPEC-0017's fixed-point subset, bounded exactly as the accepted receipt bounds it. The represented quantity is the integer value times ten to this power.",
+          "type": "integer",
+          "minimum": -18,
+          "maximum": 18
+        },
+        "polarity": {
+          "description": "Declared, never inferred. Nothing derives a direction of improvement from a name, a unit, or a statistic.",
+          "enum": [
+            "lower_is_better",
+            "higher_is_better"
+          ]
+        },
+        "budgetClass": {
+          "description": "ADR-0018's taxonomy, unchanged. It classifies what kind of number a bound on this metric would be, which is what lets a policy refuse to attach a Tier-0 correctness check to a performance objective.",
+          "enum": [
+            "hard_ceiling",
+            "performance_objective",
+            "regression_threshold",
+            "overload_threshold",
+            "supervisor_deadline",
+            "workload_parameter",
+            "contract_constant"
+          ]
+        },
+        "sampling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "blockLength"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "per_run",
+                "per_tick",
+                "per_connection"
+              ]
+            },
+            "blockLength": {
+              "description": "The metric-owned block SPEC-0015 resamples over, counted in units of kind. Adjacent ticks are not independent experiments, so the block belongs to the metric and not to whoever later runs a bootstrap.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "rescaling": {
+          "description": "How a bound at one scale meets an observation at another. Stated rather than implicit, because an unstated rounding rule is how a threshold quietly moves.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "direction",
+            "rounding"
+          ],
+          "properties": {
+            "direction": {
+              "enum": [
+                "bound_to_observation",
+                "observation_to_bound"
+              ]
+            },
+            "rounding": {
+              "enum": [
+                "reject_inexact",
+                "toward_negative_infinity",
+                "toward_positive_infinity"
+              ]
+            }
+          }
+        },
+        "queryId": {
+          "description": "The derivation identity SPEC-0014 requires evidence to agree on. Two runs are comparable only when the quantity was derived the same way.",
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "labels": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": {
+            "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+          }
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}

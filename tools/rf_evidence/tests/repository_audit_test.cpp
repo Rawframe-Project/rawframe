@@ -5,7 +5,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
+#include <string_view>
+#include <system_error>
 
 namespace rawframe::tool::evidence {
 
@@ -46,6 +49,91 @@ TEST(PathAudit, DeliveredFilesStayInsideTheTaskEnvelope) {
         EXPECT_EQ(entry.classification, "historical_staging_landing_excluded");
     }
     EXPECT_TRUE(std::ranges::is_sorted(audit->stagingRootEntries, {}, &PathAuditEntry::path));
+}
+
+namespace {
+
+// A tree built to be audited. The real repository holds only maintained
+// evidence, so proving that generated material would be reported needs a root
+// that holds some.
+std::filesystem::path evidenceAuditRoot(std::string_view name, std::string_view relativeFile) {
+    const std::filesystem::path kRoot =
+        std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "evidence_audit" / std::filesystem::path(std::string(name));
+    std::error_code error;
+    std::filesystem::remove_all(kRoot, error);
+    std::filesystem::create_directories(kRoot, error);
+    std::ofstream index(kRoot / "repository.json", std::ios::binary | std::ios::trunc);
+    index << "{}";
+    index.close();
+
+    const std::filesystem::path kFile = kRoot / std::filesystem::path(std::string(relativeFile));
+    std::filesystem::create_directories(kFile.parent_path(), error);
+    std::ofstream content(kFile, std::ios::binary | std::ios::trunc);
+    content << "{}";
+    return kRoot;
+}
+
+bool reportsViolation(const PathAudit& audit, std::string_view path) {
+    return std::ranges::any_of(audit.envelopeViolations, [path](const PathAuditEntry& entry) {
+        return entry.path == path && entry.classification == "outside_envelope";
+    });
+}
+
+} // namespace
+
+// Decision 7. Maintained and generated stay apart, and the audit proves it
+// rather than a convention asserting it. The three maintained shapes are
+// admitted; anything else beneath the root is reported.
+TEST(PathAudit, AdmitsTheThreeMaintainedEvidenceShapes) {
+    for (const std::string_view kPath : {"evidence/evidence.json",
+                                         "evidence/registries/metric-registry-v2.json",
+                                         "evidence/policies/tier0-evaluation-policy-v2.json"}) {
+        const auto kRoot = evidenceAuditRoot("maintained", kPath);
+        auto audit = auditRepositoryPaths(kRoot);
+        ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+        EXPECT_TRUE(audit->envelopeViolations.empty()) << kPath;
+    }
+}
+
+TEST(PathAudit, ReportsAGeneratedArtifactPlacedUnderMaintainedEvidence) {
+    const auto kRoot = evidenceAuditRoot("generated", "evidence/out/report.json");
+    auto audit = auditRepositoryPaths(kRoot);
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_TRUE(reportsViolation(*audit, "evidence/out/report.json"));
+}
+
+TEST(PathAudit, ReportsABlobPlacedUnderMaintainedEvidence) {
+    const auto kRoot = evidenceAuditRoot("blob", "evidence/blobs/sha256/ab/cd.json");
+    auto audit = auditRepositoryPaths(kRoot);
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_TRUE(reportsViolation(*audit, "evidence/blobs/sha256/ab/cd.json"));
+}
+
+// Tier 0 cannot create, promote, activate, or trust a baseline. A file that
+// looked like one would be the first step toward pretending otherwise, so the
+// audit reports it as readily as it reports a generated blob.
+TEST(PathAudit, ReportsABaselineRecordPlacedUnderMaintainedEvidence) {
+    const auto kRoot = evidenceAuditRoot("baseline", "evidence/baselines/anchor.json");
+    auto audit = auditRepositoryPaths(kRoot);
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_TRUE(reportsViolation(*audit, "evidence/baselines/anchor.json"));
+}
+
+TEST(PathAudit, ReportsANestedDirectoryBeneathAMaintainedClass) {
+    const auto kRoot = evidenceAuditRoot("nested", "evidence/registries/archive/old.json");
+    auto audit = auditRepositoryPaths(kRoot);
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_TRUE(reportsViolation(*audit, "evidence/registries/archive/old.json"));
+}
+
+TEST(PathAudit, TheMaintainedTreeHoldsNoBaselineOrActiveRole) {
+    const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
+    std::error_code error;
+    EXPECT_FALSE(std::filesystem::exists(kRoot / "evidence/baselines", error));
+    EXPECT_FALSE(std::filesystem::exists(kRoot / "evidence/roles", error));
+    auto audit = auditRepositoryPaths(kRoot);
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_TRUE(audit->envelopeViolations.empty());
 }
 
 TEST(ShippingClosure, RepositoryToolCannotEnterShipping) {

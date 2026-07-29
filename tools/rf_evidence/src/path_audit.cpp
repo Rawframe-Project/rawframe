@@ -39,6 +39,10 @@ constexpr std::array kEnvelopeFiles{
     std::string_view{"schemas/raw-run-receipt-v1.schema.json"},
     std::string_view{"schemas/attempt-plan-v1.schema.json"},
     std::string_view{"schemas/evidence-set-v1.schema.json"},
+    // TASK-0005 envelope, named individually for the same reason.
+    std::string_view{"schemas/evidence-index-v1.schema.json"},
+    std::string_view{"schemas/metric-registry-v1.schema.json"},
+    std::string_view{"schemas/evaluation-policy-v1.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},
@@ -95,9 +99,33 @@ constexpr std::array kSkippedRoots{
     std::string_view{"out"},
 };
 
+// Root `evidence/` is admitted as an envelope root, but not as a bare prefix.
+// Maintained authorities and generated artifacts stay apart, and the difference
+// between them is not a convention anyone has to remember: this rule admits the
+// index and the two authority classes it can name, so a receipt, a blob, a
+// report, a baseline, or anything nested deeper is reported rather than
+// absorbed. Generated evidence belongs beneath `out/`, which is skipped.
+bool matchesMaintainedEvidence(std::string_view relativePath) {
+    if (relativePath == "evidence/evidence.json") {
+        return true;
+    }
+    for (const std::string_view kClassRoot : {"evidence/registries/", "evidence/policies/"}) {
+        if (!relativePath.starts_with(kClassRoot) || !relativePath.ends_with(".json")) {
+            continue;
+        }
+        // One level below the class root and no further, so a directory tree
+        // cannot grow underneath a name that looks maintained.
+        return relativePath.find('/', kClassRoot.size()) == std::string_view::npos;
+    }
+    return false;
+}
+
 bool matchesEnvelope(std::string_view relativePath) {
     if (std::ranges::find(kEnvelopeFiles, relativePath) != kEnvelopeFiles.end()) {
         return true;
+    }
+    if (relativePath.starts_with("evidence/")) {
+        return matchesMaintainedEvidence(relativePath);
     }
     return std::ranges::any_of(kEnvelopeRoots, [relativePath](std::string_view root) {
         return relativePath.starts_with(root);
@@ -122,6 +150,7 @@ constexpr std::array kKnownTopDirectories{
     std::string_view{".claude"},
     std::string_view{"cmake"},
     std::string_view{"docs"},
+    std::string_view{"evidence"},
     std::string_view{"schemas"},
     std::string_view{"third_party"},
     std::string_view{"tools"},

@@ -315,6 +315,71 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "assembly writes no report"
         LABELS "repository;security" TIMEOUT 300)
 
+    # The maintained authorities at the process level. The unit suites drive the
+    # loaders directly; these cases prove the installed command reaches the
+    # registered index, gates both authorities, and resolves one against the
+    # other, which is the whole of what this gate delivers.
+    add_test(NAME "Command.LoadEvidenceIndex"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" load evidence-index
+            --root "${CMAKE_SOURCE_DIR}" --format json)
+    set_tests_properties("Command.LoadEvidenceIndex" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"index\":\"evidence/evidence.json\""
+        LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.LoadEvidenceIndexBindsEveryPolicyEntry"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" load evidence-index
+            --root "${CMAKE_SOURCE_DIR}" --format json)
+    set_tests_properties("Command.LoadEvidenceIndexBindsEveryPolicyEntry" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"boundEntryCount\":5"
+        LABELS "repository" TIMEOUT 300)
+
+    # Loading reads and refuses. It produces no artifact, so it has nowhere to
+    # write one, and the absence stays observable rather than assumed.
+    add_test(NAME "Command.LoadEvidenceIndexRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" load evidence-index
+            --root "${CMAKE_SOURCE_DIR}"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json")
+    set_tests_properties("Command.LoadEvidenceIndexRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "loading maintained evidence writes no report"
+        LABELS "repository;security" TIMEOUT 300)
+
+    add_test(NAME "Command.ValidateMetricRegistry"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/evidence/registries/metric-registry-v1.json")
+    set_tests_properties("Command.ValidateMetricRegistry" PROPERTIES
+        PASS_REGULAR_EXPRESSION "metric registry generation 1 is canonical and valid"
+        LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.ValidateEvaluationPolicy"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/evidence/policies/tier0-evaluation-policy-v1.json")
+    set_tests_properties("Command.ValidateEvaluationPolicy" PROPERTIES
+        PASS_REGULAR_EXPRESSION "evaluation policy generation 1 is canonical and valid"
+        LABELS "repository" TIMEOUT 300)
+
+    # Tier 0 is diagnostic_untrusted and cannot become anything else by saying
+    # so. The refusal is structural, which is why it survives at the process
+    # level and not only where the loader is called directly.
+    add_test(NAME "Command.ValidateRejectsAPolicyClaimingTrustedProvenance"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/policies/claims-trusted-provenance.json"
+            --format json)
+    set_tests_properties("Command.ValidateRejectsAPolicyClaimingTrustedProvenance" PROPERTIES
+        PASS_REGULAR_EXPRESSION "schema_invalid"
+        LABELS "repository;security" TIMEOUT 300)
+
+    add_test(NAME "Command.ValidateRejectsAPolicyClaimingAPromotion"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/policies/claims-a-promotion.json"
+            --format json)
+    set_tests_properties("Command.ValidateRejectsAPolicyClaimingAPromotion" PROPERTIES
+        PASS_REGULAR_EXPRESSION "schema_invalid"
+        LABELS "repository;security" TIMEOUT 300)
+
     # The store at the process level. The unit suite drives it against scratch
     # space; these cases prove the installed command derives the same path in
     # the repository's own store and hands the bytes back unaltered, which is

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/evaluation-policy-v1.schema.json",
+  "title": "Evaluation policy, generation 1",
+  "description": "The maintained input an evaluator reads before it judges anything. It is fixed before execution so that no check is chosen after a result is seen. This generation is Tier 0 only, which is why it admits exactly the two check classes Tier 0 owns, completeness and correctness. A canonical performance claim, a relative comparison against a baseline, a qualification result, trusted provenance, and a promotion are absent from the grammar rather than forbidden by convention, so a policy cannot state one at all. The policy carries bounds; it performs no comparison and reaches no verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "policyGeneration",
+    "tier",
+    "metricRegistryGeneration",
+    "entries",
+    "trust"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordKind": {
+      "const": "evaluation_policy"
+    },
+    "policyGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "tier": {
+      "description": "Tier 0 is the only admitted value at this generation. A higher tier needs evidence this gate cannot produce, so admitting its spelling would be a claim with nothing behind it.",
+      "const": "tier_0"
+    },
+    "metricRegistryGeneration": {
+      "description": "Which registry generation every entry below is written against. A policy read against a different generation is not a weaker match; it is a different set of quantities.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "trust": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/trust"
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyKey",
+        "checkClass",
+        "metricId",
+        "metricGeneration",
+        "comparison",
+        "bound"
+      ],
+      "properties": {
+        "policyKey": {
+          "description": "This entry's stable name, unique within the policy generation.",
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "checkClass": {
+          "description": "Tier 0 owns completeness and correctness feedback. An absolute objective and a regression are absent deliberately: both need compatible trusted evidence from a qualified cell, and neither exists at this gate.",
+          "enum": [
+            "completeness",
+            "correctness"
+          ]
+        },
+        "metricId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "metricGeneration": {
+          "description": "The other half of the bound metric's identity. A policy binds one exact metric generation and never a metric name alone.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "comparison": {
+          "description": "Absolute forms only. A ratio, a delta, or a comparison against a baseline is a relative claim and does not exist in this grammar.",
+          "enum": [
+            "at_most",
+            "at_least"
+          ]
+        },
+        "bound": {
+          "description": "An integer paired with an explicit scale. No float, exponent form, NaN, infinity, or negative zero, exactly as SPEC-0017 requires of every value in a canonical record.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "scaleExponent"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "evidence-common-v1.schema.json#/$defs/safeInteger"
+            },
+            "scaleExponent": {
+              "type": "integer",
+              "minimum": -18,
+              "maximum": 18
+            }
+          }
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}

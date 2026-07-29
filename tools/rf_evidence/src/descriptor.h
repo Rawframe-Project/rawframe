@@ -14,6 +14,16 @@ inline constexpr std::string_view kRawRunReceiptMediaType = "application/vnd.raw
 inline constexpr std::string_view kAttemptPlanMediaType = "application/vnd.rawframe.evidence.attempt-plan.v1+json";
 inline constexpr std::string_view kEvidenceSetMediaType = "application/vnd.rawframe.evidence.evidence-set.v1+json";
 
+// The maintained authorities. They are read material rather than produced
+// evidence, but they are records under the same canonical contract and carry
+// their identity outside themselves for the same reason: bytes that describe
+// themselves cannot be checked against anything.
+inline constexpr std::string_view kEvidenceIndexMediaType = "application/vnd.rawframe.evidence.evidence-index.v1+json";
+inline constexpr std::string_view kMetricRegistryMediaType =
+    "application/vnd.rawframe.evidence.metric-registry.v1+json";
+inline constexpr std::string_view kEvaluationPolicyMediaType =
+    "application/vnd.rawframe.evidence.evaluation-policy.v1+json";
+
 // External content identity. It describes bytes and is never inside them, so a
 // descriptor and the record it identifies are always two separate documents.
 struct Descriptor {

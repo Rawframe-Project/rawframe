@@ -412,6 +412,14 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
     if (kIsAssembleOperation) {
         return assembleOperation(*options, output, errors);
     }
+
+    // Loading maintained authorities reads and refuses; it produces no artifact
+    // at all, so it has nowhere to write for the same reason the others do not.
+    if (kOperation == "load" && subject == "evidence-index" && options->reportPath) {
+        return fail(errors,
+                    Failure{FailureCode::InvalidArguments, "--report", "loading maintained evidence writes no report"},
+                    options->format);
+    }
     if (kOperation == "put" && subject == "blob") {
         return putBlobOperation(*options, output, errors);
     }
@@ -441,6 +449,9 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
     }
     if (kOperation == "review" && subject == "licenses") {
         return licenseOperation(*options, output, errors);
+    }
+    if (kOperation == "load" && subject == "evidence-index") {
+        return loadEvidenceIndexOperation(*options, output, errors);
     }
     if (kOperation == "audit" && subject == "paths") {
         return pathAuditOperation(*options, output, errors);

@@ -14,14 +14,15 @@
     "instrumentations",
     "packagingPolicies",
     "profiles",
-    "tools"
+    "tools",
+    "evidenceIndex"
   ],
   "properties": {
     "$schema": {
       "const": "schemas/repository.schema.json"
     },
     "schemaVersion": {
-      "const": 3
+      "const": 4
     },
     "modules": {
       "$ref": "#/$defs/pathSet"
@@ -46,15 +47,23 @@
     },
     "tools": {
       "$ref": "#/$defs/pathSet"
+    },
+    "evidenceIndex": {
+      "description": "The one registered index of maintained evidence authorities. SPEC-0017 admits either an evidenceAuthorities membership class here or one registered index, and forbids filesystem scanning in both. A single path is used so that this file does not grow once per registry, policy, and later baseline: the index absorbs that detail, exactly as one tool manifest absorbs a tool's own.",
+      "$ref": "#/$defs/repositoryPath"
     }
   },
   "$defs": {
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$"
+    },
     "pathSet": {
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "type": "string",
-        "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[a-z0-9_][a-z0-9_./-]*$"
+        "$ref": "#/$defs/repositoryPath"
       }
     }
   }

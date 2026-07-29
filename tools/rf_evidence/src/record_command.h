@@ -42,6 +42,13 @@ struct ParsedOptions {
 [[nodiscard]] int canonicalizeOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int validateRecordOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int assembleOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
+
+// Loads every maintained evidence authority the registered index names, gates
+// each as a record, and resolves the policy against the registry generation it
+// was written for. Membership is proven by repository validation, so an
+// authority sitting under `evidence/` without being listed is refused rather
+// than found. Nothing here evaluates an observation or reaches a verdict.
+[[nodiscard]] int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int verifyBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int getBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);

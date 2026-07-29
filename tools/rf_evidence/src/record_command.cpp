@@ -3,19 +3,25 @@
 #include "blob_store.h"
 #include "canonical_json.h"
 #include "descriptor.h"
+#include "evaluation_policy.h"
 #include "evidence_set.h"
 #include "file_reader.h"
 #include "file_security.h"
+#include "metric_registry.h"
 #include "path_policy.h"
 #include "raw_run_receipt.h"
 #include "record_gate.h"
+#include "repository_validator.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 namespace rawframe::tool::evidence {
 
@@ -140,6 +146,12 @@ RecordResult<RecordKindBinding> bindRecordKind(const CanonicalValue& record) {
     if (*kind == kAttemptPlanRecordKind) {
         return RecordKindBinding{kAttemptPlanMediaType};
     }
+    if (*kind == kMetricRegistryRecordKind) {
+        return RecordKindBinding{kMetricRegistryMediaType};
+    }
+    if (*kind == kEvaluationPolicyRecordKind) {
+        return RecordKindBinding{kEvaluationPolicyMediaType};
+    }
     return std::unexpected(RecordFailure{RecordRejection::SchemaInvalid, "record declares an unknown kind: " + *kind});
 }
 
@@ -156,6 +168,23 @@ RecordResult<std::string> gateRecord(const std::filesystem::path& repositoryRoot
             return std::unexpected(summary.error());
         }
         return summary->runId;
+    }
+    // The maintained authorities gate themselves, because their semantic checks
+    // are not a subset of any other kind's. Their identity is the pair of kind
+    // and generation rather than a UUID: neither is one occurrence of anything.
+    if (mediaType == kMetricRegistryMediaType) {
+        auto registry = parseMetricRegistry(repositoryRoot, instancePath, record);
+        if (!registry) {
+            return std::unexpected(registry.error());
+        }
+        return "metric registry generation " + std::to_string(registry->registryGeneration);
+    }
+    if (mediaType == kEvaluationPolicyMediaType) {
+        auto policy = parseEvaluationPolicy(repositoryRoot, instancePath, record);
+        if (!policy) {
+            return std::unexpected(policy.error());
+        }
+        return "evaluation policy generation " + std::to_string(policy->policyGeneration);
     }
     if (auto status = checkProducerAuthority(record); !status) {
         return std::unexpected(status.error());
@@ -357,6 +386,98 @@ int assembleOperation(const ParsedOptions& options, std::ostream& output, std::o
         return failRecord(output, errors, assembled.error(), options.format);
     }
     output << serializeCanonical(*assembled);
+    return 0;
+}
+
+int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    // Membership first. Repository validation proves the index resolves, is an
+    // ordinary file, lists nothing twice, and leaves nothing under `evidence/`
+    // unaccounted for. Loading a file this has not admitted is the one thing a
+    // scanning loader would do and an explicit one must not.
+    auto snapshot = validateRepository(options.repositoryRoot);
+    if (!snapshot) {
+        return fail(errors, snapshot.error(), options.format);
+    }
+
+    std::vector<MetricRegistry> registries;
+    std::vector<EvaluationPolicy> policies;
+    std::size_t metricCount = 0;
+    for (const auto& authority : snapshot->evidenceAuthorities) {
+        const std::filesystem::path kPath = snapshot->root / std::filesystem::path(authority.path);
+        auto bytes = readRecordBytes(kPath);
+        if (!bytes) {
+            return fail(errors, bytes.error(), options.format);
+        }
+        // Maintained authorities are held to the canonical form they claim.
+        // Parsing them leniently and reserializing would repair them, and a
+        // repaired authority is one nobody reviewed.
+        auto record = ingestCanonicalBytes(*bytes);
+        if (!record) {
+            return failRecord(output, errors, record.error(), options.format);
+        }
+        if (authority.authorityClass == "metric_registry") {
+            auto registry = parseMetricRegistry(options.repositoryRoot, kPath, *record);
+            if (!registry) {
+                return failRecord(output, errors, registry.error(), options.format);
+            }
+            metricCount += registry->metrics.size();
+            registries.push_back(std::move(*registry));
+            continue;
+        }
+        auto policy = parseEvaluationPolicy(options.repositoryRoot, kPath, *record);
+        if (!policy) {
+            return failRecord(output, errors, policy.error(), options.format);
+        }
+        policies.push_back(std::move(*policy));
+    }
+
+    std::size_t boundEntryCount = 0;
+    for (const auto& policy : policies) {
+        const MetricRegistry* match = nullptr;
+        for (const auto& candidate : registries) {
+            if (candidate.registryGeneration != policy.metricRegistryGeneration) {
+                continue;
+            }
+            if (match != nullptr) {
+                return failRecord(output,
+                                  errors,
+                                  RecordFailure{RecordRejection::SchemaInvalid, "two registries claim one generation"},
+                                  options.format);
+            }
+            match = &candidate;
+        }
+        if (match == nullptr) {
+            return failRecord(
+                output,
+                errors,
+                RecordFailure{RecordRejection::SchemaInvalid, "no registry exists at the generation a policy names"},
+                options.format);
+        }
+        auto bound = bindPolicyToRegistry(policy, *match);
+        if (!bound) {
+            return failRecord(output, errors, bound.error(), options.format);
+        }
+        boundEntryCount += bound->size();
+    }
+
+    if (options.format == OutputFormat::Json) {
+        std::vector<CanonicalValue::Member> members;
+        members.emplace_back("index", CanonicalValue::makeString(snapshot->evidenceIndexPath));
+        members.emplace_back(
+            "authorityCount",
+            CanonicalValue::makeInteger(static_cast<std::int64_t>(snapshot->evidenceAuthorities.size())));
+        members.emplace_back("metricCount", CanonicalValue::makeInteger(static_cast<std::int64_t>(metricCount)));
+        members.emplace_back("boundEntryCount",
+                             CanonicalValue::makeInteger(static_cast<std::int64_t>(boundEntryCount)));
+        members.emplace_back("ok", CanonicalValue::makeBoolean(true));
+        output << serializeCanonical(CanonicalValue::makeObject(std::move(members)));
+        return 0;
+    }
+    renderSuccess(output,
+                  "load_evidence_index",
+                  std::to_string(snapshot->evidenceAuthorities.size()) + " maintained evidence authority(ies) valid, " +
+                      std::to_string(boundEntryCount) + " policy entry(ies) bound",
+                  options.format);
     return 0;
 }
 

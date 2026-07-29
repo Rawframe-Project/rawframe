@@ -1,7 +1,9 @@
 #include "repository_validator.h"
 
 #include "dependency_authority.h"
+#include "descriptor.h"
 #include "file_reader.h"
+#include "file_security.h"
 #include "path_policy.h"
 #include "schema_oracle.h"
 
@@ -207,6 +209,145 @@ Result<ToolInfo> validateToolManifest(const std::filesystem::path& repositoryRoo
     };
 }
 
+// Membership is proven exactly as tool membership is: the index names a path,
+// the path resolves inside the repository, it is an ordinary file rather than a
+// link, its declared class and media type agree, and no two entries own the
+// same bytes. A second set of proofs for the same property would be a second
+// authority for it.
+Result<std::vector<EvidenceAuthorityInfo>> readAuthorities(const std::filesystem::path& repositoryRoot,
+                                                           const std::filesystem::path& indexPath) {
+    auto input = readBoundedFile(indexPath);
+    if (!input) {
+        return std::unexpected(input.error());
+    }
+    simdjson::dom::parser parser;
+    auto indexObject = parseObject(parser, *input, indexPath);
+    if (!indexObject) {
+        return std::unexpected(indexObject.error());
+    }
+
+    simdjson::dom::array entries;
+    if (const auto kError = (*indexObject).at_key("authorities").get_array().get(entries); kError) {
+        return std::unexpected(invalidJson(indexPath, "missing or invalid array field authorities", kError));
+    }
+    if (entries.size() > 256) {
+        return std::unexpected(
+            Failure{FailureCode::LimitExceeded, "evidence/evidence.json", "the index lists more than 256 authorities"});
+    }
+
+    std::vector<EvidenceAuthorityInfo> authorities;
+    std::set<std::string, std::less<>> ownedPaths;
+    for (auto element : entries) {
+        simdjson::dom::object entry;
+        if (const auto kError = element.get_object().get(entry); kError) {
+            return std::unexpected(invalidJson(indexPath, "an authority entry is not an object", kError));
+        }
+        auto authorityClass = requiredString(entry, "authorityClass", indexPath);
+        if (!authorityClass) {
+            return std::unexpected(authorityClass.error());
+        }
+        auto relativePath = requiredString(entry, "path", indexPath);
+        if (!relativePath) {
+            return std::unexpected(relativePath.error());
+        }
+        auto mediaType = requiredString(entry, "mediaType", indexPath);
+        if (!mediaType) {
+            return std::unexpected(mediaType.error());
+        }
+
+        // The class and the media type are two statements of the same fact, so
+        // they are cross-checked rather than one being derived from the other.
+        std::string_view expected;
+        if (*authorityClass == "metric_registry") {
+            expected = kMetricRegistryMediaType;
+        } else if (*authorityClass == "evaluation_policy") {
+            expected = kEvaluationPolicyMediaType;
+        }
+        if (expected.empty()) {
+            return std::unexpected(
+                Failure{FailureCode::InvalidManifest, *relativePath, "unknown evidence authority class"});
+        }
+        if (*mediaType != expected) {
+            return std::unexpected(Failure{
+                FailureCode::InvalidManifest, *relativePath, "media type disagrees with the declared authority class"});
+        }
+
+        auto resolved = resolveRepositoryPath(repositoryRoot, *relativePath);
+        if (!resolved) {
+            return std::unexpected(resolved.error());
+        }
+        auto kind = classifyPath(repositoryRoot / std::filesystem::path(*relativePath));
+        if (!kind) {
+            return std::unexpected(kind.error());
+        }
+        if (*kind != FileKind::Regular) {
+            return std::unexpected(Failure{FailureCode::InvalidPath,
+                                           *relativePath,
+                                           std::string("the evidence authority is a ") + fileKindName(*kind)});
+        }
+        if (!ownedPaths.insert(portableLowercasePath(*relativePath)).second) {
+            return std::unexpected(
+                Failure{FailureCode::OwnershipCollision, *relativePath, "the index lists this authority twice"});
+        }
+        authorities.emplace_back(EvidenceAuthorityInfo{
+            .authorityClass = std::move(*authorityClass),
+            .path = std::move(*relativePath),
+            .mediaType = std::move(*mediaType),
+        });
+    }
+    std::ranges::sort(authorities, {}, &EvidenceAuthorityInfo::path);
+    return authorities;
+}
+
+// The counterpart of rejectUnlistedToolManifests. An authority that exists but
+// is not named is the one failure a membership model cannot report by reading
+// its own list, so it is proven by looking at the tree and refusing what the
+// list does not claim.
+Status rejectUnlisted(const std::filesystem::path& repositoryRoot,
+                      std::string_view indexRelativePath,
+                      const std::vector<EvidenceAuthorityInfo>& authorities) {
+    const auto kEvidenceRoot = repositoryRoot / "evidence";
+    std::error_code error;
+    if (!std::filesystem::exists(kEvidenceRoot, error)) {
+        return {};
+    }
+
+    std::set<std::string, std::less<>> listed;
+    listed.insert(portableLowercasePath(std::string(indexRelativePath)));
+    for (const auto& authority : authorities) {
+        listed.insert(portableLowercasePath(authority.path));
+    }
+
+    std::size_t candidates = 0;
+    for (std::filesystem::recursive_directory_iterator iterator(kEvidenceRoot, error), end; iterator != end;
+         iterator.increment(error)) {
+        if (error) {
+            return std::unexpected(
+                Failure{FailureCode::IoFailure, "evidence", "failed while auditing maintained evidence"});
+        }
+        if (iterator->is_symlink(error)) {
+            return std::unexpected(Failure{
+                FailureCode::InvalidPath,
+                std::filesystem::relative(iterator->path(), repositoryRoot, error).generic_string(),
+                "maintained evidence contains a link",
+            });
+        }
+        if (!iterator->is_regular_file(error)) {
+            continue;
+        }
+        if (++candidates > 256) {
+            return std::unexpected(
+                Failure{FailureCode::LimitExceeded, "evidence", "maintained evidence exceeds 256 files"});
+        }
+        const auto kRelative = std::filesystem::relative(iterator->path(), repositoryRoot, error).generic_string();
+        if (error || !listed.contains(portableLowercasePath(kRelative))) {
+            return std::unexpected(Failure{
+                FailureCode::InvalidManifest, kRelative, "evidence authority is not listed in the evidence index"});
+        }
+    }
+    return {};
+}
+
 Status rejectUnlistedToolManifests(const RepositorySnapshot& snapshot) {
     const auto kToolsRoot = snapshot.root / "tools";
     std::error_code error;
@@ -246,6 +387,17 @@ Status rejectUnlistedToolManifests(const RepositorySnapshot& snapshot) {
 }
 
 } // namespace
+
+Result<std::vector<EvidenceAuthorityInfo>> readEvidenceAuthorities(const std::filesystem::path& repositoryRoot,
+                                                                   const std::filesystem::path& indexPath) {
+    return readAuthorities(repositoryRoot, indexPath);
+}
+
+Status rejectUnlistedEvidenceAuthorities(const std::filesystem::path& repositoryRoot,
+                                         std::string_view indexRelativePath,
+                                         const std::vector<EvidenceAuthorityInfo>& authorities) {
+    return rejectUnlisted(repositoryRoot, indexRelativePath, authorities);
+}
 
 Result<RepositorySnapshot> validateRepository(const std::filesystem::path& repositoryRoot) {
     std::error_code canonicalError;
@@ -287,8 +439,8 @@ Result<RepositorySnapshot> validateRepository(const std::filesystem::path& repos
     }
     std::int64_t schemaVersion = 0;
     if (const auto kError = (*rootObject).at_key("schemaVersion").get_int64().get(schemaVersion);
-        (kError != 0) || schemaVersion != 3) {
-        return std::unexpected(Failure{FailureCode::InvalidManifest, "repository.json", "schemaVersion must be 3"});
+        (kError != 0) || schemaVersion != 4) {
+        return std::unexpected(Failure{FailureCode::InvalidManifest, "repository.json", "schemaVersion must be 4"});
     }
 
     auto toolPaths = requiredStringArray(*rootObject, "tools", *root, false);
@@ -296,7 +448,8 @@ Result<RepositorySnapshot> validateRepository(const std::filesystem::path& repos
         return std::unexpected(toolPaths.error());
     }
 
-    RepositorySnapshot snapshot{.root = kCanonicalRepository, .tools = {}};
+    RepositorySnapshot snapshot{
+        .root = kCanonicalRepository, .tools = {}, .evidenceIndexPath = {}, .evidenceAuthorities = {}};
     std::set<std::string, std::less<>> ids;
     std::set<std::string, std::less<>> targets;
     std::set<std::string, std::less<>> ownedPaths;
@@ -324,6 +477,46 @@ Result<RepositorySnapshot> validateRepository(const std::filesystem::path& repos
     if (auto status = rejectUnlistedToolManifests(snapshot); !status) {
         return std::unexpected(status.error());
     }
+
+    auto indexRelativePath = requiredString(*rootObject, "evidenceIndex", *root);
+    if (!indexRelativePath) {
+        return std::unexpected(indexRelativePath.error());
+    }
+    auto indexPath = resolveRepositoryPath(snapshot.root, *indexRelativePath);
+    if (!indexPath) {
+        return std::unexpected(indexPath.error());
+    }
+    auto indexKind = classifyPath(snapshot.root / std::filesystem::path(*indexRelativePath));
+    if (!indexKind) {
+        return std::unexpected(indexKind.error());
+    }
+    if (*indexKind != FileKind::Regular) {
+        return std::unexpected(Failure{FailureCode::InvalidPath,
+                                       *indexRelativePath,
+                                       std::string("the evidence index is a ") + fileKindName(*indexKind)});
+    }
+    // The index references the shared evidence definitions, and a reference
+    // resolves against its own absolute identifier rather than against a
+    // sibling file, so the import is handed over explicitly.
+    const std::array<std::filesystem::path, 1> kEvidenceImports{snapshot.root /
+                                                                "schemas/evidence-common-v1.schema.json"};
+    if (auto shape = validateJsonShape(
+            snapshot.root, snapshot.root / "schemas/evidence-index-v1.schema.json", *indexPath, kEvidenceImports);
+        !shape) {
+        return std::unexpected(shape.error());
+    }
+    snapshot.evidenceIndexPath = std::move(*indexRelativePath);
+    auto authorities = readEvidenceAuthorities(snapshot.root, *indexPath);
+    if (!authorities) {
+        return std::unexpected(authorities.error());
+    }
+    snapshot.evidenceAuthorities = std::move(*authorities);
+    if (auto status =
+            rejectUnlistedEvidenceAuthorities(snapshot.root, snapshot.evidenceIndexPath, snapshot.evidenceAuthorities);
+        !status) {
+        return std::unexpected(status.error());
+    }
+
     if (auto status = validateDependencyAuthorities(snapshot.root, snapshot); !status) {
         return std::unexpected(status.error());
     }

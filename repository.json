@@ -1,6 +1,6 @@
 {
   "$schema": "schemas/repository.schema.json",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "modules": [],
   "targets": [],
   "platforms": [],
@@ -10,5 +10,6 @@
   "profiles": [],
   "tools": [
     "tools/rf_evidence/tool.json"
-  ]
+  ],
+  "evidenceIndex": "evidence/evidence.json"
 }
