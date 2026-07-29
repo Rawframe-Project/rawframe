@@ -120,6 +120,12 @@ bool createJunction(const std::filesystem::path& link, const std::filesystem::pa
 
 #endif
 
+} // namespace
+
+// Deliberately outside the anonymous namespace: the store suite needs the same
+// real reparse point to prove it refuses one as a source, and this Task's
+// envelope names exactly two test files, so there is nowhere to put a shared
+// header without widening it. blob_store_test.cpp declares this by hand.
 std::string createIndirection(const std::filesystem::path& link, const std::filesystem::path& target) {
     std::error_code error;
     std::filesystem::create_directory_symlink(target, link, error);
@@ -139,8 +145,6 @@ std::string createIndirection(const std::filesystem::path& link, const std::file
     return "symbolic link creation failed: " + error.message();
 #endif
 }
-
-} // namespace
 
 // The anchor. Everything below mutates one property of an ordinary file, so no
 // case can pass because classification stopped working altogether.

@@ -1,4 +1,5 @@
 #include "blob_store.h"
+#include "path_policy.h"
 #include "sha256.h"
 
 #include <atomic>
@@ -11,7 +12,18 @@
 #include <system_error>
 #include <vector>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 namespace rawframe::tool::evidence {
+
+// Defined in file_security_test.cpp, which links into the same test binary.
+// Declared here rather than in a shared header because this Task's envelope
+// names exactly two test files, and a third would widen it. It returns an empty
+// string on success and a diagnostic when the host cannot build the subject.
+std::string createIndirection(const std::filesystem::path& link, const std::filesystem::path& target);
 
 namespace {
 
@@ -257,6 +269,97 @@ TEST(BlobStore, RejectsASourceThatIsNotAnOrdinaryFile) {
     EXPECT_EQ(directory.error().rejection, BlobRejection::SourceNotPermitted);
 }
 
+// A real reparse point, not a stand-in: a directory symbolic link where the
+// host permits one and a junction on Windows, which needs no privilege.
+//
+// This is the half the store owns. Classification governs the final component,
+// which is what every open on every host governs, so a link named as the source
+// is refused rather than resolved and measured on the other side. A link in the
+// middle of a path is a containment question rather than a kind question, and
+// the case below holds that half.
+TEST(BlobStore, RefusesAnIndirectSourceAsItsFinalComponent) {
+    const auto kFixture = fixture("source_indirection");
+    const BlobStore kStore = kFixture.store();
+    const auto kTarget = kFixture.root / "target";
+    std::filesystem::create_directories(kTarget);
+    writeFile(kTarget / "content.json", kContent);
+
+    const auto kLink = kFixture.root / "link";
+    if (const std::string kFailure = createIndirection(kLink, kTarget); !kFailure.empty()) {
+        GTEST_SKIP() << "this host cannot construct the subject: " << kFailure;
+    }
+
+    auto itself = kStore.put(kLink);
+    ASSERT_FALSE(itself.has_value());
+    EXPECT_EQ(itself.error().rejection, BlobRejection::SourceNotPermitted);
+}
+
+// The other half, at the authority that owns it. `--source` is resolved before
+// the store ever sees it, and resolution is what refuses a path that leaves the
+// repository through indirection it did not have to follow deliberately.
+//
+// The anchor is the same path without the escape: it resolves, so a rejection
+// below is caused by where the link points rather than by resolution failing on
+// anything it is handed.
+TEST(BlobStore, RefusesASourcePathThatLeavesTheRepositoryThroughIndirection) {
+    const auto kRoot = scratch("source_escape");
+    const auto kRepository = kRoot / "repository";
+    const auto kOutside = kRoot / "outside";
+    std::filesystem::create_directories(kRepository / "inside");
+    std::filesystem::create_directories(kOutside);
+    writeFile(kRepository / "inside" / "content.json", kContent);
+    writeFile(kOutside / "leak.json", kContent);
+
+    auto admitted = resolveRepositoryPath(kRepository, "inside/content.json");
+    ASSERT_TRUE(admitted.has_value()) << (admitted ? std::string{} : admitted.error().message);
+
+    const auto kEscape = kRepository / "escape";
+    if (const std::string kFailure = createIndirection(kEscape, kOutside); !kFailure.empty()) {
+        GTEST_SKIP() << "this host cannot construct the subject: " << kFailure;
+    }
+
+    auto escaped = resolveRepositoryPath(kRepository, "escape/leak.json");
+    ASSERT_FALSE(escaped.has_value()) << "content outside the repository was reachable through a link inside it";
+    EXPECT_EQ(escaped.error().code, FailureCode::InvalidPath);
+}
+
+#ifndef _WIN32
+// The two cases a file symbolic link creates, separated because they fail for
+// different reasons if the classification ever regresses: one points at real
+// content the store would otherwise happily copy, the other leaves the tree
+// entirely.
+TEST(BlobStore, RefusesAFileSymbolicLinkSourceWhereverItPoints) {
+    const auto kFixture = fixture("source_symlink");
+    const BlobStore kStore = kFixture.store();
+    const auto kInside = writeFile(kFixture.root / "content.json", kContent);
+
+    const auto kNear = kFixture.root / "near.json";
+    std::filesystem::create_symlink(kInside, kNear);
+    auto near = kStore.put(kNear);
+    ASSERT_FALSE(near.has_value());
+    EXPECT_EQ(near.error().rejection, BlobRejection::SourceNotPermitted);
+
+    const auto kFar = kFixture.root / "far.json";
+    std::filesystem::create_symlink("/etc/hostname", kFar);
+    auto far = kStore.put(kFar);
+    ASSERT_FALSE(far.has_value());
+    EXPECT_EQ(far.error().rejection, BlobRejection::SourceNotPermitted);
+}
+
+TEST(BlobStore, RefusesAFifoSource) {
+    const auto kFixture = fixture("source_fifo");
+    const BlobStore kStore = kFixture.store();
+    const auto kFifo = kFixture.root / "pipe";
+    ASSERT_EQ(::mkfifo(kFifo.c_str(), S_IRUSR | S_IWUSR), 0);
+
+    // A store that opened this would block forever on a source no writer is
+    // ever going to fill, which is why the kind is checked before the read.
+    auto result = kStore.put(kFifo);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error().rejection, BlobRejection::SourceNotPermitted);
+}
+#endif
+
 // Verification item 10, portable half: a bucket that is not a directory is
 // refused on both the publication path and the read path. This reaches the same
 // branch as the indirection case below and runs on every host, so the store's
@@ -293,10 +396,10 @@ TEST(BlobStore, RefusesAStoreDirectoryReplacedByIndirection) {
     std::filesystem::create_directories(kElsewhere);
     std::filesystem::create_directories(kBucket.parent_path());
 
-    std::error_code error;
-    std::filesystem::create_directory_symlink(kElsewhere, kBucket, error);
-    if (error) {
-        GTEST_SKIP() << "this host does not permit creating a symbolic link unprivileged";
+    // A junction where a symbolic link needs privilege, so this runs on both
+    // hosts rather than proving the property on one of them.
+    if (const std::string kFailure = createIndirection(kBucket, kElsewhere); !kFailure.empty()) {
+        GTEST_SKIP() << "this host cannot construct the subject: " << kFailure;
     }
 
     auto published = kStore.put(kFixture.source);
