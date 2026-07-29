@@ -135,6 +135,7 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         tests/record_gate_test.cpp
         tests/canonical_json_test.cpp
         tests/command_test.cpp
+        tests/conformance_test.cpp
         tests/dependency_authority_test.cpp
         tests/descriptor_test.cpp
         tests/diagnostic_test.cpp
