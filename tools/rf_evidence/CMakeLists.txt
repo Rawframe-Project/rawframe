@@ -3,12 +3,14 @@ find_package(OpenSSL 3.5.7 EXACT REQUIRED COMPONENTS Crypto)
 
 add_library(rawframe_tool_rf_evidence_private STATIC)
 target_sources(rawframe_tool_rf_evidence_private PRIVATE
+    src/blob_store.cpp
     src/canonical_json.cpp
     src/command.cpp
     src/dependency_authority.cpp
     src/descriptor.cpp
     src/diagnostic.cpp
     src/file_reader.cpp
+    src/file_security.cpp
     src/json_policy.cpp
     src/license_review.cpp
     src/offline_verifier.cpp
@@ -56,6 +58,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         message(FATAL_ERROR "RF1120 the preset's locked clang-format executable is absent")
     endif()
     set(rawframe_tool_rf_evidence_maintained_sources
+        src/blob_store.cpp
+        src/blob_store.h
         src/canonical_json.cpp
         src/canonical_json.h
         src/command.cpp
@@ -69,6 +73,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/failure.h
         src/file_reader.cpp
         src/file_reader.h
+        src/file_security.cpp
+        src/file_security.h
         src/json_policy.cpp
         src/json_policy.h
         src/license_review.cpp
@@ -96,12 +102,14 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/shipping_closure.h
         src/source_inspector.cpp
         src/source_inspector.h
+        tests/blob_store_test.cpp
         tests/canonical_json_test.cpp
         tests/command_test.cpp
         tests/dependency_authority_test.cpp
         tests/descriptor_test.cpp
         tests/diagnostic_test.cpp
         tests/file_reader_test.cpp
+        tests/file_security_test.cpp
         tests/json_policy_test.cpp
         tests/path_policy_test.cpp
         tests/raw_run_receipt_test.cpp
