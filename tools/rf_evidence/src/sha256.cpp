@@ -2,9 +2,9 @@
 
 #include <array>
 #include <fstream>
-#include <memory>
 #include <openssl/evp.h>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rawframe::tool::evidence {
@@ -13,58 +13,74 @@ namespace {
 
 using Context = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
 
-// One computation shared by both entry points. Callers differ only in where the
-// bytes come from, so the digest, the hex form, and every failure they can
-// report are decided here once.
-class Sha256Digest {
-public:
-    explicit Sha256Digest(std::string subject)
-        : subject_(std::move(subject)), context_(EVP_MD_CTX_new(), &EVP_MD_CTX_free) {
-    }
-
-    [[nodiscard]] Status begin() {
-        if (!context_ || EVP_DigestInit_ex(context_.get(), EVP_sha256(), nullptr) != 1) {
-            return std::unexpected(Failure{FailureCode::VerificationFailed, subject_, "failed to initialize SHA-256"});
-        }
-        return {};
-    }
-
-    [[nodiscard]] Status update(const void* data, std::size_t length) {
-        if (length == 0) {
-            return {};
-        }
-        if (EVP_DigestUpdate(context_.get(), data, length) != 1) {
-            return std::unexpected(Failure{FailureCode::VerificationFailed, subject_, "failed while hashing content"});
-        }
-        return {};
-    }
-
-    [[nodiscard]] Result<std::string> finish() {
-        std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
-        unsigned int digestBytes = 0;
-        if (EVP_DigestFinal_ex(context_.get(), digest.data(), &digestBytes) != 1 || digestBytes != 32U) {
-            return std::unexpected(Failure{FailureCode::VerificationFailed, subject_, "failed to finalize SHA-256"});
-        }
-        constexpr std::string_view kHex = "0123456789abcdef";
-        const auto kDigestLength = static_cast<std::size_t>(digestBytes);
-        std::string result;
-        result.resize(kDigestLength * 2U);
-        for (std::size_t index = 0; index < kDigestLength; ++index) {
-            result.at(index * 2U) = kHex.at(digest.at(index) >> 4U);
-            result.at((index * 2U) + 1U) = kHex.at(digest.at(index) & 0x0fU);
-        }
-        return result;
-    }
-
-private:
-    std::string subject_;
-    Context context_;
-};
-
 } // namespace
 
+// The provider lives entirely here. Callers see a subject string, three steps,
+// and a hexadecimal result.
+struct Sha256Stream::State {
+    std::string subject;
+    Context context;
+    bool started = false;
+    bool finished = false;
+};
+
+Sha256Stream::Sha256Stream(std::string subject)
+    : state_(std::make_unique<State>(std::move(subject), Context{EVP_MD_CTX_new(), &EVP_MD_CTX_free})) {
+}
+
+Sha256Stream::~Sha256Stream() = default;
+Sha256Stream::Sha256Stream(Sha256Stream&&) noexcept = default;
+Sha256Stream& Sha256Stream::operator=(Sha256Stream&&) noexcept = default;
+
+Status Sha256Stream::begin() {
+    if (!state_->context || state_->started || EVP_DigestInit_ex(state_->context.get(), EVP_sha256(), nullptr) != 1) {
+        return std::unexpected(
+            Failure{FailureCode::VerificationFailed, state_->subject, "failed to initialize SHA-256"});
+    }
+    state_->started = true;
+    return {};
+}
+
+Status Sha256Stream::update(std::string_view bytes) {
+    if (!state_->started || state_->finished) {
+        return std::unexpected(
+            Failure{FailureCode::VerificationFailed, state_->subject, "SHA-256 stream is not accepting content"});
+    }
+    if (bytes.empty()) {
+        return {};
+    }
+    if (EVP_DigestUpdate(state_->context.get(), bytes.data(), bytes.size()) != 1) {
+        return std::unexpected(
+            Failure{FailureCode::VerificationFailed, state_->subject, "failed while hashing content"});
+    }
+    return {};
+}
+
+Result<std::string> Sha256Stream::finish() {
+    if (!state_->started || state_->finished) {
+        return std::unexpected(
+            Failure{FailureCode::VerificationFailed, state_->subject, "SHA-256 stream cannot be finished twice"});
+    }
+    state_->finished = true;
+
+    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
+    unsigned int digestBytes = 0;
+    if (EVP_DigestFinal_ex(state_->context.get(), digest.data(), &digestBytes) != 1 || digestBytes != 32U) {
+        return std::unexpected(Failure{FailureCode::VerificationFailed, state_->subject, "failed to finalize SHA-256"});
+    }
+    constexpr std::string_view kHex = "0123456789abcdef";
+    const auto kDigestLength = static_cast<std::size_t>(digestBytes);
+    std::string result;
+    result.resize(kDigestLength * 2U);
+    for (std::size_t index = 0; index < kDigestLength; ++index) {
+        result.at(index * 2U) = kHex.at(digest.at(index) >> 4U);
+        result.at((index * 2U) + 1U) = kHex.at(digest.at(index) & 0x0fU);
+    }
+    return result;
+}
+
 Result<std::string> sha256File(const std::filesystem::path& path) {
-    Sha256Digest digest(path.generic_string());
+    Sha256Stream digest(path.generic_string());
     if (auto status = digest.begin(); !status) {
         return std::unexpected(status.error());
     }
@@ -74,14 +90,13 @@ Result<std::string> sha256File(const std::filesystem::path& path) {
         return std::unexpected(Failure{FailureCode::MissingInput, path.generic_string(), "cache object is missing"});
     }
 
-    // Heap-allocated: a 1 MiB stack buffer overflows the 1 MiB default
-    // Windows thread stack.
-    std::vector<char> buffer(1'048'576);
+    std::vector<char> buffer(kSha256ChunkBytes);
     while (input) {
         input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
         const auto kCount = input.gcount();
         if (kCount > 0) {
-            if (auto status = digest.update(buffer.data(), static_cast<std::size_t>(kCount)); !status) {
+            const std::string_view kChunk{buffer.data(), static_cast<std::size_t>(kCount)};
+            if (auto status = digest.update(kChunk); !status) {
                 return std::unexpected(status.error());
             }
         }
@@ -94,11 +109,11 @@ Result<std::string> sha256File(const std::filesystem::path& path) {
 }
 
 Result<std::string> sha256Bytes(std::string_view bytes) {
-    Sha256Digest digest("<memory>");
+    Sha256Stream digest("<memory>");
     if (auto status = digest.begin(); !status) {
         return std::unexpected(status.error());
     }
-    if (auto status = digest.update(bytes.data(), bytes.size()); !status) {
+    if (auto status = digest.update(bytes); !status) {
         return std::unexpected(status.error());
     }
     return digest.finish();
