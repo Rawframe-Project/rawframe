@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/attempt-plan-v1.schema.json",
+  "title": "Rawframe AttemptPlan, generation 1",
+  "description": "The declared benchmark schedule an Evidence Set is assembled against, per ADR-0019 and SPEC-0014. It states what was scheduled before anything ran, so that what did run can be checked against it. It is an input to assembly and never an evidence authority: it carries no observation, no status, and no verdict. The schedule counts are what make an omission detectable, because an assembler handed only a list of attempts cannot tell a complete list from a favorable subset of one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "planId",
+    "tier",
+    "schedule",
+    "attempts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "recordKind": { "const": "attempt_plan" },
+    "planId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" },
+    "tier": {
+      "description": "The evidence tier this schedule was declared for. Tier 0 is the only value this gate admits; the others exist in SPEC-0014 and are refused here rather than silently accepted.",
+      "enum": [
+        "tier_0"
+      ]
+    },
+    "schedule": {
+      "description": "What was scheduled, fixed before execution. attemptCount includes retries; repetitionCount does not, so a schedule with retries has attemptCount greater than repetitionCount.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repetitionCount",
+        "attemptCount"
+      ],
+      "properties": {
+        "repetitionCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "attemptCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        }
+      }
+    },
+    "attempts": {
+      "description": "Every scheduled attempt, exactly once. An attempt whose run produced no receipt still appears here; it is the absence of its receipt that assembly reports, and removing the entry to make assembly succeed is the manipulation this record exists to prevent.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attemptId",
+          "attemptOrdinal",
+          "repetitionOrdinal",
+          "receipt"
+        ],
+        "properties": {
+          "attemptId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" },
+          "attemptOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "repetitionOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "supersedesAttemptId": { "$ref": "evidence-common-v1.schema.json#/$defs/uuid" },
+          "receipt": {
+            "description": "The descriptor of this attempt's Raw Run Receipt, or null when the attempt produced none. Null is an accounted-for absence rather than a missing member, so a plan cannot omit the question.",
+            "oneOf": [
+              { "$ref": "evidence-common-v1.schema.json#/$defs/descriptor" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

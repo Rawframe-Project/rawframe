@@ -5,6 +5,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     dependency_authority_test.cpp
     descriptor_test.cpp
     diagnostic_test.cpp
+    evidence_set_test.cpp
     file_reader_test.cpp
     file_security_test.cpp
     json_policy_test.cpp
@@ -14,6 +15,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     path_policy_test.cpp
     process_runner_test.cpp
     raw_run_receipt_test.cpp
+    record_gate_test.cpp
     report_writer_test.cpp
     repository_audit_test.cpp
     repository_validator_test.cpp

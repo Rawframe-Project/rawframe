@@ -11,6 +11,8 @@ namespace rawframe::tool::evidence {
 // The generation-1 evidence media type grammar:
 //   application/vnd.rawframe.evidence.<kind>.v<generation>+json
 inline constexpr std::string_view kRawRunReceiptMediaType = "application/vnd.rawframe.evidence.raw-run-receipt.v1+json";
+inline constexpr std::string_view kAttemptPlanMediaType = "application/vnd.rawframe.evidence.attempt-plan.v1+json";
+inline constexpr std::string_view kEvidenceSetMediaType = "application/vnd.rawframe.evidence.evidence-set.v1+json";
 
 // External content identity. It describes bytes and is never inside them, so a
 // descriptor and the record it identifies are always two separate documents.

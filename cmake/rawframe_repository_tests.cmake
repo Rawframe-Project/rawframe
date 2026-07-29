@@ -258,6 +258,38 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "record operations write no report"
         LABELS "repository;security" TIMEOUT 300)
 
+    # Assembly at the process level. The unit suite drives the ledger directly;
+    # these cases prove the installed command reaches the same two answers, and
+    # in particular that the favorable subset is refused by the shipped binary
+    # rather than only by a test that calls the library.
+    add_test(NAME "Command.AssembleEvidenceSet"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/complete.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    set_tests_properties("Command.AssembleEvidenceSet" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"recordKind\":\"evidence_set\"" LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.AssembleRefusesAFavorableSubset"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/favorable-subset.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    set_tests_properties("Command.AssembleRefusesAFavorableSubset" PROPERTIES
+        PASS_REGULAR_EXPRESSION "has no attempt" LABELS "repository;security" TIMEOUT 300)
+
+    # A ledger with two outputs is a ledger that can disagree with itself, so
+    # assembly refuses a report destination rather than ignoring one.
+    add_test(NAME "Command.AssembleRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" assemble evidence-set
+            --root "${CMAKE_SOURCE_DIR}"
+            --plan "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/plans/complete.json"
+            --set-id "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json")
+    set_tests_properties("Command.AssembleRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "assembly writes no report"
+        LABELS "repository;security" TIMEOUT 300)
+
     # The store at the process level. The unit suite drives it against scratch
     # space; these cases prove the installed command derives the same path in
     # the repository's own store and hands the bytes back unaltered, which is

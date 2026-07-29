@@ -1,16 +1,10 @@
 #include "command.h"
 
-#include "blob_store.h"
-#include "canonical_json.h"
-#include "descriptor.h"
 #include "diagnostic.h"
-#include "file_reader.h"
-#include "file_security.h"
 #include "license_review.h"
 #include "offline_verifier.h"
 #include "path_audit.h"
-#include "path_policy.h"
-#include "raw_run_receipt.h"
+#include "record_command.h"
 #include "report_writer.h"
 #include "repository_validator.h"
 #include "shipping_closure.h"
@@ -28,19 +22,6 @@
 namespace rawframe::tool::evidence {
 
 namespace {
-
-struct ParsedOptions {
-    std::filesystem::path repositoryRoot;
-    std::optional<std::string> toolId;
-    std::optional<std::string> hostId;
-    std::optional<std::string> reportPath;
-    std::optional<std::string> recordPath;
-    std::optional<std::string> descriptorPath;
-    std::optional<std::string> sourcePath;
-    std::optional<std::string> digest;
-    std::optional<std::string> mediaType;
-    OutputFormat format = OutputFormat::Human;
-};
 
 Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) {
     ParsedOptions options;
@@ -100,6 +81,19 @@ Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) 
                     Failure{FailureCode::InvalidArguments, "--descriptor", "missing descriptor path"});
             }
             options.descriptorPath = std::string(*kValue);
+        } else if (kOption == "--plan") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(Failure{FailureCode::InvalidArguments, "--plan", "missing attempt plan path"});
+            }
+            options.planPath = std::string(*kValue);
+        } else if (kOption == "--set-id") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(
+                    Failure{FailureCode::InvalidArguments, "--set-id", "missing evidence set identity"});
+            }
+            options.setId = std::string(*kValue);
         } else if (kOption == "--source") {
             const auto kValue = kNextValue();
             if (!kValue || kValue->empty()) {
@@ -137,11 +131,6 @@ Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) 
     }
     options.repositoryRoot = std::move(absoluteRoot);
     return options;
-}
-
-int fail(std::ostream& errors, const Failure& failure, OutputFormat format) {
-    renderFailure(errors, failure, format);
-    return failure.code == FailureCode::InvalidArguments ? 2 : 3;
 }
 
 int emitRequestedReport(const ParsedOptions& options, std::string_view content, std::ostream& errors) {
@@ -366,249 +355,6 @@ int shippingClosureOperation(const ParsedOptions& options, std::ostream& output,
     return 0;
 }
 
-int failRecord(std::ostream& output, std::ostream& errors, const RecordFailure& failure, OutputFormat format) {
-    if (format == OutputFormat::Json) {
-        output << buildRejectionOutput(failure);
-    }
-    renderFailure(errors,
-                  Failure{FailureCode::VerificationFailed, recordRejectionName(failure.rejection), failure.detail},
-                  format);
-    return 3;
-}
-
-// Shared by both record operations: a record is always read through the record
-// byte ceiling rather than the maintained-JSON one, because these bytes are
-// untrusted input and not a manifest this repository maintains.
-Result<std::string> readRecordBytes(const std::filesystem::path& path) {
-    auto input = readBoundedFile(path, kMaximumRecordBytes);
-    if (!input) {
-        return std::unexpected(input.error());
-    }
-    return std::string(std::string_view(input->data(), input->size()));
-}
-
-Result<std::filesystem::path>
-resolveRecordArgument(const ParsedOptions& options, const std::optional<std::string>& argument, std::string_view flag) {
-    if (!argument) {
-        return std::unexpected(Failure{FailureCode::InvalidArguments, std::string(flag), "a record path is required"});
-    }
-    std::filesystem::path candidate(*argument);
-    if (candidate.is_relative()) {
-        candidate = options.repositoryRoot / candidate;
-    }
-    std::error_code error;
-    auto resolved = std::filesystem::weakly_canonical(candidate, error);
-    if (error) {
-        return std::unexpected(Failure{FailureCode::InvalidPath, *argument, "failed to resolve the path"});
-    }
-    return resolved;
-}
-
-int canonicalizeOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
-    auto recordPath = resolveRecordArgument(options, options.recordPath, "--record");
-    if (!recordPath) {
-        return fail(errors, recordPath.error(), options.format);
-    }
-    auto bytes = readRecordBytes(*recordPath);
-    if (!bytes) {
-        return fail(errors, bytes.error(), options.format);
-    }
-    // Authored input, so it is parsed rather than ingested: it is not required
-    // to already be canonical, which is the whole point of this operation.
-    auto parsed = parseCanonicalSubset(*bytes);
-    if (!parsed) {
-        return failRecord(output, errors, parsed.error(), options.format);
-    }
-    const std::string kCanonical = serializeCanonical(*parsed);
-    auto descriptor = describeBytes(kCanonical, kRawRunReceiptMediaType);
-    if (!descriptor) {
-        return failRecord(output, errors, descriptor.error(), options.format);
-    }
-    auto summary = validateRawRunReceipt(options.repositoryRoot, *recordPath, *parsed, descriptor->mediaType);
-    if (!summary) {
-        return failRecord(output, errors, summary.error(), options.format);
-    }
-    if (options.format == OutputFormat::Json) {
-        output << buildCanonicalizeOutput(*descriptor, *summary);
-        return 0;
-    }
-    // The bytes themselves, exactly, with nothing appended. A trailing newline
-    // here would be a byte this repository's canonical form does not have.
-    output << kCanonical;
-    return 0;
-}
-
-int validateRecordOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
-    auto recordPath = resolveRecordArgument(options, options.recordPath, "--record");
-    if (!recordPath) {
-        return fail(errors, recordPath.error(), options.format);
-    }
-    auto bytes = readRecordBytes(*recordPath);
-    if (!bytes) {
-        return fail(errors, bytes.error(), options.format);
-    }
-    auto record = ingestCanonicalBytes(*bytes);
-    if (!record) {
-        return failRecord(output, errors, record.error(), options.format);
-    }
-
-    Descriptor descriptor{std::string(kRawRunReceiptMediaType), bytes->size(), {}};
-    if (options.descriptorPath) {
-        auto descriptorPath = resolveRecordArgument(options, options.descriptorPath, "--descriptor");
-        if (!descriptorPath) {
-            return fail(errors, descriptorPath.error(), options.format);
-        }
-        auto descriptorBytes = readRecordBytes(*descriptorPath);
-        if (!descriptorBytes) {
-            return fail(errors, descriptorBytes.error(), options.format);
-        }
-        auto descriptorValue = ingestCanonicalBytes(*descriptorBytes);
-        if (!descriptorValue) {
-            return failRecord(output, errors, descriptorValue.error(), options.format);
-        }
-        auto supplied = parseDescriptor(*descriptorValue);
-        if (!supplied) {
-            return failRecord(output, errors, supplied.error(), options.format);
-        }
-        if (auto status = verifyDescriptor(*supplied, *bytes, kRawRunReceiptMediaType); !status) {
-            return failRecord(output, errors, status.error(), options.format);
-        }
-        descriptor = *supplied;
-    } else {
-        auto computed = describeBytes(*bytes, kRawRunReceiptMediaType);
-        if (!computed) {
-            return failRecord(output, errors, computed.error(), options.format);
-        }
-        descriptor = *computed;
-    }
-
-    auto summary = validateRawRunReceipt(options.repositoryRoot, *recordPath, *record, descriptor.mediaType);
-    if (!summary) {
-        return failRecord(output, errors, summary.error(), options.format);
-    }
-    if (options.format == OutputFormat::Json) {
-        output << buildValidateOutput(descriptor, *summary);
-        return 0;
-    }
-    renderSuccess(output, "validate_record", summary->runId + " is canonical and valid", options.format);
-    return 0;
-}
-
-int failBlob(std::ostream& output, std::ostream& errors, const BlobFailure& failure, OutputFormat format) {
-    if (format == OutputFormat::Json) {
-        std::ostringstream json;
-        json << R"({"rejection":)";
-        writeJsonString(json, blobRejectionName(failure.rejection));
-        json << R"(,"subject":)";
-        writeJsonString(json, failure.subject);
-        json << R"(,"detail":)";
-        writeJsonString(json, failure.detail);
-        json << "}";
-        output << json.str();
-    }
-    renderFailure(
-        errors, Failure{FailureCode::VerificationFailed, blobRejectionName(failure.rejection), failure.detail}, format);
-    return 3;
-}
-
-BlobStore storeFor(const ParsedOptions& options) {
-    return BlobStore(options.repositoryRoot / std::filesystem::path(kBlobStoreRelativeRoot));
-}
-
-// The store computes length and digest; the media type is the caller's
-// declaration of what contract the content was produced under, which no amount
-// of reading the bytes reveals. The two meet here, at the command boundary,
-// rather than inside a store that would otherwise have to understand its
-// contents to hold them.
-Result<Descriptor> describeStoredBlob(const BlobIdentity& identity, const std::optional<std::string>& mediaType) {
-    if (!mediaType) {
-        return std::unexpected(Failure{FailureCode::InvalidArguments, "--media", "a media type is required"});
-    }
-    return Descriptor{*mediaType, identity.byteLength, identity.digest};
-}
-
-// Repository-relative, and classified before it is used. `resolveRepositoryPath`
-// rejects absolute paths, backslashes, traversal, overlong components, and
-// anything resolving outside the repository, but it resolves through
-// weakly_canonical, which follows links. So the unresolved join is classified
-// too: a symbolic link or junction planted at the source name is refused rather
-// than silently read through.
-Result<std::filesystem::path> resolveContentSource(const ParsedOptions& options) {
-    if (!options.sourcePath) {
-        return std::unexpected(
-            Failure{FailureCode::InvalidArguments, "--source", "a repository-relative content path is required"});
-    }
-    auto resolved = resolveRepositoryPath(options.repositoryRoot, *options.sourcePath);
-    if (!resolved) {
-        return std::unexpected(resolved.error());
-    }
-    const std::filesystem::path kJoined = options.repositoryRoot / std::filesystem::path(*options.sourcePath);
-    auto kind = classifyPath(kJoined);
-    if (!kind) {
-        return std::unexpected(kind.error());
-    }
-    if (*kind != FileKind::Regular) {
-        return std::unexpected(Failure{
-            FailureCode::InvalidPath, *options.sourcePath, std::string("the source is a ") + fileKindName(*kind)});
-    }
-    return resolved;
-}
-
-int emitDescriptor(std::ostream& output, const Descriptor& descriptor) {
-    output << serializeCanonical(describeAsValue(descriptor));
-    return 0;
-}
-
-int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
-    auto source = resolveContentSource(options);
-    if (!source) {
-        return fail(errors, source.error(), options.format);
-    }
-    const BlobStore kStore = storeFor(options);
-    auto identity = kStore.put(*source);
-    if (!identity) {
-        return failBlob(output, errors, identity.error(), options.format);
-    }
-    auto descriptor = describeStoredBlob(*identity, options.mediaType);
-    if (!descriptor) {
-        return fail(errors, descriptor.error(), options.format);
-    }
-    return emitDescriptor(output, *descriptor);
-}
-
-int verifyBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
-    if (!options.digest) {
-        return fail(
-            errors, Failure{FailureCode::InvalidArguments, "--digest", "a content digest is required"}, options.format);
-    }
-    const BlobStore kStore = storeFor(options);
-    auto identity = kStore.verify(*options.digest);
-    if (!identity) {
-        return failBlob(output, errors, identity.error(), options.format);
-    }
-    auto descriptor = describeStoredBlob(*identity, options.mediaType);
-    if (!descriptor) {
-        return fail(errors, descriptor.error(), options.format);
-    }
-    return emitDescriptor(output, *descriptor);
-}
-
-int getBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
-    if (!options.digest) {
-        return fail(
-            errors, Failure{FailureCode::InvalidArguments, "--digest", "a content digest is required"}, options.format);
-    }
-    const BlobStore kStore = storeFor(options);
-    auto bytes = kStore.get(*options.digest);
-    if (!bytes) {
-        return failBlob(output, errors, bytes.error(), options.format);
-    }
-    // The bytes themselves, exactly, with nothing appended and nothing
-    // translated. Standard output is put in binary mode before this runs.
-    output.write(bytes->data(), static_cast<std::streamsize>(bytes->size()));
-    return 0;
-}
-
 } // namespace
 
 int runCommand(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& errors) {
@@ -653,6 +399,18 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
         return fail(errors,
                     Failure{FailureCode::InvalidArguments, "--report", "store operations write no report"},
                     options->format);
+    }
+
+    // Assembly is a ledger authority and emits one record. A report destination
+    // would be a second place its output could land, and a ledger with two
+    // outputs is a ledger that can disagree with itself.
+    const bool kIsAssembleOperation = kOperation == "assemble" && subject == "evidence-set";
+    if (kIsAssembleOperation && options->reportPath) {
+        return fail(
+            errors, Failure{FailureCode::InvalidArguments, "--report", "assembly writes no report"}, options->format);
+    }
+    if (kIsAssembleOperation) {
+        return assembleOperation(*options, output, errors);
     }
     if (kOperation == "put" && subject == "blob") {
         return putBlobOperation(*options, output, errors);

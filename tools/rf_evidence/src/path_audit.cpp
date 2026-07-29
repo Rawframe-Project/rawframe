@@ -37,6 +37,8 @@ constexpr std::array kEnvelopeFiles{
     // and would absorb this Task's own output without widening anything.
     std::string_view{"schemas/evidence-common-v1.schema.json"},
     std::string_view{"schemas/raw-run-receipt-v1.schema.json"},
+    std::string_view{"schemas/attempt-plan-v1.schema.json"},
+    std::string_view{"schemas/evidence-set-v1.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},
