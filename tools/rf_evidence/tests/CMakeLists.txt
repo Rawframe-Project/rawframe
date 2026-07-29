@@ -3,6 +3,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     blob_store_test.cpp
     canonical_json_test.cpp
     command_test.cpp
+    closure_conformance_test.cpp
     conformance_test.cpp
     dependency_authority_test.cpp
     descriptor_test.cpp
