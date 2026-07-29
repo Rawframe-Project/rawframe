@@ -14,6 +14,17 @@
 #include <utility>
 #include <vector>
 
+// The dependency closure is built with its upstream defaults rather than the
+// ADR-0008 first-party flags, so simdjson's own objects carry exception and RTTI
+// support. What matters is the boundary, not the archive: simdjson derives
+// `SIMDJSON_EXCEPTIONS` from the translation unit that includes it, and this one
+// compiles without exceptions, so the throwing accessors are not declared here
+// at all and every result must be consumed through its error code. That is the
+// property this file depends on, so it is checked by the compiler instead of
+// being argued in a document.
+static_assert(SIMDJSON_EXCEPTIONS == 0,
+              "first-party translation units must see the error-code simdjson API, never the throwing one");
+
 namespace rawframe::tool::evidence {
 
 namespace {

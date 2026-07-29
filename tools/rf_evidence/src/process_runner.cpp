@@ -1,8 +1,10 @@
 #include "process_runner.h"
 
 #include <array>
+#include <atomic>
 #include <fstream>
 #include <memory>
+#include <string>
 #include <system_error>
 
 #ifdef _WIN32
@@ -22,6 +24,49 @@
 namespace rawframe::tool::evidence {
 
 namespace {
+
+// Two `rf-evidence` processes can verify one repository at the same time, which
+// is what a parallel CTest run does, and the capture files are created with an
+// exclusive flag so that a stale file is never silently reused. A fixed name
+// turns that protection into a race between the two rather than isolation, so
+// every invocation owns a leaf beneath the requested capture root. The name is
+// the operating-system process identity plus this process's own invocation
+// ordinal, which is unique without consulting a clock.
+std::filesystem::path exclusiveCaptureDirectory(const std::filesystem::path& root) {
+    static std::atomic<unsigned long long> invocations{0};
+#ifdef _WIN32
+    const auto kProcess = static_cast<unsigned long long>(GetCurrentProcessId());
+#else
+    const auto kProcess = static_cast<unsigned long long>(getpid());
+#endif
+    const auto kOrdinal = invocations.fetch_add(1, std::memory_order_relaxed);
+    return root / (std::to_string(kProcess) + "-" + std::to_string(kOrdinal));
+}
+
+// The captured bytes reach the caller as strings, so the files themselves are
+// working state rather than evidence. Releasing the leaf keeps a long-lived
+// capture root from accumulating one directory per invocation.
+class ScopedCaptureDirectory {
+public:
+    explicit ScopedCaptureDirectory(std::filesystem::path path) : path_(std::move(path)) {
+    }
+    ScopedCaptureDirectory(const ScopedCaptureDirectory&) = delete;
+    ScopedCaptureDirectory& operator=(const ScopedCaptureDirectory&) = delete;
+    ScopedCaptureDirectory(ScopedCaptureDirectory&&) = delete;
+    ScopedCaptureDirectory& operator=(ScopedCaptureDirectory&&) = delete;
+
+    ~ScopedCaptureDirectory() {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+    }
+
+    [[nodiscard]] const std::filesystem::path& path() const {
+        return path_;
+    }
+
+private:
+    std::filesystem::path path_;
+};
 
 Result<std::string> readCapture(const std::filesystem::path& path, std::size_t maximumBytes) {
     std::error_code error;
@@ -331,10 +376,13 @@ Result<ProcessResult> runBoundedProcess(const ProcessRequest& request) {
                                        request.executable.generic_string(),
                                        "child executable must be an existing absolute path"});
     }
+    const ScopedCaptureDirectory kCapture(exclusiveCaptureDirectory(request.captureDirectory));
+    ProcessRequest scoped = request;
+    scoped.captureDirectory = kCapture.path();
 #ifdef _WIN32
-    return runWindowsProcess(request);
+    return runWindowsProcess(scoped);
 #else
-    return runPosixProcess(request);
+    return runPosixProcess(scoped);
 #endif
 }
 

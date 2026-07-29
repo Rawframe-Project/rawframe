@@ -200,11 +200,21 @@ std::string buildSourceOwnershipReport(std::span<const SourceOwnershipEntry> ent
     std::ostringstream output;
     std::size_t reviewCount = 0;
     std::size_t growthStopCount = 0;
+    // STD-0001 requires exempt and non-exempt files to be reported separately,
+    // so the two counts are stated rather than left to be derived by whoever
+    // reads the listing.
+    std::size_t maintainedCount = 0;
+    std::size_t exemptCount = 0;
     for (const auto& entry : entries) {
         if (entry.gate == SourceGate::OwnershipReviewRequired) {
             ++reviewCount;
         } else if (entry.gate == SourceGate::FeatureGrowthStopped) {
             ++growthStopCount;
+        }
+        if (isExemptFromLineThresholds(entry.classification)) {
+            ++exemptCount;
+        } else {
+            ++maintainedCount;
         }
     }
 
@@ -213,6 +223,10 @@ std::string buildSourceOwnershipReport(std::span<const SourceOwnershipEntry> ent
     writeField(output, "ok", true);
     output << ',';
     writeField(output, "fileCount", entries.size());
+    output << ',';
+    writeField(output, "maintainedFileCount", maintainedCount);
+    output << ',';
+    writeField(output, "exemptFileCount", exemptCount);
     output << ',';
     writeField(output, "ownershipReviewLines", kOwnershipReviewLines);
     output << ',';
@@ -238,6 +252,10 @@ std::string buildSourceOwnershipReport(std::span<const SourceOwnershipEntry> ent
         writeField(output, "lines", entry.lines);
         output << ',';
         writeField(output, "owner", entry.owner);
+        output << ',';
+        writeField(output, "classification", std::string{sourceClassificationName(entry.classification)});
+        output << ',';
+        writeField(output, "exempt", isExemptFromLineThresholds(entry.classification));
         output << ',';
         writeField(output, "gate", std::string{sourceGateName(entry.gate)});
         output << ',';

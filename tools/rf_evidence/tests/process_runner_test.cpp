@@ -140,6 +140,42 @@ TEST(ProcessRunner, RunsTheChildInTheRequestedWorkingDirectory) {
     EXPECT_NE(result->standardOutput.find("found-the-working-directory"), std::string::npos);
 }
 
+// Capture files are created with an exclusive flag so that a stale file is
+// never silently reused, and a fixed name would turn that protection into a
+// race whenever two verifications of one repository overlap, which is what a
+// parallel CTest run produces. Each invocation therefore owns a private leaf
+// beneath the requested root and releases it on the way out.
+//
+// The overlap itself is proven by running the whole suite in parallel rather
+// than here: creating two in-flight invocations inside one test would mean
+// forking from a threaded parent, which this tool never does and which carries
+// its own hazards. What is asserted here is the property that makes the overlap
+// safe, namely that nothing invocation-specific is ever placed at a shared
+// name.
+TEST(ProcessRunner, LeavesNoInvocationStateAtTheSharedCaptureRoot) {
+    const auto kDirectory = caseDirectory("shared_capture_root");
+    const auto kRoot = kDirectory / "capture";
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        ProcessRequest request{
+            .executable = pinnedCMake(),
+            .arguments = {"-E", "echo", "shared-root"},
+            .workingDirectory = kDirectory,
+            .captureDirectory = kRoot,
+        };
+        auto result = runBoundedProcess(request);
+        ASSERT_TRUE(result.has_value()) << result.error().message;
+        EXPECT_NE(result->standardOutput.find("shared-root"), std::string::npos);
+    }
+
+    ASSERT_TRUE(std::filesystem::is_directory(kRoot));
+    std::vector<std::string> residue;
+    for (const auto& entry : std::filesystem::directory_iterator(kRoot)) {
+        residue.push_back(entry.path().filename().string());
+    }
+    EXPECT_TRUE(residue.empty()) << "the capture root kept " << residue.size() << " entries, starting with "
+                                 << residue.front();
+}
+
 // Ambient environment is not an authority. A variable set in this process must
 // not reach the child, or a workstation could change a verification result.
 TEST(ProcessRunner, DoesNotLeakTheParentEnvironmentToTheChild) {
