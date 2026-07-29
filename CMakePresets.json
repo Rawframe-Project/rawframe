@@ -94,7 +94,8 @@
     {
       "name": "task-0001-windows-x86_64-analysis",
       "configurePreset": "task-0001-windows-x86_64-analysis",
-      "jobs": 0
+      "jobs": 0,
+      "nativeToolOptions": ["-k", "0"]
     },
     {
       "name": "task-0001-linux-x86_64-debug",
@@ -104,7 +105,8 @@
     {
       "name": "task-0001-linux-x86_64-analysis",
       "configurePreset": "task-0001-linux-x86_64-analysis",
-      "jobs": 0
+      "jobs": 0,
+      "nativeToolOptions": ["-k", "0"]
     }
   ],
   "testPresets": [

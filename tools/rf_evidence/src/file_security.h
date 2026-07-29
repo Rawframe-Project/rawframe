@@ -42,6 +42,27 @@ enum class FileKind : std::uint8_t {
 
 [[nodiscard]] Result<FileKind> classifyPath(const std::filesystem::path& path);
 
+#ifndef _WIN32
+// Exclusive owner-only creation through POSIX open, which is the only variadic
+// call in this repository.
+//
+// POSIX declares open variadic because the creation mode is read only when
+// O_CREAT is set, and offers no non-variadic equivalent that takes a mode, so
+// the call cannot be avoided. Routing every caller through one function keeps
+// the single suppression of cppcoreguidelines-pro-type-vararg, and the reason
+// for it, in one reviewable place instead of once per call site.
+//
+// Calling open through a non-variadic function pointer would silence the check
+// with no suppression at all. It is rejected deliberately: the x86-64 call
+// sequences for variadic and non-variadic functions differ, so that trade buys
+// a clean lint report with undefined behavior, which is the worse of the two.
+//
+// `extraFlags` is OR-ed into the fixed creation flags. A caller that must not
+// leak the descriptor across an exec passes O_CLOEXEC; a caller deliberately
+// handing the descriptor to a child passes 0.
+[[nodiscard]] int openExclusiveOwnerOnly(const char* path, int extraFlags) noexcept;
+#endif
+
 // A file created exclusively: the create fails when the path already exists,
 // rather than truncating whatever was there. POSIX creates it at mode 0600, so
 // there is no window in which it is more permissive. Windows creates it with no
