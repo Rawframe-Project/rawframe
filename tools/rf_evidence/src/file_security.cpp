@@ -38,6 +38,18 @@ std::string describeErrno(int code) {
 
 } // namespace
 
+#ifndef _WIN32
+int openExclusiveOwnerOnly(const char* path, int extraFlags) noexcept {
+    constexpr int kFlags = O_CREAT | O_EXCL | O_WRONLY;
+    constexpr mode_t kOwnerOnly = S_IRUSR | S_IWUSR;
+    // The one suppression of this check in the repository. POSIX open is
+    // variadic by declaration and has no mode-taking non-variadic form; see the
+    // declaration in file_security.h and the STD-0002 rule that admits it.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    return ::open(path, kFlags | extraFlags, kOwnerOnly);
+}
+#endif
+
 Result<FileKind> classifyPath(const std::filesystem::path& path) {
 #ifdef _WIN32
     // GetFileAttributesW reports the reparse attribute directly rather than
@@ -144,9 +156,7 @@ Status ExclusiveFile::create(const std::filesystem::path& path) {
     // link, so a link planted at the staged name cannot redirect the write.
     // The mode is applied at creation, so the file is never more permissive
     // than owner read and write, not even briefly.
-    constexpr int kFlags = O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC;
-    constexpr mode_t kOwnerOnly = S_IRUSR | S_IWUSR;
-    state_->descriptor = ::open(path.c_str(), kFlags, kOwnerOnly);
+    state_->descriptor = openExclusiveOwnerOnly(path.c_str(), O_CLOEXEC);
     if (state_->descriptor < 0) {
         const int kError = errno;
         if (kError == EEXIST) {

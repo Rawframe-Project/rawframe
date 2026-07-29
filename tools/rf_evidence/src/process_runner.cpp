@@ -1,5 +1,7 @@
 #include "process_runner.h"
 
+#include "file_security.h"
+
 #include <array>
 #include <atomic>
 #include <fstream>
@@ -287,8 +289,9 @@ Result<ProcessResult> runPosixProcess(const ProcessRequest& request) {
     std::filesystem::remove(kStdoutPath, error);
     error.clear();
     std::filesystem::remove(kStderrPath, error);
-    const int kStdoutFile = open(kStdoutPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
-    const int kStderrFile = open(kStderrPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
+    // No O_CLOEXEC: these descriptors are handed to the child deliberately.
+    const int kStdoutFile = openExclusiveOwnerOnly(kStdoutPath.c_str(), 0);
+    const int kStderrFile = openExclusiveOwnerOnly(kStderrPath.c_str(), 0);
     if (kStdoutFile < 0 || kStderrFile < 0) {
         if (kStdoutFile >= 0) {
             close(kStdoutFile);
