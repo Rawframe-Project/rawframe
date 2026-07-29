@@ -1,12 +1,15 @@
 #include "command.h"
 
+#include "blob_store.h"
 #include "canonical_json.h"
 #include "descriptor.h"
 #include "diagnostic.h"
 #include "file_reader.h"
+#include "file_security.h"
 #include "license_review.h"
 #include "offline_verifier.h"
 #include "path_audit.h"
+#include "path_policy.h"
 #include "raw_run_receipt.h"
 #include "report_writer.h"
 #include "repository_validator.h"
@@ -18,6 +21,7 @@
 #include <iterator>
 #include <optional>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <system_error>
 
@@ -32,6 +36,9 @@ struct ParsedOptions {
     std::optional<std::string> reportPath;
     std::optional<std::string> recordPath;
     std::optional<std::string> descriptorPath;
+    std::optional<std::string> sourcePath;
+    std::optional<std::string> digest;
+    std::optional<std::string> mediaType;
     OutputFormat format = OutputFormat::Human;
 };
 
@@ -93,6 +100,25 @@ Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) 
                     Failure{FailureCode::InvalidArguments, "--descriptor", "missing descriptor path"});
             }
             options.descriptorPath = std::string(*kValue);
+        } else if (kOption == "--source") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(
+                    Failure{FailureCode::InvalidArguments, "--source", "missing repository-relative content path"});
+            }
+            options.sourcePath = std::string(*kValue);
+        } else if (kOption == "--digest") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(Failure{FailureCode::InvalidArguments, "--digest", "missing content digest"});
+            }
+            options.digest = std::string(*kValue);
+        } else if (kOption == "--media") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(Failure{FailureCode::InvalidArguments, "--media", "missing media type"});
+            }
+            options.mediaType = std::string(*kValue);
         } else {
             return std::unexpected(Failure{FailureCode::InvalidArguments, std::string(kOption), "unknown option"});
         }
@@ -468,6 +494,121 @@ int validateRecordOperation(const ParsedOptions& options, std::ostream& output, 
     return 0;
 }
 
+int failBlob(std::ostream& output, std::ostream& errors, const BlobFailure& failure, OutputFormat format) {
+    if (format == OutputFormat::Json) {
+        std::ostringstream json;
+        json << R"({"rejection":)";
+        writeJsonString(json, blobRejectionName(failure.rejection));
+        json << R"(,"subject":)";
+        writeJsonString(json, failure.subject);
+        json << R"(,"detail":)";
+        writeJsonString(json, failure.detail);
+        json << "}";
+        output << json.str();
+    }
+    renderFailure(
+        errors, Failure{FailureCode::VerificationFailed, blobRejectionName(failure.rejection), failure.detail}, format);
+    return 3;
+}
+
+BlobStore storeFor(const ParsedOptions& options) {
+    return BlobStore(options.repositoryRoot / std::filesystem::path(kBlobStoreRelativeRoot));
+}
+
+// The store computes length and digest; the media type is the caller's
+// declaration of what contract the content was produced under, which no amount
+// of reading the bytes reveals. The two meet here, at the command boundary,
+// rather than inside a store that would otherwise have to understand its
+// contents to hold them.
+Result<Descriptor> describeStoredBlob(const BlobIdentity& identity, const std::optional<std::string>& mediaType) {
+    if (!mediaType) {
+        return std::unexpected(Failure{FailureCode::InvalidArguments, "--media", "a media type is required"});
+    }
+    return Descriptor{*mediaType, identity.byteLength, identity.digest};
+}
+
+// Repository-relative, and classified before it is used. `resolveRepositoryPath`
+// rejects absolute paths, backslashes, traversal, overlong components, and
+// anything resolving outside the repository, but it resolves through
+// weakly_canonical, which follows links. So the unresolved join is classified
+// too: a symbolic link or junction planted at the source name is refused rather
+// than silently read through.
+Result<std::filesystem::path> resolveContentSource(const ParsedOptions& options) {
+    if (!options.sourcePath) {
+        return std::unexpected(
+            Failure{FailureCode::InvalidArguments, "--source", "a repository-relative content path is required"});
+    }
+    auto resolved = resolveRepositoryPath(options.repositoryRoot, *options.sourcePath);
+    if (!resolved) {
+        return std::unexpected(resolved.error());
+    }
+    const std::filesystem::path kJoined = options.repositoryRoot / std::filesystem::path(*options.sourcePath);
+    auto kind = classifyPath(kJoined);
+    if (!kind) {
+        return std::unexpected(kind.error());
+    }
+    if (*kind != FileKind::Regular) {
+        return std::unexpected(Failure{
+            FailureCode::InvalidPath, *options.sourcePath, std::string("the source is a ") + fileKindName(*kind)});
+    }
+    return resolved;
+}
+
+int emitDescriptor(std::ostream& output, const Descriptor& descriptor) {
+    output << serializeCanonical(describeAsValue(descriptor));
+    return 0;
+}
+
+int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    auto source = resolveContentSource(options);
+    if (!source) {
+        return fail(errors, source.error(), options.format);
+    }
+    const BlobStore kStore = storeFor(options);
+    auto identity = kStore.put(*source);
+    if (!identity) {
+        return failBlob(output, errors, identity.error(), options.format);
+    }
+    auto descriptor = describeStoredBlob(*identity, options.mediaType);
+    if (!descriptor) {
+        return fail(errors, descriptor.error(), options.format);
+    }
+    return emitDescriptor(output, *descriptor);
+}
+
+int verifyBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    if (!options.digest) {
+        return fail(
+            errors, Failure{FailureCode::InvalidArguments, "--digest", "a content digest is required"}, options.format);
+    }
+    const BlobStore kStore = storeFor(options);
+    auto identity = kStore.verify(*options.digest);
+    if (!identity) {
+        return failBlob(output, errors, identity.error(), options.format);
+    }
+    auto descriptor = describeStoredBlob(*identity, options.mediaType);
+    if (!descriptor) {
+        return fail(errors, descriptor.error(), options.format);
+    }
+    return emitDescriptor(output, *descriptor);
+}
+
+int getBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    if (!options.digest) {
+        return fail(
+            errors, Failure{FailureCode::InvalidArguments, "--digest", "a content digest is required"}, options.format);
+    }
+    const BlobStore kStore = storeFor(options);
+    auto bytes = kStore.get(*options.digest);
+    if (!bytes) {
+        return failBlob(output, errors, bytes.error(), options.format);
+    }
+    // The bytes themselves, exactly, with nothing appended and nothing
+    // translated. Standard output is put in binary mode before this runs.
+    output.write(bytes->data(), static_cast<std::streamsize>(bytes->size()));
+    return 0;
+}
+
 } // namespace
 
 int runCommand(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& errors) {
@@ -502,6 +643,25 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
         return fail(errors,
                     Failure{FailureCode::InvalidArguments, "--report", "record operations write no report"},
                     options->format);
+    }
+
+    // A store operation writes exactly one place, the blob path its digest
+    // derives, and it has nowhere else to write for the same reason.
+    const bool kIsBlobOperation =
+        subject == "blob" && (kOperation == "put" || kOperation == "verify" || kOperation == "get");
+    if (kIsBlobOperation && options->reportPath) {
+        return fail(errors,
+                    Failure{FailureCode::InvalidArguments, "--report", "store operations write no report"},
+                    options->format);
+    }
+    if (kOperation == "put" && subject == "blob") {
+        return putBlobOperation(*options, output, errors);
+    }
+    if (kOperation == "verify" && subject == "blob") {
+        return verifyBlobOperation(*options, output, errors);
+    }
+    if (kOperation == "get" && subject == "blob") {
+        return getBlobOperation(*options, output, errors);
     }
     if (kOperation == "canonicalize" && subject == "record") {
         return canonicalizeOperation(*options, output, errors);

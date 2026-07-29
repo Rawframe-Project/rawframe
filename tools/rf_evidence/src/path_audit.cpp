@@ -13,9 +13,11 @@ namespace {
 constexpr std::size_t kMaximumAuditedFiles = 65'536;
 
 // The frozen write envelopes from the accepted Task Packets' "Allowed paths"
-// sections, expressed as lowercase repository-relative paths. TASK-0001 is
-// complete and TASK-0002 is active; a completed Task's output stays listed,
-// because the audit reports what the envelope admits and not what is in flight.
+// sections, expressed as lowercase repository-relative paths. TASK-0001 and
+// TASK-0002 are complete and TASK-0003 is active; a completed Task's output
+// stays listed, because the audit reports what the envelope admits and not what
+// is in flight. TASK-0003 adds no entry: every path it writes is either beneath
+// the `tools/rf_evidence/` root below or beneath `out/`, which is skipped.
 constexpr std::array kEnvelopeFiles{
     std::string_view{".gitignore"},
     // Root .clang-tidy joined the envelope through the accepted 2026-07-16

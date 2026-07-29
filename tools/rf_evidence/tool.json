@@ -16,11 +16,14 @@
       "audit_shipping_closure",
       "canonicalize_record",
       "explain_dependency",
+      "get_blob",
       "graph_repository",
       "inspect_source_ownership",
+      "put_blob",
       "review_licenses",
       "validate_record",
       "validate_repository",
+      "verify_blob",
       "verify_offline"
     ],
     "exceptions": "disabled",
@@ -55,6 +58,7 @@
       "tools"
     ],
     "filesystemWriteRoots": [
+      "out/evidence/v1/blobs",
       "out/reports/task-0001"
     ],
     "network": "denied",
@@ -66,6 +70,10 @@
     {
       "role": "diagnostic_report",
       "root": "out/reports/task-0001"
+    },
+    {
+      "role": "evidence_blob_store",
+      "root": "out/evidence/v1/blobs"
     }
   ],
   "distribution": {
