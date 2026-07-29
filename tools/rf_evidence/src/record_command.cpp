@@ -1,5 +1,6 @@
 #include "record_command.h"
 
+#include "baseline_record.h"
 #include "canonical_json.h"
 #include "descriptor.h"
 #include "evaluation_policy.h"
@@ -94,6 +95,9 @@ RecordResult<RecordKindBinding> bindRecordKind(const CanonicalValue& record) {
     if (*kind == kEvaluationReceiptRecordKind) {
         return RecordKindBinding{kEvaluationReceiptMediaType};
     }
+    if (*kind == kBaselineRecordRecordKind) {
+        return RecordKindBinding{kBaselineRecordMediaType};
+    }
     return std::unexpected(RecordFailure{RecordRejection::SchemaInvalid, "record declares an unknown kind: " + *kind});
 }
 
@@ -149,6 +153,24 @@ RecordResult<std::string> gateRecord(const std::filesystem::path& repositoryRoot
                 RecordFailure{RecordRejection::SchemaInvalid, "evaluation receipt carries no identity"});
         }
         return kIdentity->text();
+    }
+    // The fourth authority is gated here for the same reason as the third, and
+    // more so. checkProducerAuthority refuses any member named "promoted",
+    // "verdict", or "passed", and a promotion pointer names all three: it
+    // exists to say what was promoted and to point at a passing verdict.
+    // Holding it to a producer's restriction would make the record
+    // unrepresentable rather than safe.
+    //
+    // Validating one of these is not promoting one. There is no writer, no
+    // promoter, no activator, and no verb that reaches one; what this proves is
+    // that the bytes satisfy the fourth schema and describe no promotion the
+    // specification forbids.
+    if (mediaType == kBaselineRecordMediaType) {
+        auto baseline = parseBaselineRecord(repositoryRoot, instancePath, record);
+        if (!baseline) {
+            return std::unexpected(baseline.error());
+        }
+        return baseline->baselineId;
     }
     if (auto status = checkProducerAuthority(record); !status) {
         return std::unexpected(status.error());

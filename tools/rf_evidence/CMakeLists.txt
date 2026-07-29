@@ -3,6 +3,7 @@ find_package(OpenSSL 3.5.7 EXACT REQUIRED COMPONENTS Crypto)
 
 add_library(rawframe_tool_rf_evidence_private STATIC)
 target_sources(rawframe_tool_rf_evidence_private PRIVATE
+    src/baseline_record.cpp
     src/blob_store.cpp
     src/evidence_set.cpp
     src/canonical_json.cpp
@@ -65,6 +66,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         message(FATAL_ERROR "RF1120 the preset's locked clang-format executable is absent")
     endif()
     set(rawframe_tool_rf_evidence_maintained_sources
+        src/baseline_record.cpp
+        src/baseline_record.h
         src/blob_store.cpp
         src/blob_store.h
         src/evidence_set.cpp
@@ -123,6 +126,7 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/source_inspector.h
         src/store_command.cpp
         src/store_command.h
+        tests/baseline_record_test.cpp
         tests/blob_store_test.cpp
         tests/evaluation_policy_test.cpp
         tests/evaluator_test.cpp

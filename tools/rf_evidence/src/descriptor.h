@@ -15,6 +15,8 @@ inline constexpr std::string_view kAttemptPlanMediaType = "application/vnd.rawfr
 inline constexpr std::string_view kEvidenceSetMediaType = "application/vnd.rawframe.evidence.evidence-set.v1+json";
 inline constexpr std::string_view kEvaluationReceiptMediaType =
     "application/vnd.rawframe.evidence.evaluation-receipt.v1+json";
+inline constexpr std::string_view kBaselineRecordMediaType =
+    "application/vnd.rawframe.evidence.baseline-record.v1+json";
 
 // The maintained authorities. They are read material rather than produced
 // evidence, but they are records under the same canonical contract and carry
