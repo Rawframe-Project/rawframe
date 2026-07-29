@@ -449,6 +449,42 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff is canonical and valid"
         LABELS "repository" TIMEOUT 300)
 
+    # A verdict record is the artifact most likely to be quoted out of context,
+    # so the claims it must not make are refused structurally rather than by
+    # convention. One case per claim, plus the shapes that would let a reader
+    # infer a claim from a widened vocabulary.
+    foreach(refused_receipt IN ITEMS
+            "claims-performance"
+            "claims-a-promotion"
+            "claims-a-relative-comparison"
+            "claims-trusted-provenance"
+            "claims-a-higher-tier"
+            "drops-the-claim-scope"
+            "invents-an-outcome"
+            "invents-a-phase"
+            "gates-a-performance-objective")
+        add_test(NAME "Command.ValidateRejectsAReceiptThat.${refused_receipt}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+                --root "${CMAKE_SOURCE_DIR}"
+                --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/evaluations/${refused_receipt}.json"
+                --format json)
+        set_tests_properties("Command.ValidateRejectsAReceiptThat.${refused_receipt}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "schema_invalid"
+            LABELS "repository;security" TIMEOUT 300)
+    endforeach()
+
+    # And a float where the fixed-point subset admits only an integer pair. The
+    # canonical parser refuses it before any schema runs, which is the earlier
+    # and stronger refusal.
+    add_test(NAME "Command.ValidateRejectsAReceiptStatingAFloatBound"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/evaluations/states-a-float-bound.json"
+            --format json)
+    set_tests_properties("Command.ValidateRejectsAReceiptStatingAFloatBound" PROPERTIES
+        PASS_REGULAR_EXPRESSION "numeric token carries a fraction"
+        LABELS "repository;security" TIMEOUT 300)
+
     # The store at the process level. The unit suite drives it against scratch
     # space; these cases prove the installed command derives the same path in
     # the repository's own store and hands the bytes back unaltered, which is
