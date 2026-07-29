@@ -154,7 +154,7 @@ RecordResult<BaselineRecord> parseBaselineRecord(const std::filesystem::path& re
     // a trust decision made somewhere else. The tool performs no network access
     // on any path, so a remote scheme here would be a claim it can never check.
     if (const auto* kReference = kTrust->find("reference");
-        kReference != nullptr && kReference->text().find("://") != std::string::npos) {
+        kReference != nullptr && kReference->text().contains("://")) {
         return std::unexpected(defect(BaselineDefect::UnsupportedProvenance,
                                       "provenance points at " + kReference->text() + ", which is not verifiable here"));
     }
