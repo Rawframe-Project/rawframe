@@ -18,7 +18,10 @@ FROM ubuntu@${RF_LINUX_BASE_DIGEST}
 COPY locked-packages.txt /rf/locked-packages.txt
 COPY install-locked-packages.sh /rf/install-locked-packages.sh
 
-RUN /rf/install-locked-packages.sh /rf/locked-packages.txt && rm -rf /rf/install-locked-packages.sh
+# Invoked through the interpreter rather than as an executable, so the image does
+# not depend on a file mode surviving a checkout on a filesystem that has no
+# concept of one.
+RUN sh /rf/install-locked-packages.sh /rf/locked-packages.txt && rm -rf /rf/install-locked-packages.sh
 
 # States which host class the probe is running under. It says what this image is,
 # never that it may be trusted: a hand-built image can carry the same file, and
