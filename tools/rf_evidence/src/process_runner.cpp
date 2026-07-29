@@ -282,18 +282,20 @@ Result<ProcessResult> runWindowsProcess(const ProcessRequest& request) {
 Result<ProcessResult> runPosixProcess(const ProcessRequest& request) {
     std::error_code error;
     std::filesystem::create_directories(request.captureDirectory, error);
-    const auto stdoutPath = request.captureDirectory / "stdout.tmp";
-    const auto stderrPath = request.captureDirectory / "stderr.tmp";
-    std::filesystem::remove(stdoutPath, error);
+    const auto kStdoutPath = request.captureDirectory / "stdout.tmp";
+    const auto kStderrPath = request.captureDirectory / "stderr.tmp";
+    std::filesystem::remove(kStdoutPath, error);
     error.clear();
-    std::filesystem::remove(stderrPath, error);
-    const int stdoutFile = open(stdoutPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
-    const int stderrFile = open(stderrPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
-    if (stdoutFile < 0 || stderrFile < 0) {
-        if (stdoutFile >= 0)
-            close(stdoutFile);
-        if (stderrFile >= 0)
-            close(stderrFile);
+    std::filesystem::remove(kStderrPath, error);
+    const int kStdoutFile = open(kStdoutPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
+    const int kStderrFile = open(kStderrPath.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
+    if (kStdoutFile < 0 || kStderrFile < 0) {
+        if (kStdoutFile >= 0) {
+            close(kStdoutFile);
+        }
+        if (kStderrFile >= 0) {
+            close(kStderrFile);
+        }
         return std::unexpected(Failure{
             FailureCode::IoFailure, request.captureDirectory.generic_string(), "failed to create capture files"});
     }
@@ -302,70 +304,71 @@ Result<ProcessResult> runPosixProcess(const ProcessRequest& request) {
     auto executable = request.executable.string();
     arguments.push_back(executable.data());
     std::vector<std::string> ownedArguments = request.arguments;
-    for (auto& argument : ownedArguments)
+    for (auto& argument : ownedArguments) {
         arguments.push_back(argument.data());
+    }
     arguments.push_back(nullptr);
 
-    const pid_t process = fork();
-    if (process == 0) {
+    const pid_t kProcess = fork();
+    if (kProcess == 0) {
         setpgid(0, 0);
-        dup2(stdoutFile, STDOUT_FILENO);
-        dup2(stderrFile, STDERR_FILENO);
-        close(stdoutFile);
-        close(stderrFile);
+        dup2(kStdoutFile, STDOUT_FILENO);
+        dup2(kStderrFile, STDERR_FILENO);
+        close(kStdoutFile);
+        close(kStderrFile);
         // The data segment, not the address space. The request bounds the memory
         // a child actually uses, which is what the Windows job object counts,
         // and RLIMIT_AS instead counts address space a child merely reserves.
         // A Go runtime reserves far more than it commits, so an address-space
         // limit of this size stops every Go-based prepared tool from starting
         // at all while permitting one that quietly commits the same amount.
-        const rlimit memoryLimit{request.maximumPrivateMemoryBytes, request.maximumPrivateMemoryBytes};
-        const rlimit cpuLimit{10, 10};
-        setrlimit(RLIMIT_DATA, &memoryLimit);
-        setrlimit(RLIMIT_CPU, &cpuLimit);
+        const rlimit kMemoryLimit{request.maximumPrivateMemoryBytes, request.maximumPrivateMemoryBytes};
+        const rlimit kCpuLimit{10, 10};
+        setrlimit(RLIMIT_DATA, &kMemoryLimit);
+        setrlimit(RLIMIT_CPU, &kCpuLimit);
         chdir(request.workingDirectory.c_str());
         clearenv();
         execv(request.executable.c_str(), arguments.data());
         _exit(127);
     }
-    close(stdoutFile);
-    close(stderrFile);
-    if (process < 0) {
+    close(kStdoutFile);
+    close(kStderrFile);
+    if (kProcess < 0) {
         return std::unexpected(Failure{
-            FailureCode::VerificationFailed, request.executable.generic_string(), "failed to fork child process"});
+            FailureCode::VerificationFailed, request.executable.generic_string(), "failed to fork child kProcess"});
     }
 
-    const auto deadline = std::chrono::steady_clock::now() + request.timeout;
+    const auto kDeadline = std::chrono::steady_clock::now() + request.timeout;
     int status = 0;
-    while (waitpid(process, &status, WNOHANG) == 0) {
-        if (std::chrono::steady_clock::now() >= deadline) {
-            kill(-process, SIGKILL);
-            waitpid(process, &status, 0);
+    while (waitpid(kProcess, &status, WNOHANG) == 0) {
+        if (std::chrono::steady_clock::now() >= kDeadline) {
+            kill(-kProcess, SIGKILL);
+            waitpid(kProcess, &status, 0);
             return std::unexpected(Failure{
-                FailureCode::VerificationFailed, request.executable.generic_string(), "child process timed out"});
+                FailureCode::VerificationFailed, request.executable.generic_string(), "child kProcess timed out"});
         }
-        const auto stdoutBytes = std::filesystem::file_size(stdoutPath, error);
+        const auto kStdoutBytes = std::filesystem::file_size(kStdoutPath, error);
         error.clear();
-        const auto stderrBytes = std::filesystem::file_size(stderrPath, error);
-        if (stdoutBytes > request.maximumStandardOutputBytes || stderrBytes > request.maximumStandardErrorBytes) {
-            kill(-process, SIGKILL);
-            waitpid(process, &status, 0);
+        const auto kStderrBytes = std::filesystem::file_size(kStderrPath, error);
+        if (kStdoutBytes > request.maximumStandardOutputBytes || kStderrBytes > request.maximumStandardErrorBytes) {
+            kill(-kProcess, SIGKILL);
+            waitpid(kProcess, &status, 0);
             return std::unexpected(Failure{FailureCode::LimitExceeded,
                                            request.executable.generic_string(),
-                                           "child process output exceeded its limit"});
+                                           "child kProcess output exceeded its limit"});
         }
         usleep(25'000);
     }
     if (!WIFEXITED(status)) {
         return std::unexpected(Failure{FailureCode::VerificationFailed,
                                        request.executable.generic_string(),
-                                       "child process terminated abnormally"});
+                                       "child kProcess terminated abnormally"});
     }
-    auto standardOutput = readCapture(stdoutPath, request.maximumStandardOutputBytes);
-    auto standardError = readCapture(stderrPath, request.maximumStandardErrorBytes);
-    std::filesystem::remove(stdoutPath, error);
+    auto standardOutput = readCapture(kStdoutPath, request.maximumStandardOutputBytes);
+    auto standardError = readCapture(kStderrPath, request.maximumStandardErrorBytes);
+    std::filesystem::remove(kStdoutPath, error);
     error.clear();
-    std::filesystem::remove(stderrPath, error);
+    std::filesystem::remove(kStderrPath, error);
     if (!standardOutput || !standardError) {
         return std::unexpected(!standardOutput ? standardOutput.error() : standardError.error());
     }

@@ -98,7 +98,10 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/source_inspector.h
         tests/canonical_json_test.cpp
         tests/command_test.cpp
+        tests/dependency_authority_test.cpp
         tests/descriptor_test.cpp
+        tests/diagnostic_test.cpp
+        tests/file_reader_test.cpp
         tests/json_policy_test.cpp
         tests/path_policy_test.cpp
         tests/raw_run_receipt_test.cpp

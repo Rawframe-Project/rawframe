@@ -1,5 +1,4 @@
 #include "dependency_authority.h"
-
 #include "repository_validator.h"
 
 #include <filesystem>
