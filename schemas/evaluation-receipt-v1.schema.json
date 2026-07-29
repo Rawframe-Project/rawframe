@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/evaluation-receipt-v1.schema.json",
+  "title": "Rawframe EvaluationReceipt, generation 1",
+  "description": "The verdict authority of the ADR-0019 chain, per SPEC-0014. It is the only record in this tool permitted to say whether evidence passed anything, and it says so only about the exact inputs it names by descriptor. It reaches its verdict from a fixed check order and retains every check, including the ones that did not run, so that a later pass cannot appear to rescue an earlier blocking failure. It carries no clock: an evaluation is a function of its inputs and not of when it ran, and identical inputs must produce identical bytes on every host.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recordKind",
+    "evaluationId",
+    "evaluatorGeneration",
+    "tier",
+    "metricRegistryGeneration",
+    "policyGeneration",
+    "inputs",
+    "checks",
+    "verdict",
+    "claimScope",
+    "trust"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordKind": {
+      "const": "evaluation_receipt"
+    },
+    "evaluationId": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+    },
+    "evaluatorGeneration": {
+      "description": "Which evaluator produced this. SPEC-0014 requires evaluator identity in the compatibility key, and no producer record can carry it because a producer cannot know which evaluator will read it. It lives here for that reason.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "tier": {
+      "description": "Tier 0 is the only tier this gate can produce. It is correctness, completeness, schema, and harness feedback. Every higher tier requires compatible evidence from a qualified cell, which does not exist yet.",
+      "const": "tier_0"
+    },
+    "metricRegistryGeneration": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+    },
+    "policyGeneration": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+    },
+    "inputs": {
+      "description": "Every input bound by descriptor rather than by path. A path is how the evaluator found a thing; a descriptor is what it actually read, and only the second can be checked afterwards.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceSet",
+        "metricRegistry",
+        "evaluationPolicy",
+        "receipts"
+      ],
+      "properties": {
+        "evidenceSet": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/descriptor"
+        },
+        "metricRegistry": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/descriptor"
+        },
+        "evaluationPolicy": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/descriptor"
+        },
+        "receipts": {
+          "description": "Every eligible attempt's receipt, in declared attempt order, each bound to the attempt it belongs to. A receipt read but not listed here would be evidence with no accounting.",
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "attemptId",
+              "descriptor"
+            ],
+            "properties": {
+              "attemptId": {
+                "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+              },
+              "descriptor": {
+                "$ref": "evidence-common-v1.schema.json#/$defs/descriptor"
+              }
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "description": "Every policy entry, in phase order and then by key, with what it compared and what came of it. An entry that did not run is present with outcome not_run rather than absent, because an absent check and a check nobody reached look the same to a reader and only one of them is honest.",
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "checkCount",
+        "failedCheckCount",
+        "notRunCheckCount"
+      ],
+      "properties": {
+        "outcome": {
+          "description": "passed only when every check ran and every one passed. There is no partial, provisional, or advisory outcome: an evaluation that could not complete produces no receipt at all rather than a soft verdict.",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "blockingPhase": {
+          "description": "The first phase that produced a failure, when there was one. Later phases did not run, and their checks say so.",
+          "$ref": "#/$defs/phase"
+        },
+        "checkCount": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+        },
+        "failedCheckCount": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+        },
+        "notRunCheckCount": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+        }
+      }
+    },
+    "claimScope": {
+      "description": "What a pass here does not mean. Every member is fixed false by this schema rather than by convention, because a verdict record is exactly the artifact that later gets quoted out of context, and the record has to argue against that reading in its own bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performanceClaim",
+        "runnerClaim",
+        "trustedProvenanceClaim",
+        "promotionClaim",
+        "relativeComparisonClaim"
+      ],
+      "properties": {
+        "performanceClaim": {
+          "const": false
+        },
+        "runnerClaim": {
+          "const": false
+        },
+        "trustedProvenanceClaim": {
+          "const": false
+        },
+        "promotionClaim": {
+          "const": false
+        },
+        "relativeComparisonClaim": {
+          "const": false
+        }
+      }
+    },
+    "trust": {
+      "$ref": "evidence-common-v1.schema.json#/$defs/trust"
+    }
+  },
+  "$defs": {
+    "phase": {
+      "description": "SPEC-0014's order, restricted to the phases Tier 0 can reach. Absolute objectives, anchor regression, rolling-main regression, and tier stability are not here, because a policy at this gate cannot bind a metric they would apply to.",
+      "enum": [
+        "completeness",
+        "correctness",
+        "hard_ceiling"
+      ]
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyKey",
+        "phase",
+        "checkClass",
+        "metricId",
+        "metricGeneration",
+        "budgetClass",
+        "comparison",
+        "bound",
+        "outcome",
+        "observations"
+      ],
+      "properties": {
+        "policyKey": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "phase": {
+          "$ref": "#/$defs/phase"
+        },
+        "checkClass": {
+          "enum": [
+            "completeness",
+            "correctness"
+          ]
+        },
+        "metricId": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/identifier"
+        },
+        "metricGeneration": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/nonNegativeInteger"
+        },
+        "budgetClass": {
+          "description": "Only the two classes that mean the same thing on every machine. A performance objective, regression threshold, overload threshold, supervisor deadline, or workload parameter does not, and binding one at this gate would let an untrusted local run report a verdict on a canonical budget.",
+          "enum": [
+            "hard_ceiling",
+            "contract_constant"
+          ]
+        },
+        "comparison": {
+          "enum": [
+            "at_most",
+            "at_least"
+          ]
+        },
+        "bound": {
+          "$ref": "#/$defs/scaledValue"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_run"
+          ]
+        },
+        "reason": {
+          "description": "Why a check failed or did not run, from a closed vocabulary. Prose belongs in diagnostics; a record that gates on free text is a record whose meaning changes with its wording.",
+          "enum": [
+            "bound_violated",
+            "observation_missing",
+            "earlier_phase_failed"
+          ]
+        },
+        "observations": {
+          "description": "What each eligible attempt reported for this metric, at the scale the comparison was made. An attempt that reported nothing is absent here and is why a completeness check fails.",
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "attemptId",
+              "value",
+              "scaleExponent"
+            ],
+            "properties": {
+              "attemptId": {
+                "$ref": "evidence-common-v1.schema.json#/$defs/uuid"
+              },
+              "value": {
+                "$ref": "evidence-common-v1.schema.json#/$defs/safeInteger"
+              },
+              "scaleExponent": {
+                "type": "integer",
+                "minimum": -18,
+                "maximum": 18
+              }
+            }
+          }
+        }
+      }
+    },
+    "scaledValue": {
+      "description": "SPEC-0017's fixed-point subset. The represented quantity is value times ten to this power, so a fractional bound is carried exactly by an integer pair and never by a float.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "scaleExponent"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "evidence-common-v1.schema.json#/$defs/safeInteger"
+        },
+        "scaleExponent": {
+          "type": "integer",
+          "minimum": -18,
+          "maximum": 18
+        }
+      }
+    }
+  }
+}

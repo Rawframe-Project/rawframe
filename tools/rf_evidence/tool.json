@@ -16,6 +16,7 @@
       "audit_paths",
       "audit_shipping_closure",
       "canonicalize_record",
+    "evaluate_evidence_set",
       "explain_dependency",
       "get_blob",
       "graph_repository",

@@ -24,6 +24,8 @@ struct ParsedOptions {
     std::optional<std::string> descriptorPath;
     std::optional<std::string> planPath;
     std::optional<std::string> setId;
+    std::optional<std::string> setPath;
+    std::optional<std::string> evaluationId;
     std::optional<std::string> sourcePath;
     std::optional<std::string> digest;
     std::optional<std::string> mediaType;
@@ -49,6 +51,16 @@ struct ParsedOptions {
 // authority sitting under `evidence/` without being listed is refused rather
 // than found. Nothing here evaluates an observation or reaches a verdict.
 [[nodiscard]] int loadEvidenceIndexOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
+
+// Evaluates one Evidence Set against the maintained registry and policy and
+// emits an EvaluationReceipt. The registry and the policy are read from the
+// repository's own index and never from an argument, because a verdict against
+// a policy the caller supplied is a verdict about nothing.
+//
+// The exit code projects the verdict rather than being it: 0 for a receipt that
+// passed, 4 for one that failed, and 3 when no receipt could be produced.
+[[nodiscard]] int evaluateOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
+
 [[nodiscard]] int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int verifyBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int getBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);

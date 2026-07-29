@@ -94,6 +94,19 @@ Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) 
                     Failure{FailureCode::InvalidArguments, "--set-id", "missing evidence set identity"});
             }
             options.setId = std::string(*kValue);
+        } else if (kOption == "--set") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(Failure{FailureCode::InvalidArguments, "--set", "missing evidence set path"});
+            }
+            options.setPath = std::string(*kValue);
+        } else if (kOption == "--evaluation-id") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(
+                    Failure{FailureCode::InvalidArguments, "--evaluation-id", "missing evaluation identity"});
+            }
+            options.evaluationId = std::string(*kValue);
         } else if (kOption == "--source") {
             const auto kValue = kNextValue();
             if (!kValue || kValue->empty()) {
@@ -420,6 +433,18 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
                     Failure{FailureCode::InvalidArguments, "--report", "loading maintained evidence writes no report"},
                     options->format);
     }
+    // Evaluation is the verdict authority and emits one record. Like assembly,
+    // a report destination would give its output a second place to land, and a
+    // verdict with two outputs is a verdict that can disagree with itself.
+    const bool kIsEvaluateOperation = kOperation == "evaluate" && subject == "evidence-set";
+    if (kIsEvaluateOperation && options->reportPath) {
+        return fail(
+            errors, Failure{FailureCode::InvalidArguments, "--report", "evaluation writes no report"}, options->format);
+    }
+    if (kIsEvaluateOperation) {
+        return evaluateOperation(*options, output, errors);
+    }
+
     if (kOperation == "put" && subject == "blob") {
         return putBlobOperation(*options, output, errors);
     }

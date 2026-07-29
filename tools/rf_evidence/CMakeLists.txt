@@ -11,6 +11,7 @@ target_sources(rawframe_tool_rf_evidence_private PRIVATE
     src/descriptor.cpp
     src/diagnostic.cpp
     src/evaluation_policy.cpp
+    src/evaluator.cpp
     src/file_reader.cpp
     src/file_security.cpp
     src/metric_registry.cpp
@@ -79,6 +80,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/diagnostic.h
         src/evaluation_policy.cpp
         src/evaluation_policy.h
+        src/evaluator.cpp
+        src/evaluator.h
         src/failure.h
         src/file_reader.cpp
         src/file_reader.h
@@ -119,6 +122,7 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/source_inspector.h
         tests/blob_store_test.cpp
         tests/evaluation_policy_test.cpp
+        tests/evaluator_test.cpp
         tests/evidence_set_test.cpp
         tests/metric_registry_test.cpp
         tests/record_gate_test.cpp
