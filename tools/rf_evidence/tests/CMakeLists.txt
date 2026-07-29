@@ -1,7 +1,9 @@
 add_executable(rawframe_tool_rf_evidence_tests
+    baseline_record_test.cpp
     blob_store_test.cpp
     canonical_json_test.cpp
     command_test.cpp
+    conformance_test.cpp
     dependency_authority_test.cpp
     descriptor_test.cpp
     diagnostic_test.cpp

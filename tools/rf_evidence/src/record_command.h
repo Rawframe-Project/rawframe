@@ -37,10 +37,10 @@ struct ParsedOptions {
 // different code depending on which file it was raised in.
 [[nodiscard]] int fail(std::ostream& errors, const Failure& failure, OutputFormat format);
 
-// The record and store operations. Each one resolves its arguments, calls the
-// component that owns the behavior, and emits. None of them holds domain logic:
-// canonical form belongs to canonical_json, record semantics to record_gate and
-// the record's own component, and content addressing to blob_store.
+// The record operations. Each one resolves its arguments, calls the component
+// that owns the behavior, and emits. None of them holds domain logic: canonical
+// form belongs to canonical_json, and record semantics to record_gate and the
+// record's own component. The store operations are declared in store_command.h.
 [[nodiscard]] int canonicalizeOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int validateRecordOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 [[nodiscard]] int assembleOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
@@ -60,9 +60,5 @@ struct ParsedOptions {
 // The exit code projects the verdict rather than being it: 0 for a receipt that
 // passed, 4 for one that failed, and 3 when no receipt could be produced.
 [[nodiscard]] int evaluateOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
-
-[[nodiscard]] int putBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
-[[nodiscard]] int verifyBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
-[[nodiscard]] int getBlobOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors);
 
 } // namespace rawframe::tool::evidence
