@@ -28,9 +28,23 @@ constexpr std::string_view kBlobDigest = "8c399dab12cf9ec725e269d44d7f2f17441a5b
 // substituted artifact reaches the verifier with a plausible size.
 constexpr std::string_view kImposter = "rawframe Artifact\n";
 
-// The host is passed as an argument, so these cases behave identically on both
-// lanes and none of them depends on which machine is running the suite.
+// The host is passed as an argument, but the prepared executable name the
+// verifier expects is chosen at compile time, so these cases name the host they
+// are compiled for. That keeps the prepared-tree cases below asserting the file
+// the running lane would actually execute.
+#ifdef _WIN32
 constexpr std::string_view kHost = "windows-x86_64";
+constexpr std::string_view kSigningToolId = "tool.cosign.windows_x86_64";
+constexpr std::string_view kSigningToolPath = "out/prepared/windows-x86_64/tools/cosign/bin/cosign.exe";
+constexpr std::string_view kArchiveToolId = "tool.archive_extractor.windows_x86_64";
+constexpr std::string_view kOtherPlatform = "platform.linux";
+#else
+constexpr std::string_view kHost = "linux-x86_64";
+constexpr std::string_view kSigningToolId = "tool.cosign.linux_x86_64";
+constexpr std::string_view kSigningToolPath = "out/prepared/linux-x86_64/tools/cosign/bin/cosign";
+constexpr std::string_view kArchiveToolId = "tool.archive_extractor.linux_x86_64";
+constexpr std::string_view kOtherPlatform = "platform.windows";
+#endif
 
 std::filesystem::path scratchRootFor(std::string_view name) {
     const auto kRoot = std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "offline_verifier" / name;
@@ -79,7 +93,8 @@ TEST(OfflineVerifier, CompletesTheArtifactWalkForALockWhoseCacheObjectMatches) {
     auto report = verifyOfflineInputs(kRoot, kHost);
     ASSERT_FALSE(report.has_value());
     EXPECT_EQ(report.error().code, FailureCode::MissingInput);
-    EXPECT_NE(report.error().path.find("out/prepared/windows-x86_64/tools/cmake/.rf-prepared.json"), std::string::npos)
+    EXPECT_NE(report.error().path.find("out/prepared/" + std::string(kHost) + "/tools/cmake/.rf-prepared.json"),
+              std::string::npos)
         << report.error().path;
 }
 
@@ -192,8 +207,8 @@ TEST(OfflineVerifier, RejectsAMissingLock) {
 TEST(OfflineVerifier, RejectsALockThatSelectsNoInputsForTheHost) {
     const auto kRoot = scratchRootFor("empty_selection");
     writeLock(kRoot,
-              lockWith(std::string(R"({"id": "tool.example", "platform": "platform.linux", "sha256": ")") +
-                       std::string(kBlobDigest) + R"(", "byteSize": 18})"));
+              lockWith(std::string(R"({"id": "tool.example", "platform": ")") + std::string(kOtherPlatform) +
+                       R"(", "sha256": ")" + std::string(kBlobDigest) + R"(", "byteSize": 18})"));
 
     auto report = verifyOfflineInputs(kRoot, kHost);
     ASSERT_FALSE(report.has_value());
@@ -217,21 +232,21 @@ TEST(OfflineVerifier, RejectsAHostOutsideTheTaskMatrix) {
 // to carry the identity the lock recorded.
 TEST(OfflineVerifier, RejectsAPreparedSigningToolThatWasNeverInstalled) {
     const auto kRoot = scratchRootFor("prepared_absent");
-    writeLock(kRoot, lockWith(artifactEntry("tool.cosign.windows_x86_64", kBlobDigest, "18")));
+    writeLock(kRoot, lockWith(artifactEntry(kSigningToolId, kBlobDigest, "18")));
     writeCacheObject(kRoot, kBlobDigest, kBlob);
 
     auto report = verifyOfflineInputs(kRoot, kHost);
     ASSERT_FALSE(report.has_value());
     EXPECT_EQ(report.error().code, FailureCode::MissingInput);
-    EXPECT_EQ(report.error().path, "tool.cosign.windows_x86_64");
+    EXPECT_EQ(report.error().path, kSigningToolId);
     EXPECT_NE(report.error().message.find("prepared file is absent"), std::string::npos) << report.error().message;
 }
 
 TEST(OfflineVerifier, RejectsAPreparedSigningToolWhoseInstalledBytesWereReplaced) {
     const auto kRoot = scratchRootFor("prepared_replaced");
-    writeLock(kRoot, lockWith(artifactEntry("tool.cosign.windows_x86_64", kBlobDigest, "18")));
+    writeLock(kRoot, lockWith(artifactEntry(kSigningToolId, kBlobDigest, "18")));
     writeCacheObject(kRoot, kBlobDigest, kBlob);
-    writeFile(kRoot / "out/prepared/windows-x86_64/tools/cosign/bin/cosign.exe", kImposter);
+    writeFile(kRoot / kSigningToolPath, kImposter);
 
     auto report = verifyOfflineInputs(kRoot, kHost);
     ASSERT_FALSE(report.has_value());
@@ -245,7 +260,7 @@ TEST(OfflineVerifier, RejectsAPreparedSigningToolWhoseInstalledBytesWereReplaced
 // unverifiable and must be rejected rather than treated as nothing to check.
 TEST(OfflineVerifier, RejectsAPreparedArchiveThatDeclaresNoRequiredFileIdentities) {
     const auto kRoot = scratchRootFor("archive_without_required_files");
-    writeLock(kRoot, lockWith(artifactEntry("tool.archive_extractor.windows_x86_64", kBlobDigest, "18")));
+    writeLock(kRoot, lockWith(artifactEntry(kArchiveToolId, kBlobDigest, "18")));
     writeCacheObject(kRoot, kBlobDigest, kBlob);
 
     auto report = verifyOfflineInputs(kRoot, kHost);
@@ -256,10 +271,11 @@ TEST(OfflineVerifier, RejectsAPreparedArchiveThatDeclaresNoRequiredFileIdentitie
 
 TEST(OfflineVerifier, RejectsAPreparedArchiveWhoseRequiredFileIdentityIsIncomplete) {
     const auto kRoot = scratchRootFor("archive_incomplete_required_file");
-    writeLock(kRoot,
-              lockWith(std::string(R"({"id": "tool.archive_extractor.windows_x86_64", "platform": "platform.any")") +
-                       R"(, "sha256": ")" + std::string(kBlobDigest) + R"(", "byteSize": 18)" +
-                       R"(, "archive": {"requiredFiles": [{"path": "7z.exe", "byteSize": 18}]}})"));
+    const std::string kEntry = std::string(R"({"id": ")") + std::string(kArchiveToolId) +
+                               R"(", "platform": "platform.any", "sha256": ")" + std::string(kBlobDigest) +
+                               R"(", "byteSize": 18, )" +
+                               R"("archive": {"requiredFiles": [{"path": "7z", "byteSize": 18}]}})";
+    writeLock(kRoot, lockWith(kEntry));
     writeCacheObject(kRoot, kBlobDigest, kBlob);
 
     auto report = verifyOfflineInputs(kRoot, kHost);

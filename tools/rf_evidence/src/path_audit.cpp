@@ -145,11 +145,13 @@ Result<PathAudit> auditRepositoryPaths(const std::filesystem::path& repositoryRo
             return std::unexpected(
                 Failure{FailureCode::IoFailure, kRoot.generic_string(), "failed to enumerate the repository"});
         }
-        const auto kRelative = std::filesystem::relative(iterator->path(), kRoot, error);
-        if (error) {
-            return std::unexpected(Failure{
-                FailureCode::IoFailure, iterator->path().generic_string(), "failed to calculate an audit path"});
-        }
+        // Lexical, because this audit classifies paths as they exist in the
+        // tree. `std::filesystem::relative` resolves symlinks, which would
+        // report a link under the path of whatever it points at, and would
+        // report a link that leaves the repository as a traversal path outside
+        // it. The iterator descends from the canonical root, so for every
+        // ordinary entry the two agree.
+        const auto kRelative = iterator->path().lexically_relative(kRoot);
         const auto kRelativeText = portableLowercasePath(kRelative);
 
         if (iterator->is_symlink(error)) {

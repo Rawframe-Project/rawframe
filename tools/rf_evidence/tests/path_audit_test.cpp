@@ -190,6 +190,10 @@ TEST(PathAudit, RejectsASymlinkEvenInsideTheEnvelope) {
     ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
     EXPECT_TRUE(containsPath(audit->envelopeViolations, "tools/rf_evidence/src/link.cpp"));
     EXPECT_EQ(classificationOf(audit->envelopeViolations, "tools/rf_evidence/src/link.cpp"), "symlink");
+    // The reported path is the link, not what it points at. Resolving it here
+    // would name an innocent file as the violation and would send a link that
+    // leaves the repository to a path outside the audited tree.
+    EXPECT_FALSE(containsPath(audit->envelopeViolations, "tools/rf_evidence/src/real.cpp"));
 }
 
 } // namespace rawframe::tool::evidence
