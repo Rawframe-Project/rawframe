@@ -116,7 +116,7 @@ TEST(FileReader, RejectsALeadingMarkButNotAnInteriorOne) {
     ASSERT_FALSE(leading.has_value());
     EXPECT_EQ(leading.error().code, FailureCode::InvalidJson);
 
-    const std::string kInterior{"{\"a\":\"\xEF\xBB\xBF\"}", 12U};
+    const std::string kInterior{"{\"a\":\"\xEF\xBB\xBF\"}", 11U};
     EXPECT_TRUE(readBoundedFile(writeFixture("bom_interior.json", kInterior)).has_value());
 }
 

@@ -3,8 +3,10 @@ find_package(OpenSSL 3.5.7 EXACT REQUIRED COMPONENTS Crypto)
 
 add_library(rawframe_tool_rf_evidence_private STATIC)
 target_sources(rawframe_tool_rf_evidence_private PRIVATE
+    src/canonical_json.cpp
     src/command.cpp
     src/dependency_authority.cpp
+    src/descriptor.cpp
     src/diagnostic.cpp
     src/file_reader.cpp
     src/json_policy.cpp
@@ -13,6 +15,7 @@ target_sources(rawframe_tool_rf_evidence_private PRIVATE
     src/path_audit.cpp
     src/path_policy.cpp
     src/process_runner.cpp
+    src/raw_run_receipt.cpp
     src/report_writer.cpp
     src/repository_validator.cpp
     src/schema_oracle.cpp
@@ -53,10 +56,14 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         message(FATAL_ERROR "RF1120 the preset's locked clang-format executable is absent")
     endif()
     set(rawframe_tool_rf_evidence_maintained_sources
+        src/canonical_json.cpp
+        src/canonical_json.h
         src/command.cpp
         src/command.h
         src/dependency_authority.cpp
         src/dependency_authority.h
+        src/descriptor.cpp
+        src/descriptor.h
         src/diagnostic.cpp
         src/diagnostic.h
         src/failure.h
@@ -75,6 +82,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/path_policy.h
         src/process_runner.cpp
         src/process_runner.h
+        src/raw_run_receipt.cpp
+        src/raw_run_receipt.h
         src/report_writer.cpp
         src/report_writer.h
         src/repository_validator.cpp
@@ -87,9 +96,15 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/shipping_closure.h
         src/source_inspector.cpp
         src/source_inspector.h
+        tests/canonical_json_test.cpp
         tests/command_test.cpp
+        tests/dependency_authority_test.cpp
+        tests/descriptor_test.cpp
+        tests/diagnostic_test.cpp
+        tests/file_reader_test.cpp
         tests/json_policy_test.cpp
         tests/path_policy_test.cpp
+        tests/raw_run_receipt_test.cpp
         tests/report_writer_test.cpp
         tests/repository_audit_test.cpp
         tests/repository_validator_test.cpp

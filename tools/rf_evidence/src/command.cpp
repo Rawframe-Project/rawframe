@@ -1,9 +1,13 @@
 #include "command.h"
 
+#include "canonical_json.h"
+#include "descriptor.h"
 #include "diagnostic.h"
+#include "file_reader.h"
 #include "license_review.h"
 #include "offline_verifier.h"
 #include "path_audit.h"
+#include "raw_run_receipt.h"
 #include "report_writer.h"
 #include "repository_validator.h"
 #include "shipping_closure.h"
@@ -26,6 +30,8 @@ struct ParsedOptions {
     std::optional<std::string> toolId;
     std::optional<std::string> hostId;
     std::optional<std::string> reportPath;
+    std::optional<std::string> recordPath;
+    std::optional<std::string> descriptorPath;
     OutputFormat format = OutputFormat::Human;
 };
 
@@ -74,6 +80,19 @@ Result<ParsedOptions> parseOptions(std::span<const std::string_view> arguments) 
                     Failure{FailureCode::InvalidArguments, "--report", "missing repository-relative report path"});
             }
             options.reportPath = std::string(*kValue);
+        } else if (kOption == "--record") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(Failure{FailureCode::InvalidArguments, "--record", "missing record path"});
+            }
+            options.recordPath = std::string(*kValue);
+        } else if (kOption == "--descriptor") {
+            const auto kValue = kNextValue();
+            if (!kValue || kValue->empty()) {
+                return std::unexpected(
+                    Failure{FailureCode::InvalidArguments, "--descriptor", "missing descriptor path"});
+            }
+            options.descriptorPath = std::string(*kValue);
         } else {
             return std::unexpected(Failure{FailureCode::InvalidArguments, std::string(kOption), "unknown option"});
         }
@@ -321,6 +340,134 @@ int shippingClosureOperation(const ParsedOptions& options, std::ostream& output,
     return 0;
 }
 
+int failRecord(std::ostream& output, std::ostream& errors, const RecordFailure& failure, OutputFormat format) {
+    if (format == OutputFormat::Json) {
+        output << buildRejectionOutput(failure);
+    }
+    renderFailure(errors,
+                  Failure{FailureCode::VerificationFailed, recordRejectionName(failure.rejection), failure.detail},
+                  format);
+    return 3;
+}
+
+// Shared by both record operations: a record is always read through the record
+// byte ceiling rather than the maintained-JSON one, because these bytes are
+// untrusted input and not a manifest this repository maintains.
+Result<std::string> readRecordBytes(const std::filesystem::path& path) {
+    auto input = readBoundedFile(path, kMaximumRecordBytes);
+    if (!input) {
+        return std::unexpected(input.error());
+    }
+    return std::string(std::string_view(input->data(), input->size()));
+}
+
+Result<std::filesystem::path>
+resolveRecordArgument(const ParsedOptions& options, const std::optional<std::string>& argument, std::string_view flag) {
+    if (!argument) {
+        return std::unexpected(Failure{FailureCode::InvalidArguments, std::string(flag), "a record path is required"});
+    }
+    std::filesystem::path candidate(*argument);
+    if (candidate.is_relative()) {
+        candidate = options.repositoryRoot / candidate;
+    }
+    std::error_code error;
+    auto resolved = std::filesystem::weakly_canonical(candidate, error);
+    if (error) {
+        return std::unexpected(Failure{FailureCode::InvalidPath, *argument, "failed to resolve the path"});
+    }
+    return resolved;
+}
+
+int canonicalizeOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    auto recordPath = resolveRecordArgument(options, options.recordPath, "--record");
+    if (!recordPath) {
+        return fail(errors, recordPath.error(), options.format);
+    }
+    auto bytes = readRecordBytes(*recordPath);
+    if (!bytes) {
+        return fail(errors, bytes.error(), options.format);
+    }
+    // Authored input, so it is parsed rather than ingested: it is not required
+    // to already be canonical, which is the whole point of this operation.
+    auto parsed = parseCanonicalSubset(*bytes);
+    if (!parsed) {
+        return failRecord(output, errors, parsed.error(), options.format);
+    }
+    const std::string kCanonical = serializeCanonical(*parsed);
+    auto descriptor = describeBytes(kCanonical, kRawRunReceiptMediaType);
+    if (!descriptor) {
+        return failRecord(output, errors, descriptor.error(), options.format);
+    }
+    auto summary = validateRawRunReceipt(options.repositoryRoot, *recordPath, *parsed, descriptor->mediaType);
+    if (!summary) {
+        return failRecord(output, errors, summary.error(), options.format);
+    }
+    if (options.format == OutputFormat::Json) {
+        output << buildCanonicalizeOutput(*descriptor, *summary);
+        return 0;
+    }
+    // The bytes themselves, exactly, with nothing appended. A trailing newline
+    // here would be a byte this repository's canonical form does not have.
+    output << kCanonical;
+    return 0;
+}
+
+int validateRecordOperation(const ParsedOptions& options, std::ostream& output, std::ostream& errors) {
+    auto recordPath = resolveRecordArgument(options, options.recordPath, "--record");
+    if (!recordPath) {
+        return fail(errors, recordPath.error(), options.format);
+    }
+    auto bytes = readRecordBytes(*recordPath);
+    if (!bytes) {
+        return fail(errors, bytes.error(), options.format);
+    }
+    auto record = ingestCanonicalBytes(*bytes);
+    if (!record) {
+        return failRecord(output, errors, record.error(), options.format);
+    }
+
+    Descriptor descriptor{std::string(kRawRunReceiptMediaType), bytes->size(), {}};
+    if (options.descriptorPath) {
+        auto descriptorPath = resolveRecordArgument(options, options.descriptorPath, "--descriptor");
+        if (!descriptorPath) {
+            return fail(errors, descriptorPath.error(), options.format);
+        }
+        auto descriptorBytes = readRecordBytes(*descriptorPath);
+        if (!descriptorBytes) {
+            return fail(errors, descriptorBytes.error(), options.format);
+        }
+        auto descriptorValue = ingestCanonicalBytes(*descriptorBytes);
+        if (!descriptorValue) {
+            return failRecord(output, errors, descriptorValue.error(), options.format);
+        }
+        auto supplied = parseDescriptor(*descriptorValue);
+        if (!supplied) {
+            return failRecord(output, errors, supplied.error(), options.format);
+        }
+        if (auto status = verifyDescriptor(*supplied, *bytes, kRawRunReceiptMediaType); !status) {
+            return failRecord(output, errors, status.error(), options.format);
+        }
+        descriptor = *supplied;
+    } else {
+        auto computed = describeBytes(*bytes, kRawRunReceiptMediaType);
+        if (!computed) {
+            return failRecord(output, errors, computed.error(), options.format);
+        }
+        descriptor = *computed;
+    }
+
+    auto summary = validateRawRunReceipt(options.repositoryRoot, *recordPath, *record, descriptor.mediaType);
+    if (!summary) {
+        return failRecord(output, errors, summary.error(), options.format);
+    }
+    if (options.format == OutputFormat::Json) {
+        output << buildValidateOutput(descriptor, *summary);
+        return 0;
+    }
+    renderSuccess(output, "validate_record", summary->runId + " is canonical and valid", options.format);
+    return 0;
+}
+
 } // namespace
 
 int runCommand(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& errors) {
@@ -347,6 +494,21 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
         return fail(errors, options.error(), OutputFormat::Human);
     }
 
+    // Neither record operation accepts a report destination. `validate` must
+    // not be able to write a corrected form anywhere, and the strongest way to
+    // say that is to leave it with nowhere to write.
+    const bool kIsRecordOperation = subject == "record" && (kOperation == "canonicalize" || kOperation == "validate");
+    if (kIsRecordOperation && options->reportPath) {
+        return fail(errors,
+                    Failure{FailureCode::InvalidArguments, "--report", "record operations write no report"},
+                    options->format);
+    }
+    if (kOperation == "canonicalize" && subject == "record") {
+        return canonicalizeOperation(*options, output, errors);
+    }
+    if (kOperation == "validate" && subject == "record") {
+        return validateRecordOperation(*options, output, errors);
+    }
     if (kOperation == "validate" && subject == "repository") {
         return validateOperation(*options, output, errors);
     }

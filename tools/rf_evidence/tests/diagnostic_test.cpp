@@ -1,5 +1,4 @@
 #include "diagnostic.h"
-
 #include "failure.h"
 
 #include <algorithm>
@@ -16,9 +15,15 @@ namespace rawframe::tool::evidence {
 namespace {
 
 constexpr std::array kAllFailureCodes = {
-    FailureCode::InvalidArguments, FailureCode::InvalidJson,        FailureCode::InvalidManifest,
-    FailureCode::InvalidPath,      FailureCode::IoFailure,          FailureCode::LimitExceeded,
-    FailureCode::MissingInput,     FailureCode::OwnershipCollision, FailureCode::UnsupportedHost,
+    FailureCode::InvalidArguments,
+    FailureCode::InvalidJson,
+    FailureCode::InvalidManifest,
+    FailureCode::InvalidPath,
+    FailureCode::IoFailure,
+    FailureCode::LimitExceeded,
+    FailureCode::MissingInput,
+    FailureCode::OwnershipCollision,
+    FailureCode::UnsupportedHost,
     FailureCode::VerificationFailed,
 };
 
@@ -38,13 +43,13 @@ std::string rendered(const Failure& failure, OutputFormat format) {
 // through the error-returning accessor rather than through `value()`.
 std::string stringField(simdjson::dom::element root, std::string_view key) {
     std::string_view value;
-    EXPECT_EQ(root[key].get_string().get(value), 0) << "missing string member: " << key;
+    EXPECT_EQ(root.at_key(key).get_string().get(value), 0) << "missing string member: " << key;
     return std::string{value};
 }
 
 bool boolField(simdjson::dom::element root, std::string_view key) {
     bool value = false;
-    EXPECT_EQ(root[key].get_bool().get(value), 0) << "missing boolean member: " << key;
+    EXPECT_EQ(root.at_key(key).get_bool().get(value), 0) << "missing boolean member: " << key;
     return value;
 }
 
@@ -84,8 +89,9 @@ TEST(Diagnostic, EscapesControlCharactersAtTheBoundary) {
 
     for (unsigned char byte = 0U; byte < 0x20U; ++byte) {
         const auto kText = escaped(std::string_view{reinterpret_cast<const char*>(&byte), 1U});
-        const auto kRaw = std::ranges::find_if(
-            kText, [](unsigned char character) { return character < 0x20U; });
+        const auto kRaw = std::ranges::find_if(kText, [](unsigned char character) {
+            return character < 0x20U;
+        });
         EXPECT_EQ(kRaw, kText.end()) << "raw control byte survived escaping: " << static_cast<int>(byte);
     }
 }
