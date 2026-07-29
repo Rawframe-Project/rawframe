@@ -258,6 +258,85 @@ function(rawframe_register_repository_tests)
         PASS_REGULAR_EXPRESSION "record operations write no report"
         LABELS "repository;security" TIMEOUT 300)
 
+    # The store at the process level. The unit suite drives it against scratch
+    # space; these cases prove the installed command derives the same path in
+    # the repository's own store and hands the bytes back unaltered, which is
+    # where a text-mode standard output would corrupt them.
+    set(rawframe_blob_fixture
+        "tools/rf_evidence/tests/fixtures/evidence/canonical/raw-run-receipt-v1.canonical.json")
+    set(rawframe_blob_digest
+        "sha256:3dc74eaae771300011a1a4ed6864854fcbe98575918b9cda2978fca701088bc3")
+    set(rawframe_blob_media "application/vnd.rawframe.evidence.raw-run-receipt.v1+json")
+
+    add_test(NAME "Command.PutBlob"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --source "${rawframe_blob_fixture}"
+            --media "${rawframe_blob_media}")
+    set_tests_properties("Command.PutBlob" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"digest\":\"${rawframe_blob_digest}\""
+        FIXTURES_SETUP rawframe_blob_seed LABELS "repository" TIMEOUT 300)
+
+    # Putting the same content again must report the identical descriptor. The
+    # published blob is immutable, so the second run publishes nothing and
+    # verifies what is already there.
+    add_test(NAME "Command.PutBlobIsIdempotent"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --source "${rawframe_blob_fixture}"
+            --media "${rawframe_blob_media}")
+    set_tests_properties("Command.PutBlobIsIdempotent" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"digest\":\"${rawframe_blob_digest}\""
+        FIXTURES_REQUIRED rawframe_blob_seed LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.VerifyBlob"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" verify blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --digest "${rawframe_blob_digest}"
+            --media "${rawframe_blob_media}")
+    set_tests_properties("Command.VerifyBlob" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"byteLength\":2852"
+        FIXTURES_REQUIRED rawframe_blob_seed LABELS "repository" TIMEOUT 300)
+
+    # The stored bytes come back through the process boundary. Byte exactness
+    # over control and high bytes is held by the unit suite, which can compare
+    # whole buffers; what this case adds is that the installed command emits the
+    # record itself rather than a summary of it.
+    add_test(NAME "Command.GetBlobReturnsTheStoredRecord"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" get blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --digest "${rawframe_blob_digest}")
+    set_tests_properties("Command.GetBlobReturnsTheStoredRecord" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"provenance\":\"diagnostic_untrusted\""
+        FIXTURES_REQUIRED rawframe_blob_seed LABELS "repository" TIMEOUT 300)
+
+    add_test(NAME "Command.VerifyBlobRejectsAMalformedDigest"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" verify blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --digest "sha256:../../../../etc/passwd"
+            --media "${rawframe_blob_media}" --format json)
+    set_tests_properties("Command.VerifyBlobRejectsAMalformedDigest" PROPERTIES
+        PASS_REGULAR_EXPRESSION "invalid_digest" LABELS "repository;security" TIMEOUT 300)
+
+    add_test(NAME "Command.PutBlobRejectsASourceOutsideTheRepository"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --source "../outside-the-repository.json"
+            --media "${rawframe_blob_media}" --format json)
+    set_tests_properties("Command.PutBlobRejectsASourceOutsideTheRepository" PROPERTIES
+        PASS_REGULAR_EXPRESSION "invalid_path" LABELS "repository;security" TIMEOUT 300)
+
+    # A store operation writes exactly one place, the path its digest derives.
+    add_test(NAME "Command.PutBlobRefusesAReportDestination"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" put blob
+            --root "${CMAKE_SOURCE_DIR}"
+            --source "${rawframe_blob_fixture}"
+            --media "${rawframe_blob_media}"
+            --report "${CMAKE_CURRENT_BINARY_DIR}/must-not-be-written.json" --format json)
+    set_tests_properties("Command.PutBlobRefusesAReportDestination" PROPERTIES
+        PASS_REGULAR_EXPRESSION "store operations write no report"
+        LABELS "repository;security" TIMEOUT 300)
+
     # Kept apart from the loop above because it takes the host rather than a
     # subject, and because it is the one command that hashes the whole locked
     # closure and runs the prepared signing tool.

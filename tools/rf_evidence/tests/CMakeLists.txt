@@ -1,10 +1,12 @@
 add_executable(rawframe_tool_rf_evidence_tests
+    blob_store_test.cpp
     canonical_json_test.cpp
     command_test.cpp
     dependency_authority_test.cpp
     descriptor_test.cpp
     diagnostic_test.cpp
     file_reader_test.cpp
+    file_security_test.cpp
     json_policy_test.cpp
     license_review_test.cpp
     offline_verifier_test.cpp
