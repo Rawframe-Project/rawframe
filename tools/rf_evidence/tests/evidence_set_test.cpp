@@ -209,6 +209,30 @@ TEST(EvidenceSet, RecordsAnAttemptThatProducedNoReceipt) {
     EXPECT_EQ(eligibleIdentities(*set).size(), 4U);
 }
 
+// Every terminal status SPEC-0014 defines is carried into the ledger, one case
+// per value, so none of them can quietly stop being represented. Only the
+// completed one is eligible; none of the other four is discardable.
+TEST(EvidenceSet, CarriesEveryTerminalStatusAndDiscardsNone) {
+    auto set = assemble("every-status");
+    ASSERT_TRUE(set.has_value()) << (set ? std::string{} : set.error().detail);
+    EXPECT_EQ(statusOf(*set, "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d11"), "completed");
+    EXPECT_EQ(statusOf(*set, "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d16"), "workload_failure");
+    EXPECT_EQ(statusOf(*set, "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d17"), "invalid_environment");
+    EXPECT_EQ(statusOf(*set, "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d30"), "invalid_harness");
+    EXPECT_EQ(statusOf(*set, "1b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d31"), "infrastructure_error");
+    EXPECT_EQ(set->find("attempts")->elements().size(), 5U);
+    EXPECT_EQ(eligibleIdentities(*set).size(), 1U);
+}
+
+// An attempt that names a repetition the schedule does not contain is refused.
+// The plan is the only statement of what was scheduled, so an entry outside it
+// cannot be admitted by being present.
+TEST(EvidenceSet, RejectsAnAttemptOutsideTheDeclaredSchedule) {
+    auto set = assemble("unplanned-repetition");
+    ASSERT_FALSE(set.has_value());
+    EXPECT_EQ(set.error().rejection, RecordRejection::SchemaInvalid);
+}
+
 // A retry supersedes the attempt it replaces. Both remain in the ledger; only
 // the replacement is eligible.
 TEST(EvidenceSet, KeepsASupersededAttemptInTheLedgerAndOutOfTheEligibleSet) {
@@ -219,6 +243,17 @@ TEST(EvidenceSet, KeepsASupersededAttemptInTheLedgerAndOutOfTheEligibleSet) {
     const auto kEligible = eligibleIdentities(*set);
     EXPECT_EQ(kEligible.size(), 5U);
     EXPECT_EQ(std::ranges::find(kEligible, kSuperseded), kEligible.end());
+}
+
+// The committed bytes are the golden vector. Assembling the same plan against
+// the same receipts must reproduce them exactly on every host: a difference
+// here is a determinism defect, not a host difference, because nothing in the
+// inputs varies by platform.
+TEST(EvidenceSet, ReproducesTheCommittedCanonicalBytesExactly) {
+    auto set = assemble("complete");
+    ASSERT_TRUE(set.has_value()) << (set ? std::string{} : set.error().detail);
+    const std::string kCommitted = readAllBytes(fixtureRoot() / "canonical/evidence-set-v1.canonical.json");
+    EXPECT_EQ(serializeCanonical(*set), kCommitted);
 }
 
 // Assembly orders by the plan's declared ordinals, not by the order the plan

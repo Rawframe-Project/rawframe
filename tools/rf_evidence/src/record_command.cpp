@@ -235,6 +235,10 @@ int canonicalizeOperation(const ParsedOptions& options, std::ostream& output, st
             output << buildCanonicalizeOutput(*descriptor, *summary);
             return 0;
         }
+        if (binding->mediaType == kEvidenceSetMediaType) {
+            output << buildEvidenceSetOutput(*descriptor, *parsed, "canonicalize");
+            return 0;
+        }
         output << serializeCanonical(describeAsValue(*descriptor));
         return 0;
     }
@@ -305,6 +309,10 @@ int validateRecordOperation(const ParsedOptions& options, std::ostream& output, 
                 return failRecord(output, errors, summary.error(), options.format);
             }
             output << buildValidateOutput(descriptor, *summary);
+            return 0;
+        }
+        if (kMediaType == kEvidenceSetMediaType) {
+            output << buildEvidenceSetOutput(descriptor, *record, "validate");
             return 0;
         }
         output << serializeCanonical(describeAsValue(descriptor));

@@ -231,7 +231,8 @@ function(rawframe_register_repository_tests)
     # break first if the committed golden bytes ever drifted from the code.
     foreach(record_entry IN ITEMS
             "CanonicalizeRecord|canonicalize|records/raw-run-receipt-authored.json"
-            "ValidateRecord|validate|canonical/raw-run-receipt-v1.canonical.json")
+            "ValidateRecord|validate|canonical/raw-run-receipt-v1.canonical.json"
+            "ValidateEvidenceSet|validate|canonical/evidence-set-v1.canonical.json")
         string(REPLACE "|" ";" record_fields "${record_entry}")
         list(GET record_fields 0 record_name)
         list(GET record_fields 1 record_operation)
@@ -245,6 +246,15 @@ function(rawframe_register_repository_tests)
         set_tests_properties("Command.${record_name}" PROPERTIES
             PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
     endforeach()
+
+    add_test(NAME "Command.ValidateRejectsARelabelledRecord"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" validate record
+            --root "${CMAKE_SOURCE_DIR}"
+            --record "${CMAKE_SOURCE_DIR}/tools/rf_evidence/tests/fixtures/evidence/records/reject-kind-disagreement.json"
+            --format json)
+    set_tests_properties("Command.ValidateRejectsARelabelledRecord" PROPERTIES
+        PASS_REGULAR_EXPRESSION "schema_invalid"
+        LABELS "repository;security" TIMEOUT 300)
 
     # The strongest statement of the decision that `validate` cannot write a
     # corrected form is that it has nowhere to write one. A report destination

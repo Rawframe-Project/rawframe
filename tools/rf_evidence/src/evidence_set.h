@@ -87,4 +87,10 @@ struct CompatibilityFacts {
 [[nodiscard]] RecordResult<CanonicalValue>
 assembleEvidenceSet(const BlobStore& store, const AttemptPlan& plan, std::string_view evidenceSetId);
 
+// The command-line summary of an assembled or validated set. It is the same
+// shape the receipt emits, because a caller that has to branch on record kind
+// to read a result would be reading two output contracts rather than one.
+[[nodiscard]] std::string
+buildEvidenceSetOutput(const Descriptor& descriptor, const CanonicalValue& record, std::string_view operation);
+
 } // namespace rawframe::tool::evidence

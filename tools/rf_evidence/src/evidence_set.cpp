@@ -195,46 +195,47 @@ RecordStatus checkSupersedesChains(const AttemptPlan& plan) {
 
 RecordResult<CompatibilityFacts> readCompatibility(const CanonicalValue& receipt) {
     CompatibilityFacts facts;
-    const auto assign = [](auto& target, auto source) -> RecordStatus {
+    const auto kAssign = [](auto& target, auto source) -> RecordStatus {
         if (!source) {
             return std::unexpected(source.error());
         }
         target = *source;
         return {};
     };
-    if (auto status = assign(facts.profileId, requireNestedString(receipt, "profile", "profileId")); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.workloadFingerprint, requireNestedString(receipt, "profile", "workloadFingerprint"));
-        !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.targetId, requireNestedString(receipt, "build", "targetId")); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.platformId, requireNestedString(receipt, "build", "platformId")); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.configuration, requireNestedString(receipt, "build", "configuration")); !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.closureFingerprint, requireNestedString(receipt, "build", "closureFingerprint"));
-        !status) {
-        return std::unexpected(status.error());
-    }
-    if (auto status = assign(facts.harnessId, requireNestedString(receipt, "harness", "harnessId")); !status) {
+    if (auto status = kAssign(facts.profileId, requireNestedString(receipt, "profile", "profileId")); !status) {
         return std::unexpected(status.error());
     }
     if (auto status =
-            assign(facts.metricRegistryGeneration, requireInteger(receipt, "metricRegistryGeneration", "receipt"));
+            kAssign(facts.workloadFingerprint, requireNestedString(receipt, "profile", "workloadFingerprint"));
         !status) {
         return std::unexpected(status.error());
     }
-    if (auto status = assign(facts.runnerGeneration, requireNestedInteger(receipt, "runner", "runnerGeneration"));
+    if (auto status = kAssign(facts.targetId, requireNestedString(receipt, "build", "targetId")); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = kAssign(facts.platformId, requireNestedString(receipt, "build", "platformId")); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = kAssign(facts.configuration, requireNestedString(receipt, "build", "configuration")); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = kAssign(facts.closureFingerprint, requireNestedString(receipt, "build", "closureFingerprint"));
         !status) {
         return std::unexpected(status.error());
     }
-    if (auto status = assign(facts.cellFingerprint, requireNestedString(receipt, "runner", "cellFingerprint"));
+    if (auto status = kAssign(facts.harnessId, requireNestedString(receipt, "harness", "harnessId")); !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status =
+            kAssign(facts.metricRegistryGeneration, requireInteger(receipt, "metricRegistryGeneration", "receipt"));
+        !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = kAssign(facts.runnerGeneration, requireNestedInteger(receipt, "runner", "runnerGeneration"));
+        !status) {
+        return std::unexpected(status.error());
+    }
+    if (auto status = kAssign(facts.cellFingerprint, requireNestedString(receipt, "runner", "cellFingerprint"));
         !status) {
         return std::unexpected(status.error());
     }
@@ -399,8 +400,10 @@ assembleEvidenceSet(const BlobStore& store, const AttemptPlan& plan, std::string
                 agreedFrom = attempt->attemptId;
                 haveCompatibility = true;
             } else if (const std::string kDiffers = firstDisagreement(agreed, *facts); !kDiffers.empty()) {
-                return reject(RecordRejection::DescriptorMismatch,
-                              "attempts " + agreedFrom + " and " + attempt->attemptId + " disagree on " + kDiffers);
+                std::string detail = "attempts ";
+                detail.append(agreedFrom).append(" and ").append(attempt->attemptId);
+                detail.append(" disagree on ").append(kDiffers);
+                return reject(RecordRejection::DescriptorMismatch, std::move(detail));
             }
         }
 
@@ -458,6 +461,35 @@ assembleEvidenceSet(const BlobStore& store, const AttemptPlan& plan, std::string
     trust.emplace_back("provenance", CanonicalValue::makeString("diagnostic_untrusted"));
     members.emplace_back("trust", CanonicalValue::makeObject(std::move(trust)));
     return CanonicalValue::makeObject(std::move(members));
+}
+
+std::string
+buildEvidenceSetOutput(const Descriptor& descriptor, const CanonicalValue& record, std::string_view operation) {
+    const auto kCountOf = [&record](std::string_view name) -> std::int64_t {
+        const auto* kValue = record.find(name);
+        if (kValue == nullptr || kValue->kind() != CanonicalValue::Kind::Array) {
+            return 0;
+        }
+        return static_cast<std::int64_t>(kValue->elements().size());
+    };
+    const auto kTextOf = [&record](std::string_view name) -> std::string {
+        const auto* kValue = record.find(name);
+        if (kValue == nullptr || kValue->kind() != CanonicalValue::Kind::String) {
+            return {};
+        }
+        return kValue->text();
+    };
+
+    std::vector<CanonicalValue::Member> members;
+    members.emplace_back("ok", CanonicalValue::makeBoolean(true));
+    members.emplace_back("descriptor", describeAsValue(descriptor));
+    members.emplace_back("evidenceSetId", CanonicalValue::makeString(kTextOf("evidenceSetId")));
+    members.emplace_back("planId", CanonicalValue::makeString(kTextOf("planId")));
+    members.emplace_back("tier", CanonicalValue::makeString(kTextOf("tier")));
+    members.emplace_back("attemptCount", CanonicalValue::makeInteger(kCountOf("attempts")));
+    members.emplace_back("eligibleAttemptCount", CanonicalValue::makeInteger(kCountOf("eligibleAttemptIds")));
+    members.emplace_back("operation", CanonicalValue::makeString(std::string(operation)));
+    return serializeCanonical(CanonicalValue::makeObject(std::move(members)));
 }
 
 } // namespace rawframe::tool::evidence
