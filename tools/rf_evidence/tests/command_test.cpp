@@ -42,6 +42,29 @@ TEST(Command, AcceptsRelativeRepositoryRoot) {
     EXPECT_EQ(runCommand(kArguments, output, errors), 0) << errors.str();
 }
 
+// `--format json` means the same thing for every operation. Source ownership is
+// the one whose human output is a listing rather than a sentence, and it
+// answered JSON with that listing until this was asserted.
+TEST(Command, AnswersEveryOperationInTheRequestedFormat) {
+    const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
+    const auto kRootText = kRoot.generic_string();
+    for (const std::array<std::string_view, 2> kSubject :
+         {std::array<std::string_view, 2>{"validate", "repository"},
+          std::array<std::string_view, 2>{"graph", "repository"},
+          std::array<std::string_view, 2>{"inspect", "source-ownership"},
+          std::array<std::string_view, 2>{"review", "licenses"},
+          std::array<std::string_view, 2>{"audit", "paths"},
+          std::array<std::string_view, 2>{"audit", "shipping-closure"}}) {
+        const std::array<std::string_view, 6> kArguments{
+            kSubject.front(), kSubject.back(), "--root", kRootText, "--format", "json"};
+        std::ostringstream output;
+        std::ostringstream errors;
+        EXPECT_EQ(runCommand(kArguments, output, errors), 0) << errors.str();
+        EXPECT_NE(output.str().find("\"ok\":true"), std::string::npos)
+            << kSubject.front() << ' ' << kSubject.back() << ": " << output.str();
+    }
+}
+
 TEST(Command, RejectsMissingRepositoryRoot) {
     constexpr std::array<std::string_view, 2> kArguments{"validate", "repository"};
     std::ostringstream output;

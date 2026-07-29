@@ -200,6 +200,40 @@ function(rawframe_register_repository_tests)
     set_tests_properties("SyncFixtures.Licenses" PROPERTIES
         PASS_REGULAR_EXPRESSION "RF1475" LABELS "license" TIMEOUT 120)
 
+    # Every delivered command, run once against this repository on this host.
+    # The unit suites drive the same code through scratch and synthetic roots,
+    # which is what lets them break one rule at a time, but that means no test
+    # had ever executed a delivered command against the real tree. A defect that
+    # only appears against real inputs on one host was invisible to all of them.
+    foreach(command_entry IN ITEMS
+            "ValidateRepository|validate;repository"
+            "GraphRepository|graph;repository"
+            "InspectSourceOwnership|inspect;source-ownership"
+            "ReviewLicenses|review;licenses"
+            "AuditPaths|audit;paths"
+            "AuditShippingClosure|audit;shipping-closure")
+        string(REPLACE "|" ";" command_fields "${command_entry}")
+        list(GET command_fields 0 command_name)
+        list(GET command_fields 1 command_operation)
+        list(GET command_fields 2 command_subject)
+        add_test(NAME "Command.${command_name}"
+            COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>"
+                "${command_operation}" "${command_subject}"
+                --root "${CMAKE_SOURCE_DIR}" --format json)
+        set_tests_properties("Command.${command_name}" PROPERTIES
+            PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository" TIMEOUT 300)
+    endforeach()
+
+    # Kept apart from the loop above because it takes the host rather than a
+    # subject, and because it is the one command that hashes the whole locked
+    # closure and runs the prepared signing tool.
+    add_test(NAME "Command.VerifyOffline"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_evidence>" verify-offline
+            --root "${CMAKE_SOURCE_DIR}" "--host" "${RAWFRAME_HOST_ID}" --format json)
+    set_tests_properties("Command.VerifyOffline" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository;offline"
+        RUN_SERIAL TRUE TIMEOUT 900)
+
     # A substituted dependency provider must be rejected before any production
     # compilation. The installed-tree authority is checked ahead of the
     # host-specific section of the policy, so both cases apply to every lane and

@@ -313,9 +313,15 @@ Result<ProcessResult> runPosixProcess(const ProcessRequest& request) {
         dup2(stderrFile, STDERR_FILENO);
         close(stdoutFile);
         close(stderrFile);
+        // The data segment, not the address space. The request bounds the memory
+        // a child actually uses, which is what the Windows job object counts,
+        // and RLIMIT_AS instead counts address space a child merely reserves.
+        // A Go runtime reserves far more than it commits, so an address-space
+        // limit of this size stops every Go-based prepared tool from starting
+        // at all while permitting one that quietly commits the same amount.
         const rlimit memoryLimit{request.maximumPrivateMemoryBytes, request.maximumPrivateMemoryBytes};
         const rlimit cpuLimit{10, 10};
-        setrlimit(RLIMIT_AS, &memoryLimit);
+        setrlimit(RLIMIT_DATA, &memoryLimit);
         setrlimit(RLIMIT_CPU, &cpuLimit);
         chdir(request.workingDirectory.c_str());
         clearenv();

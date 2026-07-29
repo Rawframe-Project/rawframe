@@ -198,12 +198,20 @@ int sourceOperation(const ParsedOptions& options, std::ostream& output, std::ost
     if (!report) {
         return fail(errors, report.error(), options.format);
     }
-    if (const auto kReportResult = emitRequestedReport(options, buildSourceOwnershipReport(*report), errors);
-        kReportResult != 0) {
+    const std::string kReportContent = buildSourceOwnershipReport(*report);
+    if (const auto kReportResult = emitRequestedReport(options, kReportContent, errors); kReportResult != 0) {
         return kReportResult;
     }
-    for (const auto& entry : *report) {
-        output << entry.lines << '\t' << entry.owner << '\t' << entry.path << '\n';
+    // A caller that asked for JSON gets the same document `--report` writes.
+    // Every other operation answers `--format json` with a machine-readable
+    // result, and a tab-separated listing in its place would be the one command
+    // whose output shape depends on knowing that it is the exception.
+    if (options.format == OutputFormat::Json) {
+        output << kReportContent;
+    } else {
+        for (const auto& entry : *report) {
+            output << entry.lines << '\t' << entry.owner << '\t' << entry.path << '\n';
+        }
     }
     // STD-0001 requires warning output at 600 physical lines and blocking output
     // at 1,000. These go to the diagnostic stream so the ordinary machine-readable
