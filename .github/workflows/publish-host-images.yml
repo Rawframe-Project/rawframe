@@ -50,11 +50,11 @@ jobs:
       - name: Build the Linux container host
         run: bash ci/images/build-linux-image.sh "$IMAGE:$GITHUB_SHA"
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/rawframe-ci-linux
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-linux
 
       - name: Publish and record the digest
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/rawframe-ci-linux
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-linux
         run: |
           set -euo pipefail
           docker push "$IMAGE:$GITHUB_SHA"
@@ -88,12 +88,12 @@ jobs:
         shell: bash
         run: bash ci/images/build-windows-image.sh "$IMAGE:$GITHUB_SHA"
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/rawframe-ci-windows
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-windows
 
       - name: Publish and record the digest
         shell: bash
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/rawframe-ci-windows
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-windows
         run: |
           set -euo pipefail
           docker push "$IMAGE:$GITHUB_SHA"

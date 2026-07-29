@@ -12,6 +12,13 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/verifier.cmake")
 
 set(RF_LINUX_HOST_ID "host.ubuntu_24_04_x86_64")
+# ADR-0083 admits a second host class whose operating-system identity is its
+# image digest. On this lane the class changes what the tuple is called and
+# nothing about what is proven: an Ubuntu container reports the same
+# distribution, release, and codename as the workstation, so the existing
+# identity probe stays exactly as it is and still means what it says.
+set(RF_LINUX_CONTAINER_HOST_ID "host.container_ubuntu_24_04_x86_64")
+set(RF_LINUX_CONTAINER_HOST_MARKER "/rf/host-identity.json")
 set(RF_LINUX_HOST_DISTRIBUTION "Ubuntu")
 set(RF_LINUX_HOST_RELEASE "24.04")
 set(RF_LINUX_HOST_CODENAME "noble")
@@ -50,6 +57,36 @@ set(RF_LINUX_HOST_PACKAGES
     "pkgconf-bin|1.8.1-2build1|pool/main/p/pkgconf/pkgconf-bin_1.8.1-2build1_amd64.deb|20730|7a812f05ee1610154b433e2ad54f6e4163fcbb306b9fb31afe959afb2e5e1545"
     "pkgconf|1.8.1-2build1|pool/main/p/pkgconf/pkgconf_1.8.1-2build1_amd64.deb|16790|834a58031069d97d7cfb8b2f5bfd5effc69cecf7f30cc362071875f1f8dc1828"
 )
+
+# Resolves which ADR-0083 host class this probe is running under.
+#
+# The marker states what the environment is, never what it may be trusted with.
+# A hand-built image can carry the same file and still produces
+# `diagnostic_untrusted` evidence, because trust comes from an ADR-0082
+# attestation over the protected workflow and from nothing else. The digest that
+# makes a container an identity is enforced by whoever starts it, which is the
+# only place it can be known, so this function must not pretend to check it.
+function(rf_resolve_linux_host_class output_class output_host_id)
+    if(NOT EXISTS "${RF_LINUX_CONTAINER_HOST_MARKER}")
+        set(${output_class} "workstation" PARENT_SCOPE)
+        set(${output_host_id} "${RF_LINUX_HOST_ID}" PARENT_SCOPE)
+        return()
+    endif()
+    file(READ "${RF_LINUX_CONTAINER_HOST_MARKER}" marker_text LIMIT 4096)
+    string(JSON marker_class ERROR_VARIABLE class_error GET "${marker_text}" hostClass)
+    string(JSON marker_host ERROR_VARIABLE host_error GET "${marker_text}" hostId)
+    string(JSON marker_probe ERROR_VARIABLE probe_error GET "${marker_text}" probeHostId)
+    if(class_error OR host_error OR probe_error)
+        rf_bootstrap_fail("RF1558" "container host identity marker is unreadable")
+    endif()
+    if(NOT marker_class STREQUAL "container" OR
+       NOT marker_host STREQUAL RF_LINUX_CONTAINER_HOST_ID OR
+       NOT marker_probe STREQUAL "linux-x86_64")
+        rf_bootstrap_fail("RF1559" "container host identity marker names a different host")
+    endif()
+    set(${output_class} "container" PARENT_SCOPE)
+    set(${output_host_id} "${RF_LINUX_CONTAINER_HOST_ID}" PARENT_SCOPE)
+endfunction()
 
 function(rf_probe_linux_os_identity)
     set(release_file "/etc/os-release")
@@ -139,6 +176,7 @@ function(rf_probe_linux_glibc)
 endfunction()
 
 function(rf_probe_linux_host_tuple repository_root)
+    rf_resolve_linux_host_class(host_class host_id)
     rf_probe_linux_os_identity()
     rf_probe_linux_glibc()
     rf_probe_linux_package_closure("${repository_root}")
@@ -147,7 +185,8 @@ function(rf_probe_linux_host_tuple repository_root)
     file(MAKE_DIRECTORY "${report_root}")
     file(WRITE "${report_root}/host-tuple.json.tmp"
         "{\n"
-        "  \"host\": \"${RF_LINUX_HOST_ID}\",\n"
+        "  \"host\": \"${host_id}\",\n"
+        "  \"hostClass\": \"${host_class}\",\n"
         "  \"distribution\": \"${RF_LINUX_HOST_DISTRIBUTION}\",\n"
         "  \"release\": \"${RF_LINUX_HOST_RELEASE}\",\n"
         "  \"codename\": \"${RF_LINUX_HOST_CODENAME}\",\n"
