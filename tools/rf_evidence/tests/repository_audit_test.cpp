@@ -7,26 +7,40 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace rawframe::tool::evidence {
 
-TEST(LicenseReview, AcceptsTaskOneCatalogAndVerifiesMaterial) {
+TEST(LicenseReview, AcceptsTheAdmittedCatalogAndVerifiesMaterial) {
     const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
     auto review = reviewLicenses(kRoot);
     ASSERT_TRUE(review.has_value()) << review.error().path << ": " << review.error().message;
-    EXPECT_EQ(review->catalogEntryCount, 16U);
-    EXPECT_EQ(review->entries.size(), 16U);
+    // Twenty-one catalog entries under eighteen policies: the four pinned
+    // first-party GitHub Actions share one MIT policy over one notice section,
+    // and every catalog entry is still covered exactly once.
+    EXPECT_EQ(review->catalogEntryCount, 21U);
+    EXPECT_EQ(review->entries.size(), 18U);
     ASSERT_FALSE(review->materials.empty());
 
-    // The offline AGPL schema oracle is the one deliberately restricted,
-    // non-redistributable dependency; everything else is approved.
-    EXPECT_EQ(review->restrictedCount, 1U);
-    const auto kRestricted = std::ranges::find(review->entries, "restricted", &LicenseReviewEntry::approval);
-    ASSERT_NE(kRestricted, review->entries.end());
-    EXPECT_EQ(kRestricted->licenseId, "license.sourcemeta_jsonschema");
-    EXPECT_EQ(kRestricted->redistribution, "forbidden");
+    // Two deliberately restricted dependencies, for different reasons. The
+    // offline AGPL schema oracle may not be redistributed at all. The Windows
+    // container base layer is Microsoft-licensed and its derived image is kept
+    // to a private registry package, which is a condition rather than a
+    // prohibition.
+    EXPECT_EQ(review->restrictedCount, 2U);
+    std::vector<std::string> restricted;
+    for (const auto& entry : review->entries) {
+        if (entry.approval == "restricted") {
+            restricted.push_back(entry.licenseId + " " + entry.redistribution);
+        }
+    }
+    std::ranges::sort(restricted);
+    ASSERT_EQ(restricted.size(), 2U);
+    EXPECT_EQ(restricted.at(0), "license.sourcemeta_jsonschema forbidden");
+    EXPECT_EQ(restricted.at(1), "license.windows_servercore conditional");
 }
 
 TEST(PathAudit, DeliveredFilesStayInsideTheTaskEnvelope) {

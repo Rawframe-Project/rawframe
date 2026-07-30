@@ -766,5 +766,67 @@
       "licenseReference": "license.ubuntu",
       "reviewReference": "task.0001"
     }
+  ],
+  "delegatedFetches": [
+    {
+      "id": "image.ubuntu_noble_base",
+      "catalogId": "host.ubuntu",
+      "kind": "oci_image",
+      "reference": "ubuntu",
+      "pin": "sha256:562456a05a0dbd62a671c1854868862a4687bf979a96d48ae8e766642cd911e8",
+      "fetchedBy": "container_engine",
+      "licenseReference": "license.ubuntu",
+      "reviewReference": "task.0009"
+    },
+    {
+      "id": "image.windows_servercore_base",
+      "catalogId": "host.windows_servercore",
+      "kind": "oci_image",
+      "reference": "mcr.microsoft.com/windows/servercore",
+      "pin": "sha256:d5bbb83057f6bc2b6aeba5d01ec80a53003aba9bc84a6b1ebe780570cd52558a",
+      "fetchedBy": "container_engine",
+      "licenseReference": "license.windows_servercore",
+      "reviewReference": "task.0009"
+    },
+    {
+      "id": "action.checkout.pinned",
+      "catalogId": "action.checkout",
+      "kind": "github_action",
+      "reference": "actions/checkout",
+      "pin": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "fetchedBy": "actions_runner",
+      "licenseReference": "license.github_actions",
+      "reviewReference": "task.0009"
+    },
+    {
+      "id": "action.cache.pinned",
+      "catalogId": "action.cache",
+      "kind": "github_action",
+      "reference": "actions/cache",
+      "pin": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+      "fetchedBy": "actions_runner",
+      "licenseReference": "license.github_actions",
+      "reviewReference": "task.0009"
+    },
+    {
+      "id": "action.attest_build_provenance.pinned",
+      "catalogId": "action.attest_build_provenance",
+      "kind": "github_action",
+      "reference": "actions/attest-build-provenance",
+      "pin": "0f67c3f4856b2e3261c31976d6725780e5e4c373",
+      "fetchedBy": "actions_runner",
+      "licenseReference": "license.github_actions",
+      "reviewReference": "task.0009"
+    },
+    {
+      "id": "action.upload_artifact.pinned",
+      "catalogId": "action.upload_artifact",
+      "kind": "github_action",
+      "reference": "actions/upload-artifact",
+      "pin": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "fetchedBy": "actions_runner",
+      "licenseReference": "license.github_actions",
+      "reviewReference": "task.0009"
+    }
   ]
 }

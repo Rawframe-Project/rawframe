@@ -7,7 +7,9 @@ function(rf_sync_verify_license_closure repository_root)
     string(JSON schema_version GET "${license_json}" schemaVersion)
     string(JSON material_count LENGTH "${license_json}" materials)
     string(JSON entry_count LENGTH "${license_json}" entries)
-    if(NOT schema_version EQUAL 1 OR NOT material_count EQUAL 5 OR NOT entry_count EQUAL 16)
+    # Eighteen policies since TASK-0009 admitted the Windows container base layer
+    # and one MIT policy covering the four pinned first-party GitHub Actions.
+    if(NOT schema_version EQUAL 1 OR NOT material_count EQUAL 5 OR NOT entry_count EQUAL 18)
         rf_bootstrap_fail("RF1450" "offline license closure count/version mismatch")
     endif()
     set(material_paths "")

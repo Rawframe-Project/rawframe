@@ -1779,3 +1779,53 @@ The files referenced by `license.openpgp_public_key` are public verification key
 ## Ubuntu 24.04 build-host media
 
 The Ubuntu ISO is an installed build-host authority and is not a Rawframe distributable. Its redistribution classification remains conditional under `third_party/catalog.json`. Rawframe stores only the exact image identity, signed checksum authority, and package-index evidence required to reproduce the admitted host; downstream package copyright files remain governed by their individual packages.
+
+---
+
+## Windows Server Core container base image
+
+The `mcr.microsoft.com/windows/servercore` base layer is a Microsoft-licensed
+container base image acquired by digest and used only to build the Windows
+verification host. Its terms are the ones Microsoft publishes with the image
+rather than an interpretation stated here, which is why the SPDX identifier is a
+reference and the redistribution classification is conditional.
+
+Rawframe records the exact manifest-list digest and nothing else about the
+layer. The policy applied to it is narrow and deliberate: the derived image is
+built inside the organisation, pushed only to a private registry package, and
+never published publicly, so no Rawframe artifact redistributes the base layer.
+Whether a public derived image would be permitted is a question for the licence
+and not for this file, and the private package is what keeps the question from
+arising.
+
+---
+
+## GitHub Actions first-party actions
+
+`actions/checkout`, `actions/cache`, `actions/attest-build-provenance`, and
+`actions/upload-artifact` are MIT-licensed first-party GitHub Actions. They are
+never vendored, redistributed, or linked into a Rawframe artifact: the Actions
+runner fetches each one, and every reference is pinned to a full commit SHA
+because a tag is a name its owner can move.
+
+MIT License
+
+Copyright (c) GitHub, Inc. and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

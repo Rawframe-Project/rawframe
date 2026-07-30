@@ -8,8 +8,8 @@
     },
     {
       "path": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
-      "byteSize": 93811,
-      "sha256": "51f13fedd668b9e24564e0fd3db0ee262a56096d2acba1ca4f9f3aeef2df844b"
+      "byteSize": 96200,
+      "sha256": "8035e5831833a088dd7ca63aced9400888c9cc904f2ca88858db4a3fd9077a1a"
     },
     {
       "path": "third_party/licenses/cmake/LICENSE.rst",
@@ -169,6 +169,29 @@
       "spdxExpression": "MIT",
       "materialPath": "third_party/licenses/THIRD_PARTY_NOTICES.md",
       "sectionHeading": "vcpkg registry/tool",
+      "redistribution": "allowed",
+      "approval": "approved"
+    },
+    {
+      "id": "license.windows_servercore",
+      "catalogIds": ["host.windows_servercore"],
+      "spdxExpression": "LicenseRef-Microsoft-Windows-Container-Base-Image-EULA",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "Windows Server Core container base image",
+      "redistribution": "conditional",
+      "approval": "restricted"
+    },
+    {
+      "id": "license.github_actions",
+      "catalogIds": [
+        "action.checkout",
+        "action.cache",
+        "action.attest_build_provenance",
+        "action.upload_artifact"
+      ],
+      "spdxExpression": "MIT",
+      "materialPath": "third_party/licenses/EXTERNAL_LICENSE_TEXTS.md",
+      "sectionHeading": "GitHub Actions first-party actions",
       "redistribution": "allowed",
       "approval": "approved"
     }

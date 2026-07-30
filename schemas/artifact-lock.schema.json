@@ -4,7 +4,7 @@
   "title": "Rawframe verified artifact lock",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "schemaVersion", "lockVersion", "verificationCorpus", "artifacts"],
+  "required": ["$schema", "schemaVersion", "lockVersion", "verificationCorpus", "artifacts", "delegatedFetches"],
   "properties": {
     "$schema": { "const": "../schemas/artifact-lock.schema.json" },
     "schemaVersion": { "const": 1 },
@@ -19,6 +19,12 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/artifact" }
+    },
+    "delegatedFetches": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/delegatedFetch" }
     }
   },
   "$defs": {
@@ -134,6 +140,41 @@
     "reference": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z0-9_]+)+$"
+    },
+    "delegatedFetch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "catalogId", "kind", "reference", "pin", "fetchedBy", "licenseReference", "reviewReference"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "catalogId": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["oci_image", "github_action"] },
+        "reference": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "pin": { "type": "string", "pattern": "^(?:sha256:[0-9a-f]{64}|[0-9a-f]{40})$" },
+        "fetchedBy": { "enum": ["container_engine", "actions_runner"] },
+        "licenseReference": { "$ref": "#/$defs/id" },
+        "reviewReference": { "$ref": "#/$defs/reference" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "oci_image" } } },
+          "then": {
+            "properties": {
+              "pin": { "pattern": "^sha256:[0-9a-f]{64}$" },
+              "fetchedBy": { "const": "container_engine" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "github_action" } } },
+          "then": {
+            "properties": {
+              "pin": { "pattern": "^[0-9a-f]{40}$" },
+              "fetchedBy": { "const": "actions_runner" }
+            }
+          }
+        }
+      ]
     }
   }
 }

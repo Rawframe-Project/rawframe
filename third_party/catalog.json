@@ -252,6 +252,76 @@
       "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
       "stability": "internal",
       "removalOwner": "rawframe.build_engineering"
+    },
+    {
+      "id": "host.windows_servercore",
+      "displayName": "Windows Server Core container base image",
+      "purpose": "Provide the immutable Windows container-host base layer for the verification lane.",
+      "owners": { "architecture": "rawframe.build_engineering", "security": "rawframe.security_engineering", "updates": "rawframe.build_engineering" },
+      "acquisitionClass": "delegated_fetch",
+      "provider": { "type": "delegated_fetch", "reference": "image.windows_servercore_base" },
+      "allowedUse": { "contexts": ["tool"], "platformFamilies": ["windows"] },
+      "license": { "spdxExpression": "LicenseRef-Microsoft-Windows-Container-Base-Image-EULA", "noticeRequired": true, "redistribution": "conditional", "approval": "restricted" },
+      "isolation": "tool_only",
+      "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
+      "stability": "internal",
+      "removalOwner": "rawframe.build_engineering"
+    },
+    {
+      "id": "action.checkout",
+      "displayName": "GitHub Actions checkout",
+      "purpose": "Place the commit under verification into the runner workspace for the CI lanes.",
+      "owners": { "architecture": "rawframe.build_engineering", "security": "rawframe.security_engineering", "updates": "rawframe.build_engineering" },
+      "acquisitionClass": "delegated_fetch",
+      "provider": { "type": "delegated_fetch", "reference": "action.checkout.pinned" },
+      "allowedUse": { "contexts": ["tool"], "platformFamilies": ["any"] },
+      "license": { "spdxExpression": "MIT", "noticeRequired": true, "redistribution": "allowed", "approval": "approved" },
+      "isolation": "tool_only",
+      "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
+      "stability": "internal",
+      "removalOwner": "rawframe.build_engineering"
+    },
+    {
+      "id": "action.cache",
+      "displayName": "GitHub Actions cache",
+      "purpose": "Restore and save the locked artifact closure between CI runs of the verification lane.",
+      "owners": { "architecture": "rawframe.build_engineering", "security": "rawframe.security_engineering", "updates": "rawframe.build_engineering" },
+      "acquisitionClass": "delegated_fetch",
+      "provider": { "type": "delegated_fetch", "reference": "action.cache.pinned" },
+      "allowedUse": { "contexts": ["tool"], "platformFamilies": ["any"] },
+      "license": { "spdxExpression": "MIT", "noticeRequired": true, "redistribution": "allowed", "approval": "approved" },
+      "isolation": "tool_only",
+      "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
+      "stability": "internal",
+      "removalOwner": "rawframe.build_engineering"
+    },
+    {
+      "id": "action.attest_build_provenance",
+      "displayName": "GitHub Actions attest-build-provenance",
+      "purpose": "Request the Sigstore-signed provenance statement that ADR-0082 makes the only trust evidence.",
+      "owners": { "architecture": "rawframe.build_engineering", "security": "rawframe.security_engineering", "updates": "rawframe.build_engineering" },
+      "acquisitionClass": "delegated_fetch",
+      "provider": { "type": "delegated_fetch", "reference": "action.attest_build_provenance.pinned" },
+      "allowedUse": { "contexts": ["tool"], "platformFamilies": ["any"] },
+      "license": { "spdxExpression": "MIT", "noticeRequired": true, "redistribution": "allowed", "approval": "approved" },
+      "isolation": "tool_only",
+      "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
+      "stability": "internal",
+      "removalOwner": "rawframe.build_engineering"
+    },
+    {
+      "id": "action.upload_artifact",
+      "displayName": "GitHub Actions upload-artifact",
+      "purpose": "Publish the evidence archive and its provenance bundle for later offline verification.",
+      "owners": { "architecture": "rawframe.build_engineering", "security": "rawframe.security_engineering", "updates": "rawframe.build_engineering" },
+      "acquisitionClass": "delegated_fetch",
+      "provider": { "type": "delegated_fetch", "reference": "action.upload_artifact.pinned" },
+      "allowedUse": { "contexts": ["tool"], "platformFamilies": ["any"] },
+      "license": { "spdxExpression": "MIT", "noticeRequired": true, "redistribution": "allowed", "approval": "approved" },
+      "isolation": "tool_only",
+      "security": { "advisoryPolicy": "vendor_managed", "exceptionReferences": [] },
+      "stability": "internal",
+      "removalOwner": "rawframe.build_engineering"
     }
   ]
 }
