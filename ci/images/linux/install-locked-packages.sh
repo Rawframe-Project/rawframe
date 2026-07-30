@@ -23,9 +23,18 @@
 # revision of this script installed the tuple alone with `--force-depends` and
 # produced an image with three broken packages, which is worse than useless: it
 # is an environment that looks locked and cannot run what it locks.
+# A second list follows the same two passes for a different reason. Stage 0 does
+# not trust this image for its OpenPGP verifier: it downloads `gpgv`, `gpg`, and
+# `gpgconf` itself, proves them against the Canonical-signed index, extracts them,
+# and runs them. Extracting a binary does not give it a runtime closure, and a
+# minimal base image has none of `libassuan`, `libksba`, or `libnpth`, so those
+# extracted binaries cannot start. Installing the same locked versions here makes
+# the closure exist without becoming an authority: Stage 0 still verifies its own
+# copies against the signed index, because an image is not evidence.
 set -eu
 
 list="$1"
+verifier_list="$2"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
@@ -56,6 +65,9 @@ SOURCES
 
 apt-get update -qq
 
+both="${work}/both.txt"
+cat "$list" "$verifier_list" > "$both"
+
 # Pass one: prove the bytes.
 verified=0
 cd "$work"
@@ -77,7 +89,7 @@ while IFS='|' read -r package version filename size digest; do
         exit 1
     fi
     verified=$((verified + 1))
-done < "$list"
+done < "$both"
 rm -f ./*.deb
 echo "rf: verified $verified locked packages against the lock"
 
@@ -86,7 +98,7 @@ pins=""
 while IFS='|' read -r package version filename size digest; do
     [ -n "$package" ] || continue
     pins="$pins $package=$version"
-done < "$list"
+done < "$both"
 
 # shellcheck disable=SC2086
 apt-get install -y --no-install-recommends --allow-downgrades $pins
@@ -115,7 +127,7 @@ while IFS='|' read -r package version filename size digest; do
         echo "rf: $package is $installed after install and the lock says $version" >&2
         status=1
     fi
-done < "$list"
+done < "$both"
 
 # The transport record names one exact package identity, so it is checked here
 # for the same reason the tuple is: a silent substitution would only be found

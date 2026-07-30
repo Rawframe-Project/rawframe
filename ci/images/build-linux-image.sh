@@ -46,10 +46,40 @@ with open(sys.argv[2], "w", encoding="utf-8", newline="\n") as handle:
 print(f"rf: extracted {len(entries)} locked packages")
 PY
 
-cp "${staging}/locked-packages.txt" "${context}/locked-packages.txt"
-trap 'rm -f "${context}/locked-packages.txt"' EXIT
+# The three OpenPGP verifier packages Stage 0 downloads and verifies for itself.
+# They are installed into the image as well, because Stage 0 extracts those exact
+# debs and then runs them, and an extracted binary needs its runtime closure to
+# exist. The authority is the artifact lock, so the versions and digests are read
+# from it rather than restated.
+python3 - "${repository_root}/third_party/artifacts.lock.json" "${staging}/verifier-packages.txt" <<'PY'
+import json
+import sys
 
-for required in Dockerfile install-locked-packages.sh install-bootstrap-cmake.sh host-identity.json; do
+wanted = ("tool.gnupg.linux_x86_64", "tool.gnupg.linux_x86_64_full", "tool.gnupg.linux_x86_64_config")
+lock = json.load(open(sys.argv[1], encoding="utf-8"))
+records = {entry["id"]: entry for entry in lock["artifacts"]}
+
+lines = []
+for identifier in wanted:
+    record = records.get(identifier)
+    if record is None:
+        sys.exit(f"rf: the artifact lock has no {identifier}")
+    filename = record["origins"][0].rsplit("/", 1)[1]
+    package = filename.split("_", 1)[0]
+    lines.append(f'{package}|{record["version"]}|{filename}|{record["byteSize"]}|{record["sha256"]}')
+
+with open(sys.argv[2], "w", encoding="utf-8", newline="\n") as handle:
+    handle.write("\n".join(lines) + "\n")
+
+print(f"rf: extracted {len(lines)} locked verifier packages")
+PY
+
+cp "${staging}/locked-packages.txt" "${context}/locked-packages.txt"
+cp "${staging}/verifier-packages.txt" "${context}/verifier-packages.txt"
+trap 'rm -f "${context}/locked-packages.txt" "${context}/verifier-packages.txt"' EXIT
+
+for required in Dockerfile install-locked-packages.sh install-bootstrap-cmake.sh host-identity.json \
+                locked-packages.txt verifier-packages.txt; do
     if [[ ! -f "${context}/${required}" ]]; then
         echo "rf: the Linux image definition is missing ${required}" >&2
         exit 1

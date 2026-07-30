@@ -15,13 +15,17 @@ FROM ubuntu@${RF_LINUX_BASE_DIGEST}
 # The package list is extracted from `cmake/sync/linux_host.cmake`, which is the
 # single authority for it. It is never restated here: a second copy of the list
 # is a second authority, and the two would drift.
+# The verifier list comes from `third_party/artifacts.lock.json` for the same
+# reason: the locked verifier versions have one authority, and it is not here.
 COPY locked-packages.txt /rf/locked-packages.txt
+COPY verifier-packages.txt /rf/verifier-packages.txt
 COPY install-locked-packages.sh /rf/install-locked-packages.sh
 
 # Invoked through the interpreter rather than as an executable, so the image does
 # not depend on a file mode surviving a checkout on a filesystem that has no
 # concept of one.
-RUN sh /rf/install-locked-packages.sh /rf/locked-packages.txt && rm -rf /rf/install-locked-packages.sh
+RUN sh /rf/install-locked-packages.sh /rf/locked-packages.txt /rf/verifier-packages.txt \
+    && rm -rf /rf/install-locked-packages.sh
 
 # Stage 0 needs a locked CMake that does not live beneath the checkout. On a
 # workstation the developer pre-stages it; here it belongs to the image, so the
