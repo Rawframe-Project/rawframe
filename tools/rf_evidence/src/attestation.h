@@ -43,6 +43,17 @@ inline constexpr std::string_view kTrustedCertificateIssuer = "https://token.act
 // for LLVM carries `https://github.com/llvm/llvm-project` in the same field.
 inline constexpr std::string_view kTrustedSourceRepositoryUri = "https://github.com/Rawframe-Project/rawframe";
 
+// The same repository in the shorthand the record schema requires of a claim.
+//
+// These are two spellings of one fact, and keeping only the first made every
+// genuine attestation unverifiable: the statement carries the URL, the schema
+// constrains a claim to `owner/name`, and the two were compared to each other
+// directly, so a schema-valid claim could never match and a matching claim could
+// never be schema-valid. The tests did not catch it because they build a claim
+// and never validate it against the schema that governs one, which is why the
+// first real bundle found it and eight hand-written cases did not.
+inline constexpr std::string_view kTrustedSourceRepositoryPath = "Rawframe-Project/rawframe";
+
 // The one protected ref. It is compared against the ref of the code that was
 // verified and against the ref of the workflow that entered the lane, because a
 // reusable producer pinned at the protected ref can be called from a branch, and

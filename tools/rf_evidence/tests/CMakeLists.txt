@@ -39,6 +39,10 @@ target_link_libraries(rawframe_tool_rf_evidence_tests PRIVATE
 target_compile_definitions(rawframe_tool_rf_evidence_tests PRIVATE
     RAWFRAME_TEST_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
     RAWFRAME_TEST_OUTPUT_ROOT="${CMAKE_BINARY_DIR}/test_output"
+    # The host whose prepared tools this configuration was built against, so the
+    # attestation test can name the locked verifier the offline lane prepares
+    # rather than search for one.
+    RAWFRAME_TEST_HOST_ID="${RAWFRAME_HOST_ID}"
     # The locked CMake is the admitted interpreter and is already required to
     # configure this tree, so process tests drive it as their child rather than
     # acquiring or assuming any other executable.
