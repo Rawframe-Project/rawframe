@@ -81,13 +81,20 @@ if ($signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
 }
 
 Write-Host 'rf: installing Build Tools 18.7.3 at the admitted root'
-$arguments = @(
+# The install path is quoted here rather than handed over as one element of an
+# argument array. Windows PowerShell joins an argument array with spaces and
+# quotes nothing, so an unquoted `--installPath C:\Program Files\...` reaches the
+# bootstrapper as `--installPath C:\Program` followed by stray tokens. The
+# installer accepts that and reports success, which is the worst available
+# outcome: a populated image whose toolchain is not where the tuple says it is.
+$argumentLine = @(
     '--quiet', '--wait', '--norestart', '--nocache',
-    '--installPath', $installRoot,
+    '--installPath', "`"$installRoot`"",
     '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
     '--add', 'Microsoft.VisualStudio.Component.Windows11SDK.26100'
-)
-$process = Start-Process -FilePath $bootstrapper -ArgumentList $arguments -Wait -PassThru -NoNewWindow
+) -join ' '
+$process = Start-Process -FilePath $bootstrapper -ArgumentList $argumentLine -Wait -PassThru -NoNewWindow
+Write-Host "rf: the Build Tools installer exited with $($process.ExitCode)"
 if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
     throw "rf: the Build Tools installer exited with $($process.ExitCode)"
 }
@@ -103,6 +110,13 @@ foreach ($state in $states) {
     }
 }
 if ($matched.Count -ne 1) {
+    # The paths that were found are reported with the count. A bare count says
+    # only that the expectation was missed, and the interesting question is
+    # always where the install actually landed.
+    foreach ($state in $states) {
+        $content = Get-Content -LiteralPath $state.FullName -Raw | ConvertFrom-Json
+        Write-Host "rf: found instance $($content.installationVersion) at $($content.installationPath)"
+    }
     throw "rf: the image carries $($matched.Count) instances at the admitted root and must carry exactly one"
 }
 Assert-Equal -Actual $matched[0].installationVersion -Expected $expectedVsVersion `
