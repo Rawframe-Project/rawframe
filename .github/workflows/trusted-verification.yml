@@ -1,0 +1,100 @@
+# The one producer of `trusted_ci` evidence.
+#
+# ADR-0082 makes this file, on the protected ref, the only thing whose signature
+# can raise a record above `diagnostic_untrusted`. Nothing in here grants trust:
+# it runs the corpus, collects what the tool recorded, and asks GitHub to sign a
+# statement binding those exact bytes to this workflow, this commit, this ref, and
+# this run. Whether that signature means anything is decided later, offline, by
+# `rf-evidence` against the pinned Sigstore root. A run of this workflow from a
+# branch, a fork, or a different entry point produces an attestation that fails
+# verification, which is the intended outcome rather than a gap.
+#
+# It is reusable so that the identity which signs stays constant while entry
+# points change. A reusable workflow's provenance records the entry point in
+# `externalParameters.workflow` and the workflow that signed in
+# `runDetails.builder.id`, and the verifier anchors both.
+#
+# Every third-party action is pinned by full commit SHA. A tag is a name its
+# owner can move, and an action that can change after review is an unreviewed
+# action.
+name: Trusted verification
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  # The Linux container host, pinned by digest because ADR-0083 makes the digest
+  # the host's operating-system identity.
+  #
+  # The Windows lane is absent rather than approximated. Every available Windows
+  # container base is Server 2025 build 26100, whose inbox curl is 8.16.0, and
+  # the locked bootstrap transport record for `windows-x86_64` requires 8.19.0 or
+  # later because it was measured on a 26200 workstation. The record admits one
+  # transport per host ID and the schema fixes the count at two, so a container
+  # entry cannot be added without a decision that belongs to the project owner.
+  # Writing a Windows job that cannot pass Stage 0, or quietly lowering a floor
+  # that protects the workstation lane, would both be worse than saying so here.
+  linux:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out the commit under verification
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Sign in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Run the corpus on the Linux container host
+        id: corpus
+        uses: ./.github/actions/verify-host
+        with:
+          host: linux-x86_64
+          image: ghcr.io/rawframe-project/rawframe-ci-linux@sha256:6461f80fc294eeb082977ad389a0dea78f57e390d188fc7ae9b73e92e7b76684
+
+      # One subject, the archive of everything the tool recorded. The digest in
+      # the statement is not what the verifier believes: it recomputes the digest
+      # from these bytes and compares.
+      - name: Attest what the run produced
+        id: attest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ steps.corpus.outputs.archive }}
+
+      # The bundle is evidence, not a log line. It is uploaded next to the
+      # subject so that verification can be repeated offline against exactly the
+      # bytes that were signed.
+      - name: Publish the evidence and its bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trusted-verification-linux-x86_64
+          path: |
+            ${{ steps.corpus.outputs.archive }}
+            ${{ steps.attest.outputs.bundle-path }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Record what was signed
+        env:
+          ARCHIVE: ${{ steps.corpus.outputs.archive }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## Linux container host'
+            echo
+            echo "subject: \`$(sha256sum "$ARCHIVE" | cut -d' ' -f1)\`"
+            echo
+            echo "bundle: \`$(sha256sum "$BUNDLE" | cut -d' ' -f1)\`"
+            echo
+            echo "run: \`${GITHUB_RUN_ID}\` attempt \`${GITHUB_RUN_ATTEMPT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

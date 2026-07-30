@@ -36,13 +36,39 @@ inline constexpr std::size_t kMaximumBundleBytes = 262'144;
 // to a compiled tool and a new verification-policy revision, which is what it
 // should cost.
 inline constexpr std::string_view kTrustedCertificateIssuer = "https://token.actions.githubusercontent.com";
-inline constexpr std::string_view kTrustedSourceRepository = "Rawframe-Project/rawframe";
-inline constexpr std::string_view kTrustedWorkflowPath = ".github/workflows/trusted-verification.yml";
+
+// The repository is compared in the form the statement actually carries, which
+// is a URL rather than the `owner/name` shorthand. This is measured rather than
+// assumed: the real GitHub provenance bundle this repository already verifies
+// for LLVM carries `https://github.com/llvm/llvm-project` in the same field.
+inline constexpr std::string_view kTrustedSourceRepositoryUri = "https://github.com/Rawframe-Project/rawframe";
+
+// The one protected ref. It is compared against the ref of the code that was
+// verified and against the ref of the workflow that entered the lane, because a
+// reusable producer pinned at the protected ref can be called from a branch, and
+// then the signed identity would be the protected one while the bytes it signed
+// came from somewhere else.
+inline constexpr std::string_view kTrustedProtectedRef = "refs/heads/main";
+
+// The two workflow paths, kept apart because the provenance keeps them apart.
+//
+// A reusable workflow's provenance names the entry point in
+// `externalParameters.workflow.path` and the workflow that actually signed in
+// `runDetails.builder.id`. The LLVM bundle already verified here proves it:
+// its external parameters name `release-tasks.yml` while its builder identity
+// names the reusable `release-binaries.yml`. Checking only one of them would
+// leave the other unconstrained, so both are named exactly.
+inline constexpr std::string_view kTrustedProducerWorkflowPath = ".github/workflows/trusted-verification.yml";
+inline constexpr std::string_view kTrustedEntryWorkflowPath = ".github/workflows/verify-main.yml";
 
 // The certificate identity is matched literally. ADR-0082 forbids prefix,
 // suffix, glob, and regular-expression matching here, because every one of them
 // admits a near miss, and a near miss is what an attacker who controls a
 // similarly named repository or workflow file has to offer.
+//
+// This is also the exact string the provenance carries as its builder identity,
+// so requiring the two to agree ties what the certificate proves to what the
+// payload claims about itself.
 inline constexpr std::string_view kTrustedCertificateIdentity =
     "https://github.com/Rawframe-Project/rawframe/.github/workflows/trusted-verification.yml@refs/heads/main";
 

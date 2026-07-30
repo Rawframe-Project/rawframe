@@ -493,17 +493,24 @@ AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& c
         return refuse(AttestationRejection::SubjectMismatch, "the attested subject name is " + decoded->subjectName);
     }
 
-    if (decoded->sourceRepository != kTrustedSourceRepository || claim.sourceRepository != decoded->sourceRepository
-        || claim.sourceCommit != decoded->sourceCommit || claim.sourceRef != decoded->sourceRef) {
+    if (decoded->sourceRepository != kTrustedSourceRepositoryUri || decoded->sourceRef != kTrustedProtectedRef
+        || claim.sourceRepository != decoded->sourceRepository || claim.sourceCommit != decoded->sourceCommit
+        || claim.sourceRef != decoded->sourceRef) {
         return refuse(AttestationRejection::SourceMismatch,
                       "the attested source is " + decoded->sourceRepository + "@" + decoded->sourceRef);
     }
-    if (decoded->workflowPath != kTrustedWorkflowPath || claim.workflowPath != decoded->workflowPath
-        || claim.workflowRef != decoded->workflowRef) {
+    if (decoded->workflowPath != kTrustedEntryWorkflowPath || decoded->workflowRef != kTrustedProtectedRef
+        || claim.workflowPath != decoded->workflowPath || claim.workflowRef != decoded->workflowRef) {
         return refuse(AttestationRejection::WorkflowMismatch,
                       "the attested workflow is " + decoded->workflowPath + "@" + decoded->workflowRef);
     }
-    if (claim.builderId != decoded->builderId) {
+
+    // The builder identity is the producer's own name, and it is anchored rather
+    // than merely compared to the claim. ADR-0082 requires the protected
+    // workflow's path to match, and for a reusable producer this is the field
+    // that carries it: the external parameters above name the entry point, not
+    // the workflow that signed.
+    if (decoded->builderId != kTrustedCertificateIdentity || claim.builderId != decoded->builderId) {
         return refuse(AttestationRejection::BuilderMismatch, "the attested builder is " + decoded->builderId);
     }
     if (claim.runId != decoded->runId || claim.runAttempt != decoded->runAttempt) {

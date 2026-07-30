@@ -44,7 +44,7 @@ TEST(TrustPolicy, AdmitsAnUntrustedRecordWithoutAskingItToProveAnything) {
 // two halves of a record disagreeing, and the disagreement is the finding.
 TEST(TrustPolicy, RefusesAnUntrustedRecordThatCarriesAnAttestationAnyway) {
     constexpr std::string_view kContradictory =
-        R"({"attestation":{"builderId":"b","bundle":{"byteLength":1,"digest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":1,"sourceCommit":"0123456789abcdef0123456789abcdef01234567","sourceRef":"refs/heads/main","sourceRepository":"Rawframe-Project/rawframe","subjectDigest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","subjectName":"s","workflowPath":".github/workflows/trusted-verification.yml","workflowRef":"refs/heads/main"},"provenance":"diagnostic_untrusted"})";
+        R"({"attestation":{"builderId":"b","bundle":{"byteLength":1,"digest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":1,"sourceCommit":"0123456789abcdef0123456789abcdef01234567","sourceRef":"refs/heads/main","sourceRepository":"https://github.com/Rawframe-Project/rawframe","subjectDigest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","subjectName":"s","workflowPath":".github/workflows/trusted-verification.yml","workflowRef":"refs/heads/main"},"provenance":"diagnostic_untrusted"})";
     auto derived = deriveFromText(kContradictory);
     ASSERT_FALSE(derived.has_value());
     EXPECT_EQ(derived.error().rejection, TrustRejection::MalformedTrustBlock);

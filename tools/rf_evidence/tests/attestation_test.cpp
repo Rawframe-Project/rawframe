@@ -46,9 +46,9 @@ struct StatementFields {
     std::string subjectName{kSubjectName};
     std::string subjectDigest{kSubjectDigestHex};
     std::string builderId{kBuilderId};
-    std::string repository{kTrustedSourceRepository};
-    std::string workflowPath{kTrustedWorkflowPath};
-    std::string workflowRef{"refs/heads/main"};
+    std::string repository{kTrustedSourceRepositoryUri};
+    std::string workflowPath{kTrustedEntryWorkflowPath};
+    std::string workflowRef{kTrustedProtectedRef};
     std::string sourceUri{"git+https://github.com/Rawframe-Project/rawframe@refs/heads/main"};
     std::string commit{kCommit};
     std::string invocationId{"https://github.com/Rawframe-Project/rawframe/actions/runs/30485058826/attempts/1"};
@@ -95,9 +95,9 @@ std::string claimText(std::string_view bundleDigest, std::uint64_t bundleLength)
            + R"(,"digest":"sha256:)" + std::string(bundleDigest)
            + R"(","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30485058826,"sourceCommit":")"
            + std::string(kCommit) + R"(","sourceRef":"refs/heads/main","sourceRepository":")"
-           + std::string(kTrustedSourceRepository) + R"(","subjectDigest":"sha256:)" + std::string(kSubjectDigestHex)
+           + std::string(kTrustedSourceRepositoryUri) + R"(","subjectDigest":"sha256:)" + std::string(kSubjectDigestHex)
            + R"(","subjectName":")" + std::string(kSubjectName) + R"(","workflowPath":")"
-           + std::string(kTrustedWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
+           + std::string(kTrustedEntryWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
 }
 
 } // namespace
@@ -108,10 +108,10 @@ TEST(Attestation, DecodesAGenuineProvenanceStatement) {
     EXPECT_EQ(decoded->subjectName, kSubjectName);
     EXPECT_EQ(decoded->subjectDigest, kSubjectDigestHex);
     EXPECT_EQ(decoded->builderId, kBuilderId);
-    EXPECT_EQ(decoded->sourceRepository, kTrustedSourceRepository);
+    EXPECT_EQ(decoded->sourceRepository, kTrustedSourceRepositoryUri);
     EXPECT_EQ(decoded->sourceCommit, kCommit);
-    EXPECT_EQ(decoded->sourceRef, "refs/heads/main");
-    EXPECT_EQ(decoded->workflowPath, kTrustedWorkflowPath);
+    EXPECT_EQ(decoded->sourceRef, kTrustedProtectedRef);
+    EXPECT_EQ(decoded->workflowPath, kTrustedEntryWorkflowPath);
     EXPECT_EQ(decoded->runId, kRunId);
     EXPECT_EQ(decoded->runAttempt, kRunAttempt);
 }
@@ -142,18 +142,50 @@ TEST(Attestation, RefusesAStatementOrPredicateTypeThisGenerationDoesNotAccept) {
     EXPECT_EQ(rejectionOf(buildBundle(predicate)), AttestationRejection::StatementMismatch);
 }
 
+// Decoding is not judging. Each of these bundles decodes cleanly and is refused
+// by the policy in `verifyAttestation`, so what is checked here is that the
+// decoded value differs from the anchor rather than that the decode failed.
 TEST(Attestation, RefusesAStatementWhoseSourceOrWorkflowIsNotTheProtectedProducer) {
     StatementFields workflow;
     workflow.workflowPath = ".github/workflows/publish-host-images.yml";
     auto decodedWorkflow = decodeProvenanceBundle(buildBundle(workflow));
     ASSERT_TRUE(decodedWorkflow.has_value());
-    EXPECT_NE(decodedWorkflow->workflowPath, kTrustedWorkflowPath);
+    EXPECT_NE(decodedWorkflow->workflowPath, kTrustedEntryWorkflowPath);
 
     StatementFields source;
-    source.repository = "Rawframe-Project/rawframe-mirror";
+    source.repository = "https://github.com/Rawframe-Project/rawframe-mirror";
     auto decodedSource = decodeProvenanceBundle(buildBundle(source));
     ASSERT_TRUE(decodedSource.has_value());
-    EXPECT_NE(decodedSource->sourceRepository, kTrustedSourceRepository);
+    EXPECT_NE(decodedSource->sourceRepository, kTrustedSourceRepositoryUri);
+}
+
+// The case a reusable producer creates and a standalone one cannot: a caller on
+// a branch can pin the producer at the protected ref, and then the signature
+// carries the protected identity while the bytes came from the branch. The refs
+// are what separate the two, so they are named rather than derived.
+TEST(Attestation, RefusesARunWhoseCodeOrEntryPointIsNotOnTheProtectedRef) {
+    StatementFields pullRequest;
+    pullRequest.sourceUri = "git+https://github.com/Rawframe-Project/rawframe@refs/pull/11/merge";
+    pullRequest.workflowRef = "refs/pull/11/merge";
+    auto decoded = decodeProvenanceBundle(buildBundle(pullRequest));
+    ASSERT_TRUE(decoded.has_value()) << (decoded ? "" : decoded.error().detail);
+    EXPECT_NE(decoded->sourceRef, kTrustedProtectedRef);
+    EXPECT_NE(decoded->workflowRef, kTrustedProtectedRef);
+
+    // The builder identity stays the protected one in exactly this case, which
+    // is why it cannot be the only thing checked.
+    EXPECT_EQ(decoded->builderId, kTrustedCertificateIdentity);
+}
+
+// The mirror image: a run whose entry point and code are on the protected ref
+// but whose signature came from some other workflow.
+TEST(Attestation, RefusesABuilderThatIsNotTheProtectedProducer) {
+    StatementFields fields;
+    fields.builderId = "https://github.com/Rawframe-Project/rawframe/.github/workflows/"
+                       "publish-host-images.yml@refs/heads/main";
+    auto decoded = decodeProvenanceBundle(buildBundle(fields));
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_NE(decoded->builderId, kTrustedCertificateIdentity);
 }
 
 TEST(Attestation, RefusesAStatementWithNoResolvableRunIdentity) {
