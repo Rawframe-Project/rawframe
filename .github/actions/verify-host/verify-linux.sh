@@ -14,7 +14,10 @@ set -eu
 repository_root="$1"
 bootstrap_cmake="/opt/rf/bootstrap/cmake-4.4.0-linux-x86_64/bin/cmake"
 prepared="${repository_root}/out/prepared/linux-x86_64/tools/cmake/bin"
-evidence="out/evidence/ci/linux-x86_64"
+# The tool refuses a report path outside `out/reports/task-0001/`, which is
+# the one place it writes reports, so the lane records beneath it rather than
+# inventing a second reports root.
+reports="out/reports/task-0001/ci/linux-x86_64"
 
 cd "$repository_root"
 
@@ -41,17 +44,17 @@ echo "rf: configure and build at the analysis preset"
 "${prepared}/cmake" --build --preset task-0001-linux-x86_64-analysis
 
 tool="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-evidence"
-mkdir -p "${repository_root}/${evidence}"
+mkdir -p "${repository_root}/${reports}"
 
 echo "rf: the repository authorities"
-"$tool" validate repository --root "$repository_root" --report "${evidence}/validate-repository.json"
+"$tool" validate repository --root "$repository_root" --report "${reports}/validate-repository.json"
 "$tool" load evidence-index --root "$repository_root"
-"$tool" audit paths --root "$repository_root" --report "${evidence}/audit-paths.json"
-"$tool" audit shipping-closure --root "$repository_root" --report "${evidence}/audit-shipping-closure.json"
-"$tool" review licenses --root "$repository_root" --report "${evidence}/review-licenses.json"
-"$tool" inspect source-ownership --root "$repository_root" --report "${evidence}/source-ownership.json"
+"$tool" audit paths --root "$repository_root" --report "${reports}/audit-paths.json"
+"$tool" audit shipping-closure --root "$repository_root" --report "${reports}/audit-shipping-closure.json"
+"$tool" review licenses --root "$repository_root" --report "${reports}/review-licenses.json"
+"$tool" inspect source-ownership --root "$repository_root" --report "${reports}/source-ownership.json"
 
 echo "rf: the locked closure, verified offline against the lock"
-"$tool" verify-offline --root "$repository_root" --host linux-x86_64 --report "${evidence}/verify-offline.json"
+"$tool" verify-offline --root "$repository_root" --host linux-x86_64 --report "${reports}/verify-offline.json"
 
 echo "rf: the corpus completed on the Linux container host"

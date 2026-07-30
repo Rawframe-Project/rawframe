@@ -97,8 +97,8 @@ runs:
         HOST: ${{ inputs.host }}
       run: |
         set -euo pipefail
-        reports="out/evidence/ci/${HOST}"
-        archive="out/evidence/ci/${HOST}-reports.tar"
+        reports="out/reports/task-0001/ci/${HOST}"
+        archive="out/reports/task-0001/ci/${HOST}-reports.tar"
         if [[ ! -d "$reports" ]]; then
             echo "rf: the run produced no reports at $reports" >&2
             exit 1

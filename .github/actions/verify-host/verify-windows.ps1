@@ -26,7 +26,10 @@ function Invoke-Checked {
 
 $bootstrapCMake = 'C:\rf\bootstrap\cmake-4.4.0-windows-x86_64\bin\cmake.exe'
 $prepared = Join-Path $RepositoryRoot 'out\prepared\windows-x86_64\tools\cmake\bin'
-$evidence = 'out/evidence/ci/windows-x86_64'
+# The tool refuses a report path outside `out/reports/task-0001/`, which is
+# the one place it writes reports, so the lane records beneath it rather than
+# inventing a second reports root.
+$reports = 'out/reports/task-0001/ci/windows-x86_64'
 
 Set-Location -LiteralPath $RepositoryRoot
 
@@ -56,24 +59,24 @@ Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @('--preset', 'task-0001-w
 Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @('--build', '--preset', 'task-0001-windows-x86_64-analysis')
 
 $tool = Join-Path $RepositoryRoot 'out\build\task-0001-windows-x86_64-debug\tools\rf-evidence.exe'
-New-Item -ItemType Directory -Force -Path (Join-Path $RepositoryRoot $evidence) | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $RepositoryRoot $reports) | Out-Null
 
 Write-Host 'rf: the repository authorities'
 Invoke-Checked -Path $tool -Arguments @(
-    'validate', 'repository', '--root', $RepositoryRoot, '--report', "$evidence/validate-repository.json")
+    'validate', 'repository', '--root', $RepositoryRoot, '--report', "$reports/validate-repository.json")
 Invoke-Checked -Path $tool -Arguments @('load', 'evidence-index', '--root', $RepositoryRoot)
 Invoke-Checked -Path $tool -Arguments @(
-    'audit', 'paths', '--root', $RepositoryRoot, '--report', "$evidence/audit-paths.json")
+    'audit', 'paths', '--root', $RepositoryRoot, '--report', "$reports/audit-paths.json")
 Invoke-Checked -Path $tool -Arguments @(
-    'audit', 'shipping-closure', '--root', $RepositoryRoot, '--report', "$evidence/audit-shipping-closure.json")
+    'audit', 'shipping-closure', '--root', $RepositoryRoot, '--report', "$reports/audit-shipping-closure.json")
 Invoke-Checked -Path $tool -Arguments @(
-    'review', 'licenses', '--root', $RepositoryRoot, '--report', "$evidence/review-licenses.json")
+    'review', 'licenses', '--root', $RepositoryRoot, '--report', "$reports/review-licenses.json")
 Invoke-Checked -Path $tool -Arguments @(
-    'inspect', 'source-ownership', '--root', $RepositoryRoot, '--report', "$evidence/source-ownership.json")
+    'inspect', 'source-ownership', '--root', $RepositoryRoot, '--report', "$reports/source-ownership.json")
 
 Write-Host 'rf: the locked closure, verified offline against the lock'
 Invoke-Checked -Path $tool -Arguments @(
     'verify-offline', '--root', $RepositoryRoot, '--host', 'windows-x86_64',
-    '--report', "$evidence/verify-offline.json")
+    '--report', "$reports/verify-offline.json")
 
 Write-Host 'rf: the corpus completed on the Windows container host'
