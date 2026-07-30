@@ -46,15 +46,47 @@ echo "rf: configure and build at the analysis preset"
 tool="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-evidence"
 mkdir -p "${repository_root}/${reports}"
 
-echo "rf: the repository authorities"
-"$tool" validate repository --root "$repository_root" --report "${reports}/validate-repository.json"
-"$tool" load evidence-index --root "$repository_root"
-"$tool" audit paths --root "$repository_root" --report "${reports}/audit-paths.json"
-"$tool" audit shipping-closure --root "$repository_root" --report "${reports}/audit-shipping-closure.json"
-"$tool" review licenses --root "$repository_root" --report "${reports}/review-licenses.json"
-"$tool" inspect source-ownership --root "$repository_root" --report "${reports}/source-ownership.json"
+# Each of these reads the repository and writes its own report, so they are
+# independent and are run at once. Sequentially they cost six minutes of a
+# twenty-minute run, most of it one command rehashing five gigabytes while the
+# other cores idle. Every exit status is still collected: a failure anywhere
+# fails the lane, and the report a command did not write cannot be attested,
+# because the archive step counts what is there.
+echo "rf: the repository authorities and the locked closure, in parallel"
+pids=""
+start() {
+    log="$1"
+    shift
+    ( "$@" > "${log}" 2>&1 ) &
+    pids="${pids} $!:${log}"
+}
 
-echo "rf: the locked closure, verified offline against the lock"
-"$tool" verify-offline --root "$repository_root" --host linux-x86_64 --report "${reports}/verify-offline.json"
+start /tmp/rf-validate.log \
+    "$tool" validate repository --root "$repository_root" --report "${reports}/validate-repository.json"
+start /tmp/rf-index.log "$tool" load evidence-index --root "$repository_root"
+start /tmp/rf-paths.log \
+    "$tool" audit paths --root "$repository_root" --report "${reports}/audit-paths.json"
+start /tmp/rf-closure.log \
+    "$tool" audit shipping-closure --root "$repository_root" --report "${reports}/audit-shipping-closure.json"
+start /tmp/rf-licenses.log \
+    "$tool" review licenses --root "$repository_root" --report "${reports}/review-licenses.json"
+start /tmp/rf-ownership.log \
+    "$tool" inspect source-ownership --root "$repository_root" --report "${reports}/source-ownership.json"
+start /tmp/rf-offline.log \
+    "$tool" verify-offline --root "$repository_root" --host linux-x86_64 --report "${reports}/verify-offline.json"
+
+status=0
+for entry in ${pids}; do
+    pid="${entry%%:*}"
+    log="${entry#*:}"
+    if ! wait "${pid}"; then
+        status=1
+        echo "rf: a repository authority command failed, its output follows" >&2
+    fi
+    cat "${log}"
+done
+if [ "${status}" -ne 0 ]; then
+    exit 1
+fi
 
 echo "rf: the corpus completed on the Linux container host"

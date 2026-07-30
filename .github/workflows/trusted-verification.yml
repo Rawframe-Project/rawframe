@@ -62,8 +62,10 @@ jobs:
       - name: Restore the verified artifact cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: out/cache
-          key: rf-linux-artifacts-${{ hashFiles('third_party/artifacts.lock.json', 'third_party/toolchain.lock.json', 'third_party/vcpkg/**') }}
+          path: |
+            out/cache
+            out/bootstrap
+          key: rf-linux-artifacts-${{ hashFiles('third_party/artifacts.lock.json', 'third_party/toolchain.lock.json', 'third_party/vcpkg/**', 'cmake/bootstrap/**') }}
           restore-keys: rf-linux-artifacts-
 
       - name: Sign in to the container registry
