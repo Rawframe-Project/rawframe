@@ -89,4 +89,20 @@ if [ "${status}" -ne 0 ]; then
     exit 1
 fi
 
+# The container runs as root, so everything it wrote into the shared workspace
+# is root owned, and the runner user that has to archive the verified artifacts
+# afterwards cannot read them. The first attempt at caching them failed exactly
+# here, with `tar: Cannot open: Permission denied`, and reported a saved cache
+# that did not exist.
+#
+# The owner is taken from the workspace directory rather than written down. That
+# directory was created by the runner, so it names the right user without this
+# script knowing a UID, which would be a fact about one runner image rather than
+# about the boundary being crossed.
+#
+# Only the two trees that are cached are handed over. `out/sync` and
+# `out/prepared` are larger, are not cached, and are nothing the runner reads.
+echo "rf: hand the cached trees to the user that has to archive them"
+chown -R "$(stat -c '%u:%g' "$repository_root")" "${repository_root}/out/cache" "${repository_root}/out/bootstrap"
+
 echo "rf: the corpus completed on the Linux container host"
