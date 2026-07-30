@@ -1,5 +1,6 @@
 #include "command.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <span>
 #include <string_view>

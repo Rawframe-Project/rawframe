@@ -2,6 +2,7 @@
 
 #include "tool_limits.h"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstdio>
