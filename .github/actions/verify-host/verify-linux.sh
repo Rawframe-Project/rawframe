@@ -44,6 +44,7 @@ echo "rf: configure and build at the analysis preset"
 "${prepared}/cmake" --build --preset task-0001-linux-x86_64-analysis
 
 tool="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-evidence"
+archcheck="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-archcheck"
 mkdir -p "${repository_root}/${reports}"
 
 # Each of these reads the repository and writes its own report, so they are
@@ -74,6 +75,8 @@ start /tmp/rf-ownership.log \
     "$tool" inspect source-ownership --root "$repository_root" --report "${reports}/source-ownership.json"
 start /tmp/rf-offline.log \
     "$tool" verify-offline --root "$repository_root" --host linux-x86_64 --report "${reports}/verify-offline.json"
+start /tmp/rf-archcheck.log \
+    "$archcheck" check_repository --root "$repository_root" --report "${reports}/archcheck-findings.json"
 
 status=0
 for entry in ${pids}; do

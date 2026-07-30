@@ -756,6 +756,26 @@ message(STATUS "tier_0 chain complete")
         PASS_REGULAR_EXPRESSION "\"ok\":true" LABELS "repository;offline"
         RUN_SERIAL TRUE TIMEOUT 900)
 
+    # The architecture conformance gate, run against this repository rather than
+    # against a fixture. The unit suite proves each rule fires; this proves the
+    # repository itself is clean, which is the only form of the claim that can
+    # regress when someone adds a file.
+    add_test(NAME "Command.ArchitectureConformance"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_archcheck>" check_repository
+            --root "${CMAKE_SOURCE_DIR}")
+    set_tests_properties("Command.ArchitectureConformance" PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"findingCount\": 0" LABELS "repository;architecture"
+        TIMEOUT 300)
+
+    # The corpus is loadable and every rule in it is reachable by name. A rule
+    # that cannot be explained is a rule nobody can act on when it fires.
+    add_test(NAME "Command.ArchitectureRulesAreEnumerable"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_archcheck>" list_rules
+            --root "${CMAKE_SOURCE_DIR}")
+    set_tests_properties("Command.ArchitectureRulesAreEnumerable" PROPERTIES
+        PASS_REGULAR_EXPRESSION "ruleSetSeal fnv1a64:" LABELS "repository;architecture"
+        TIMEOUT 300)
+
     # A substituted dependency provider must be rejected before any production
     # compilation. The installed-tree authority is checked ahead of the
     # host-specific section of the policy, so both cases apply to every lane and

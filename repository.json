@@ -9,6 +9,7 @@
   "packagingPolicies": [],
   "profiles": [],
   "tools": [
+    "tools/rf_archcheck/tool.json",
     "tools/rf_evidence/tool.json"
   ],
   "evidenceIndex": "evidence/evidence.json"

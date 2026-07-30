@@ -28,10 +28,20 @@ const std::filesystem::path& realRoot() {
 std::filesystem::path scratchRootFor(std::string_view name) {
     const auto kRoot = std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "shipping_closure" / name;
     std::filesystem::remove_all(kRoot);
-    std::filesystem::create_directories(kRoot / "tools/rf_evidence/tests");
+    std::filesystem::create_directories(kRoot);
     std::filesystem::copy_file(realRoot() / "repository.json", kRoot / "repository.json");
-    for (const auto* kFile : {"tool.json", "CMakeLists.txt", "tests/CMakeLists.txt"}) {
-        std::filesystem::copy_file(realRoot() / "tools/rf_evidence" / kFile, kRoot / "tools/rf_evidence" / kFile);
+    // Every tool the index lists, not one named tool. The audit iterates
+    // membership, so a fixture that copied a fixed tool would stop resembling
+    // the repository the moment a second one was admitted.
+    auto snapshot = validateRepository(realRoot());
+    EXPECT_TRUE(snapshot.has_value()) << snapshot.error().path << ": " << snapshot.error().message;
+    for (const auto& tool : snapshot.value_or(RepositorySnapshot{}).tools) {
+        const std::filesystem::path kToolRoot =
+            std::filesystem::path(tool.manifestPath).parent_path();
+        std::filesystem::create_directories(kRoot / kToolRoot / "tests");
+        for (const auto* kFile : {"tool.json", "CMakeLists.txt", "tests/CMakeLists.txt"}) {
+            std::filesystem::copy_file(realRoot() / kToolRoot / kFile, kRoot / kToolRoot / kFile);
+        }
     }
     return kRoot;
 }

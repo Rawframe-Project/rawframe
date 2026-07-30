@@ -46,6 +46,9 @@ constexpr std::array kEnvelopeFiles{
     std::string_view{"schemas/evaluation-receipt-v1.schema.json"},
     // TASK-0007 envelope, named individually for the same reason.
     std::string_view{"schemas/baseline-record-v1.schema.json"},
+    // TASK-0010 envelope, named individually for the same reason.
+    std::string_view{"schemas/archcheck-rules-v1.schema.json"},
+    std::string_view{"schemas/archcheck-findings-v1.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},
@@ -60,6 +63,8 @@ constexpr std::array kEnvelopeRoots{
     std::string_view{"third_party/vcpkg/"},
     std::string_view{"third_party/licenses/"},
     std::string_view{"tools/rf_evidence/"},
+    // TASK-0010 envelope: the second repository tool's root.
+    std::string_view{"tools/rf_archcheck/"},
 };
 
 // Read-only material that legitimately coexists with the Task in the same

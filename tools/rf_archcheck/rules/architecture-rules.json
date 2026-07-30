@@ -1,0 +1,254 @@
+{
+  "$schema": "../../../schemas/archcheck-rules-v1.schema.json",
+  "schemaVersion": 1,
+  "policyVersion": 1,
+  "ruleSetSeal": "fnv1a64:1f48c9b9de2a8fcb",
+  "policyHistory": [
+    {
+      "policyVersion": 1,
+      "ruleSetSeal": "fnv1a64:1f48c9b9de2a8fcb"
+    }
+  ],
+  "rules": [
+    {
+      "id": "RA1002",
+      "authority": "spec.0001",
+      "title": "A manifest whose re-serialization under the maintained JSON form differs from its stored bytes.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA1003",
+      "authority": "spec.0001",
+      "title": "A membership array in the root repository index that is not the explicit authority for its kind.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA1004",
+      "authority": "adr.0022",
+      "title": "A listed tool manifest that is absent, duplicated, or not exactly one per tool.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA1005",
+      "authority": "spec.0002",
+      "title": "A manifest carrying a version range, a floating tag, a URL, a credential, or a local path.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA1006",
+      "authority": "adr.0077",
+      "title": "A rule-corpus change that does not increase the policy version.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA2001",
+      "authority": "spec.0007",
+      "title": "A listed module root that does not exist on disk.",
+      "subjectKind": "module_root",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA2002",
+      "authority": "spec.0007",
+      "title": "A production module directory on disk that the root repository index does not list.",
+      "subjectKind": "module_root",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA2003",
+      "authority": "adr.0008",
+      "title": "A recursive discovery construct in a build file.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA2004",
+      "authority": "adr.0012",
+      "title": "A production module identifier outside the accepted first inventory.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA2005",
+      "authority": "adr.0012",
+      "title": "A module name drawn from the forbidden catch-all set.",
+      "subjectKind": "manifest",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA2006",
+      "authority": "adr.0022",
+      "title": "A repository tool reachable by discovery rather than by explicit membership.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA3001",
+      "authority": "adr.0002",
+      "title": "A first-party include whose edge the owning manifest does not declare.",
+      "subjectKind": "source_file",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA3002",
+      "authority": "spec.0007",
+      "title": "A declared edge whose category does not match its actual use.",
+      "subjectKind": "declared_edge",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA3003",
+      "authority": "adr.0002",
+      "title": "An edge that violates layering, or any cycle in the production graph.",
+      "subjectKind": "declared_edge",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA3004",
+      "authority": "adr.0004",
+      "title": "An edge that exists in a build file and not in the owning manifest.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA3005",
+      "authority": "adr.0004",
+      "title": "Dependency truth stated in both the manifest and the build files.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA4001",
+      "authority": "spec.0012",
+      "title": "A server target closure containing a renderer, windowing, user-interface, or client-input module.",
+      "subjectKind": "target_closure",
+      "severity": "finding",
+      "landsWith": "TASK-0016"
+    },
+    {
+      "id": "RA4002",
+      "authority": "spec.0003",
+      "title": "A build boolean that changes a module dependency.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA4004",
+      "authority": "spec.0012",
+      "title": "Loopback in a remote artifact, or the schema compiler in a runtime artifact.",
+      "subjectKind": "target_closure",
+      "severity": "finding",
+      "landsWith": "TASK-0016"
+    },
+    {
+      "id": "RA5001",
+      "authority": "adr.0008",
+      "title": "A source glob in a build file.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA5002",
+      "authority": "adr.0008",
+      "title": "A source file whose extension the owning manifest does not declare.",
+      "subjectKind": "source_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA5003",
+      "authority": "adr.0005",
+      "title": "An acquisition, download, or package-manager command in a build file.",
+      "subjectKind": "build_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA5004",
+      "authority": "adr.0005",
+      "title": "A third-party include the owning manifest does not declare.",
+      "subjectKind": "source_file",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA5005",
+      "authority": "adr.0004",
+      "title": "An in-source build artifact or a committed development-environment project.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA6001",
+      "authority": "adr.0004",
+      "title": "Generated material outside its declared generated root.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA6002",
+      "authority": "spec.0002",
+      "title": "Vendored material without a schema-valid origin record.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA6003",
+      "authority": "adr.0004",
+      "title": "A maintained file beneath a generated or vendored root.",
+      "subjectKind": "repository",
+      "severity": "finding",
+      "landsWith": "now"
+    },
+    {
+      "id": "RA6004",
+      "authority": "adr.0005",
+      "title": "A vendor header, type, or macro reachable from a public header.",
+      "subjectKind": "source_file",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    },
+    {
+      "id": "RA7001",
+      "authority": "adr.0068",
+      "title": "A registrar table that is not byte-identical to its re-derivation from the manifests.",
+      "subjectKind": "projection",
+      "severity": "finding",
+      "landsWith": "TASK-0016"
+    },
+    {
+      "id": "RA7002",
+      "authority": "adr.0071",
+      "title": "A component-schema projection that does not cover its declared schemas exactly.",
+      "subjectKind": "projection",
+      "severity": "finding",
+      "landsWith": "TASK-0011"
+    }
+  ]
+}

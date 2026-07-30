@@ -127,7 +127,10 @@ TEST(Conformance, Item23NoRepositoryToolIsReachableFromAProductionClosure) {
     const auto kAudit = auditShippingClosure(repositoryRoot(), snapshot());
     ASSERT_TRUE(kAudit.has_value()) << (kAudit ? std::string{} : kAudit.error().message);
     EXPECT_TRUE(kAudit->allPassed());
-    EXPECT_EQ(kAudit->checks.size(), 9U);
+    // Seven checks that do not depend on the tool list, plus two per admitted
+    // tool. Written as the arithmetic rather than as a literal so that a tool
+    // whose checks stopped being emitted still fails here.
+    EXPECT_EQ(kAudit->checks.size(), 7U + (2U * snapshot().tools.size()));
 }
 
 // 24. An unregistered tool root or a hidden build input fails repository
