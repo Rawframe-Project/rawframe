@@ -55,8 +55,8 @@ function(rf_resolve_bootstrap_host_class probe_host_id workstation_host_id outpu
         rf_bootstrap_fail("RF1236" "container host identity marker is unreadable")
     endif()
     if(NOT marker_class STREQUAL "container" OR
-       NOT marker_host STREQUAL container_host_id OR
-       NOT marker_probe STREQUAL probe_host_id)
+       NOT marker_host STREQUAL "${container_host_id}" OR
+       NOT marker_probe STREQUAL "${probe_host_id}")
         rf_bootstrap_fail("RF1236" "container host identity marker names a different host")
     endif()
     set(${output_class} "container" PARENT_SCOPE)
@@ -295,7 +295,7 @@ function(rf_load_bootstrap_authority repository_root host_id)
         rf_require_json_members(toolchain_json "bootstrap transport" "hostId,hostClass,absolutePath,minimumVersion,vendorSignature,packageIdentity" bootstrap transportExecutables ${transport_index})
         string(JSON candidate_host GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} hostId)
         string(JSON candidate_class GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} hostClass)
-        if(candidate_host STREQUAL host_id AND candidate_class STREQUAL host_class)
+        if(candidate_host STREQUAL "${host_id}" AND candidate_class STREQUAL "${host_class}")
             if(transport_found)
                 rf_bootstrap_fail("RF1227" "duplicate bootstrap transport for ${host_id} ${host_class}")
             endif()
@@ -309,7 +309,11 @@ function(rf_load_bootstrap_authority repository_root host_id)
         rf_bootstrap_fail("RF1228" "bootstrap transport is missing for ${host_id} ${host_class}")
     endif()
 
-    rf_require_json_members(artifact_json "artifact lock" "\$schema,schemaVersion,lockVersion,verificationCorpus,artifacts")
+    # `delegatedFetches` records inputs another engine acquires on our behalf,
+    # which Stage 0 neither fetches nor verifies. It is admitted here so that the
+    # exact-member rule stays exact rather than being loosened to a subset check.
+    rf_require_json_members(artifact_json "artifact lock"
+        "\$schema,schemaVersion,lockVersion,verificationCorpus,artifacts,delegatedFetches")
     string(JSON artifact_count LENGTH "${artifact_json}" artifacts)
     if(artifact_count LESS 1 OR artifact_count GREATER 4096)
         rf_bootstrap_fail("RF1229" "artifact lock count is outside bootstrap limits")
