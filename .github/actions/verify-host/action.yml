@@ -90,10 +90,15 @@ runs:
     # One archive, because the attestation names exactly one subject. A statement
     # with several subjects would leave a reader choosing which one verification
     # was about, and there is no correct choice.
+    # The archive is written by the same container that wrote the reports. A
+    # Linux container runs as root, so everything it created in the workspace is
+    # root owned, and the runner user cannot create a file next to it. Reading is
+    # all the attestation and upload steps need.
     - name: Collect the reports the run produced
       id: collect
       shell: bash
       env:
+        IMAGE: ${{ inputs.image }}
         HOST: ${{ inputs.host }}
       run: |
         set -euo pipefail
@@ -103,7 +108,12 @@ runs:
             echo "rf: the run produced no reports at $reports" >&2
             exit 1
         fi
-        tar --create --file "$archive" --directory "$reports" .
+        if [[ "$HOST" == "linux-x86_64" ]]; then
+            docker run --rm --volume "${PWD}:/src" --workdir /src "$IMAGE" \
+                tar --create --file "$archive" --directory "$reports" .
+        else
+            tar --create --file "$archive" --directory "$reports" .
+        fi
         collected="$(tar --list --file "$archive" | grep -c '\.json$' || true)"
         if [[ "$collected" -lt 1 ]]; then
             echo "rf: the archive carries no report" >&2
