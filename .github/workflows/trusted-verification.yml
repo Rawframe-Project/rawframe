@@ -49,6 +49,23 @@ jobs:
         with:
           persist-credentials: false
 
+      # The locked artifacts are 4.7 GiB of bytes whose identity is fixed by the
+      # locks, so refetching them on every run buys nothing. Restoring them is
+      # safe because nothing here trusts the cache: Stage 1 verifies every object
+      # against its locked size and SHA-256 before use, and a cache entry that
+      # disagreed would be refetched and refused, not believed.
+      #
+      # The key is the locks themselves, so a change to any locked identity
+      # produces a different cache and never a stale hit. The 12 GiB prepared
+      # LLVM tree is deliberately not cached: it exceeds the 10 GiB repository
+      # cache limit, so attempting it would fail every save.
+      - name: Restore the verified artifact cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/cache
+          key: rf-linux-artifacts-${{ hashFiles('third_party/artifacts.lock.json', 'third_party/toolchain.lock.json', 'third_party/vcpkg/**') }}
+          restore-keys: rf-linux-artifacts-
+
       - name: Sign in to the container registry
         env:
           REGISTRY_TOKEN: ${{ github.token }}
