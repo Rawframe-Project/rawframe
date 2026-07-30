@@ -101,6 +101,178 @@ requireObject(const CanonicalValue& parent, std::string_view name, AttestationRe
     return member;
 }
 
+// Isolates one top-level member's value text out of a bundle.
+//
+// This exists because a Sigstore bundle is not a Rawframe record and the
+// canonical-record reader is the wrong reader for it. That reader enforces the
+// limits maintained records live under, and one of them, a four-kilobyte
+// ceiling on any single string, is smaller than what a genuine bundle carries:
+// the first real one this lane produced has a 5,292-character transparency-log
+// body under `verificationMaterial`. Raising the record ceiling to admit a
+// foreign artifact would weaken every maintained record to accommodate
+// something that is not one.
+//
+// So the part of the bundle that carries meaning is isolated first and parsed
+// on its own. The isolated `dsseEnvelope` is small, well inside every record
+// limit, and is still read by the one reader that owns parsing. Everything this
+// skips over, the certificate chain and the log entries, is material Cosign
+// verifies cryptographically and this code never interprets.
+//
+// The work is bounded by the bundle ceiling checked before this is reached, and
+// the scan is deliberately not a JSON reader: it tracks strings, escapes, and
+// nesting only far enough to find where one value ends, and refuses anything it
+// cannot account for rather than guessing.
+AttestationResult<std::string_view> extractTopLevelValue(std::string_view document, std::string_view name) {
+    if (document.size() < 2U || document.front() != '{' || document.back() != '}') {
+        return refuse(AttestationRejection::BundleMalformed, "the bundle is not one JSON object");
+    }
+    const auto kIsSpace = [](char character) {
+        return character == ' ' || character == '\t' || character == '\n' || character == '\r';
+    };
+
+    std::size_t offset = 1;
+    while (offset < document.size()) {
+        while (offset < document.size() && kIsSpace(document.at(offset))) {
+            ++offset;
+        }
+        if (offset >= document.size() || document.at(offset) == '}') {
+            break;
+        }
+        if (document.at(offset) == ',') {
+            ++offset;
+            continue;
+        }
+        if (document.at(offset) != '"') {
+            return refuse(AttestationRejection::BundleMalformed, "a bundle member name is not a string");
+        }
+
+        const std::size_t kKeyStart = offset + 1U;
+        ++offset;
+        while (offset < document.size() && document.at(offset) != '"') {
+            offset += document.at(offset) == '\\' ? 2U : 1U;
+        }
+        if (offset >= document.size()) {
+            return refuse(AttestationRejection::BundleMalformed, "a bundle member name is unterminated");
+        }
+        const std::string_view kKey = document.substr(kKeyStart, offset - kKeyStart);
+        ++offset;
+
+        while (offset < document.size() && kIsSpace(document.at(offset))) {
+            ++offset;
+        }
+        if (offset >= document.size() || document.at(offset) != ':') {
+            return refuse(AttestationRejection::BundleMalformed, "a bundle member carries no value");
+        }
+        ++offset;
+        while (offset < document.size() && kIsSpace(document.at(offset))) {
+            ++offset;
+        }
+
+        const std::size_t kValueStart = offset;
+        std::size_t depth = 0;
+        bool inString = false;
+        while (offset < document.size()) {
+            const char kCharacter = document.at(offset);
+            if (inString) {
+                if (kCharacter == '\\') {
+                    ++offset;
+                } else if (kCharacter == '"') {
+                    inString = false;
+                }
+                ++offset;
+                continue;
+            }
+            if (kCharacter == '"') {
+                inString = true;
+                ++offset;
+                continue;
+            }
+            if (kCharacter == '{' || kCharacter == '[') {
+                ++depth;
+                ++offset;
+                continue;
+            }
+            if (kCharacter == '}' || kCharacter == ']') {
+                if (depth == 0) {
+                    break;
+                }
+                --depth;
+                ++offset;
+                continue;
+            }
+            if (kCharacter == ',' && depth == 0) {
+                break;
+            }
+            ++offset;
+        }
+        if (inString || depth != 0) {
+            return refuse(AttestationRejection::BundleMalformed, "a bundle member value is unterminated");
+        }
+
+        if (kKey == name) {
+            std::string_view value = document.substr(kValueStart, offset - kValueStart);
+            while (!value.empty() && kIsSpace(value.back())) {
+                value.remove_suffix(1);
+            }
+            if (value.empty()) {
+                return refuse(AttestationRejection::BundleMalformed,
+                              "the bundle member " + std::string(name) + " carries no value");
+            }
+            return value;
+        }
+    }
+    return refuse(AttestationRejection::EnvelopeMismatch, "the bundle carries no " + std::string(name) + " member");
+}
+
+// The same isolation for a member whose value must be one exact string. The
+// quotes are part of the comparison, so a member holding an object or a number
+// cannot compare equal to a string by accident.
+AttestationResult<void>
+requireTopLevelString(std::string_view document, std::string_view name, std::string_view expected) {
+    auto value = extractTopLevelValue(document, name);
+    if (!value) {
+        return std::unexpected(value.error());
+    }
+    const std::string kQuoted = "\"" + std::string(expected) + "\"";
+    if (*value != kQuoted) {
+        return refuse(AttestationRejection::EnvelopeMismatch,
+                      "the bundle " + std::string(name) + " is " + std::string(*value));
+    }
+    return {};
+}
+
+// An in-toto statement writes a subject digest the way the in-toto spec does:
+// the algorithm is the member name and the value is bare lowercase hexadecimal.
+// This repository writes a digest the way OCI does, as one `sha256:<hex>`
+// string, and every other digest it compares is in that form. The two are the
+// same fact in two notations, so the statement's notation is converted once,
+// here, and every later comparison is between values of one shape.
+//
+// This is measured rather than assumed: the first genuine bundle this lane
+// produced carries `"sha256": "03074dec..."` with no prefix. Comparing that
+// against a locally measured `sha256:03074dec...` can never be equal, so a
+// verifier that skipped this step would refuse every real attestation while
+// passing a synthetic fixture that had been written in the local notation.
+//
+// A statement that already carries a prefix, or a value that is not exactly
+// sixty-four lowercase hexadecimal characters, is refused rather than repaired.
+// A digest is either exactly what it claims to be or it is not a digest.
+AttestationResult<std::string> requireStatementDigest(const CanonicalValue& digests) {
+    auto hex = requireString(digests, "sha256", AttestationRejection::SubjectMismatch);
+    if (!hex) {
+        return std::unexpected(hex.error());
+    }
+    constexpr std::size_t kHexLength = 64;
+    const bool kIsLowercaseHex = std::ranges::all_of(*hex, [](char character) {
+        return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
+    });
+    if (hex->size() != kHexLength || !kIsLowercaseHex) {
+        return refuse(AttestationRejection::SubjectMismatch,
+                      "the attested subject digest is not sixty-four lowercase hexadecimal characters: " + *hex);
+    }
+    return std::string(kDigestPrefix) + *hex;
+}
+
 } // namespace
 
 AttestationResult<AttestationClaim> parseAttestationClaim(const CanonicalValue& attestation) {
@@ -173,38 +345,46 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
     // records, so it is parsed with the subset reader rather than ingested as a
     // canonical record. Requiring a foreign producer to emit our canonical form
     // would be requiring the wrong thing of the wrong party.
-    auto parsedBundle = parseCanonicalSubset(bundleBytes);
-    if (!parsedBundle) {
-        return refuse(AttestationRejection::BundleMalformed, "bundle is not parsable: " + parsedBundle.error().detail);
+    //
+    // A trailing end-of-line is part of that. The first genuine bundle this lane
+    // produced ends with a newline, which a canonical record may not have, and
+    // refusing it would refuse every real attestation over a byte nobody signed
+    // anything about. Only what is parsed is trimmed: the descriptor is verified
+    // by the caller over the exact file bytes, and the signature is verified by
+    // Cosign over the exact file, so neither can be widened by this.
+    while (!bundleBytes.empty() && (bundleBytes.back() == '\n' || bundleBytes.back() == '\r' ||
+                                    bundleBytes.back() == ' ' || bundleBytes.back() == '\t')) {
+        bundleBytes.remove_suffix(1);
     }
-    const CanonicalValue& bundle = *parsedBundle;
+    if (auto status = requireTopLevelString(bundleBytes, "mediaType", kSigstoreBundleMediaType); !status) {
+        return std::unexpected(status.error());
+    }
 
-    auto mediaType = requireString(bundle, "mediaType", AttestationRejection::EnvelopeMismatch);
-    if (!mediaType) {
-        return std::unexpected(mediaType.error());
+    auto envelopeText = extractTopLevelValue(bundleBytes, "dsseEnvelope");
+    if (!envelopeText) {
+        return std::unexpected(envelopeText.error());
     }
-    if (*mediaType != kSigstoreBundleMediaType) {
-        return refuse(AttestationRejection::EnvelopeMismatch, "unexpected bundle media type: " + *mediaType);
+    auto parsedEnvelope = parseCanonicalSubset(*envelopeText);
+    if (!parsedEnvelope) {
+        return refuse(AttestationRejection::BundleMalformed,
+                      "the envelope is not parsable: " + parsedEnvelope.error().detail);
     }
+    const CanonicalValue& envelope = *parsedEnvelope;
 
-    auto envelope = requireObject(bundle, "dsseEnvelope", AttestationRejection::EnvelopeMismatch);
-    if (!envelope) {
-        return std::unexpected(envelope.error());
-    }
-    auto payloadType = requireString(**envelope, "payloadType", AttestationRejection::EnvelopeMismatch);
+    auto payloadType = requireString(envelope, "payloadType", AttestationRejection::EnvelopeMismatch);
     if (!payloadType) {
         return std::unexpected(payloadType.error());
     }
     if (*payloadType != kInTotoPayloadType) {
         return refuse(AttestationRejection::EnvelopeMismatch, "unexpected payload type: " + *payloadType);
     }
-    const CanonicalValue* signatures = (*envelope)->find("signatures");
+    const CanonicalValue* signatures = envelope.find("signatures");
     if (signatures == nullptr || signatures->kind() != CanonicalValue::Kind::Array ||
         signatures->elements().size() != 1U) {
         return refuse(AttestationRejection::EnvelopeMismatch, "the envelope must carry exactly one signature");
     }
 
-    auto encodedPayload = requireString(**envelope, "payload", AttestationRejection::EnvelopeMismatch);
+    auto encodedPayload = requireString(envelope, "payload", AttestationRejection::EnvelopeMismatch);
     if (!encodedPayload) {
         return std::unexpected(encodedPayload.error());
     }
@@ -246,7 +426,7 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
     if (!subjectDigests) {
         return std::unexpected(subjectDigests.error());
     }
-    auto subjectDigest = requireString(**subjectDigests, "sha256", AttestationRejection::SubjectMismatch);
+    auto subjectDigest = requireStatementDigest(**subjectDigests);
     if (!subjectDigest) {
         return std::unexpected(subjectDigest.error());
     }

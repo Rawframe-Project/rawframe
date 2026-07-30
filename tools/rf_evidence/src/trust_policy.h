@@ -1,6 +1,7 @@
 #pragma once
 
 #include "attestation.h"
+#include "blob_store.h"
 #include "canonical_json.h"
 
 #include <cstdint>
@@ -94,6 +95,29 @@ struct AdmittedRun {
 // as a merely weaker result.
 [[nodiscard]] TrustResult<TrustClass>
 deriveTrustClass(const CanonicalValue& trust, const AttestationInputs& inputs, std::span<const AdmittedRun> admitted);
+
+// The same derivation for one whole record, with the inputs resolved from what
+// the repository already holds rather than from anything a caller supplies.
+//
+// The verifier is the prepared Cosign the offline lane proves against the
+// artifact lock, and the two byte sequences are found in the local
+// content-addressed store through the digests the claim itself carries. There
+// is no parameter for either, and that is the point: a path option would let
+// the party being judged choose which bytes its own credential was checked
+// against, which is exactly the substitution ADR-0082 exists to prevent. A
+// record can therefore only claim trust over bytes this repository already
+// holds, which is the correct requirement, because a claim about bytes nobody
+// has is not a claim anyone can check.
+//
+// A record with no trust block is making no claim, and an absent claim derives
+// the untrusted class without needing a verifier at all. An empty prepared root
+// means no host was named: that is not a permission to skip the check, it is a
+// refused trusted claim, because a claim nothing can verify is unavailable
+// rather than accepted.
+[[nodiscard]] TrustResult<TrustClass> deriveRecordTrustClass(const CanonicalValue& record,
+                                                             const std::filesystem::path& preparedToolsRoot,
+                                                             const BlobStore& store,
+                                                             std::span<const AdmittedRun> admitted);
 
 // The escalation surface, stated as a function so it can be tested rather than
 // asserted in prose. SPEC-0017 forbids raising authority through a flag, an

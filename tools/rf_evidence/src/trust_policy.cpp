@@ -96,6 +96,60 @@ deriveTrustClass(const CanonicalValue& trust, const AttestationInputs& inputs, s
     return TrustClass::TrustedCi;
 }
 
+TrustResult<TrustClass> deriveRecordTrustClass(const CanonicalValue& record,
+                                               const std::filesystem::path& preparedToolsRoot,
+                                               const BlobStore& store,
+                                               std::span<const AdmittedRun> admitted) {
+    const CanonicalValue* trust = record.find("trust");
+    if (trust == nullptr) {
+        return TrustClass::DiagnosticUntrusted;
+    }
+
+    // The inputs are resolved only once a claim asks for them. Deriving with
+    // absent inputs is what proves an untrusted record needs no verifier, no
+    // prepared toolchain, and no stored bytes.
+    AttestationInputs inputs;
+    const CanonicalValue* provenance = trust->find("provenance");
+    const CanonicalValue* attestation = trust->find("attestation");
+    const bool kClaimsTrust = provenance != nullptr && provenance->kind() == CanonicalValue::Kind::String &&
+                              provenance->text() == trustClassName(TrustClass::TrustedCi);
+    if (kClaimsTrust && attestation != nullptr) {
+        if (preparedToolsRoot.empty()) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the record claims trusted_ci and no host was named, so the offline verifier this "
+                          "generation verifies with could not be located");
+        }
+        auto claim = parseAttestationClaim(*attestation);
+        if (!claim) {
+            return refuse(TrustRejection::AttestationRefused,
+                          std::string(attestationRejectionName(claim.error().rejection)) + ": " + claim.error().detail);
+        }
+        auto bundlePath = store.pathFor(claim->bundle.digest);
+        if (!bundlePath) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the claimed bundle is not addressable in the local store: " + bundlePath.error().detail);
+        }
+        auto subjectPath = store.pathFor(claim->subjectDigest);
+        if (!subjectPath) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the claimed subject is not addressable in the local store: " + subjectPath.error().detail);
+        }
+        const auto kCosignRoot = preparedToolsRoot / "cosign";
+        inputs = AttestationInputs{
+            .bundlePath = *std::move(bundlePath),
+            .subjectPath = *std::move(subjectPath),
+#ifdef _WIN32
+            .cosign = kCosignRoot / "bin" / "cosign.exe",
+#else
+            .cosign = kCosignRoot / "bin" / "cosign",
+#endif
+            .trustedRoot = kCosignRoot / "share" / "trusted_root.json",
+        };
+    }
+
+    return deriveTrustClass(*trust, inputs, admitted);
+}
+
 std::vector<std::string> refusedEscalationRequests(std::span<const std::string_view> arguments) {
     std::vector<std::string> refused;
     for (const std::string_view kArgument : arguments) {

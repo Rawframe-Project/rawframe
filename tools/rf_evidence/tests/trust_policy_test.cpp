@@ -2,6 +2,7 @@
 #include "trust_policy.h"
 
 #include <array>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <string>
 #include <string_view>
@@ -98,6 +99,69 @@ TEST(TrustPolicy, RefusesEveryRequestThatWouldRaiseAuthorityFromOutsideTheEviden
     for (const std::string& entry : kRefused) {
         EXPECT_NE(entry, "--repository-root") << "an ordinary option must not be mistaken for an escalation";
     }
+}
+
+// The whole-record entry point, which is what the validate operation calls.
+namespace {
+
+TrustResult<TrustClass> deriveRecord(std::string_view canonicalRecord, const std::filesystem::path& preparedTools) {
+    auto value = ingestCanonicalBytes(canonicalRecord);
+    EXPECT_TRUE(value.has_value()) << "the fixture itself must be canonical: " << canonicalRecord;
+    if (!value) {
+        return std::unexpected(TrustFailure{TrustRejection::MalformedTrustBlock, "fixture is not canonical"});
+    }
+    return deriveRecordTrustClass(*value, preparedTools, BlobStore("does-not-exist-store"), {});
+}
+
+// One claim shaped exactly as the schema requires, over bytes no store holds.
+constexpr std::string_view kTrustedRecord =
+    R"({"recordKind":"raw_run_receipt","trust":{"attestation":{"builderId":"https://github.com/Rawframe-Project/rawframe/.github/workflows/trusted-verification.yml@refs/heads/main","bundle":{"byteLength":11101,"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30535694786,"sourceCommit":"dc9563e75e1144f5e296d9cb0d883c0fe2ca12ac","sourceRef":"refs/heads/main","sourceRepository":"https://github.com/Rawframe-Project/rawframe","subjectDigest":"sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff","subjectName":"linux-x86_64-reports.tar","workflowPath":".github/workflows/verify-main.yml","workflowRef":"refs/heads/main"},"provenance":"trusted_ci"}})";
+
+} // namespace
+
+// A record making no claim needs no verifier, no host, and no store. This is why
+// the option is not required: an ordinary validation must not depend on a
+// prepared toolchain it never reaches for.
+TEST(TrustPolicy, DerivesAnUntrustedRecordWithoutAHostOrAStore) {
+    auto derived =
+        deriveRecord(R"({"recordKind":"raw_run_receipt","trust":{"provenance":"diagnostic_untrusted"}})", {});
+    ASSERT_TRUE(derived.has_value()) << (derived ? "" : derived.error().detail);
+    EXPECT_EQ(*derived, TrustClass::DiagnosticUntrusted);
+
+    auto absent = deriveRecord(R"({"recordKind":"attempt_plan"})", {});
+    ASSERT_TRUE(absent.has_value()) << (absent ? "" : absent.error().detail);
+    EXPECT_EQ(*absent, TrustClass::DiagnosticUntrusted);
+}
+
+// Naming no host is not permission to skip the check. A claim nothing can
+// verify is unavailable, which is a refusal and not a quiet demotion.
+TEST(TrustPolicy, RefusesATrustedClaimWhenNoVerifierCouldBeLocated) {
+    auto derived = deriveRecord(kTrustedRecord, {});
+    ASSERT_FALSE(derived.has_value());
+    EXPECT_EQ(derived.error().rejection, TrustRejection::ProvenanceUnavailable);
+}
+
+// The bytes a claim is about have to be bytes this repository holds, and the
+// two halves of that fail in different places, which is worth stating.
+//
+// A bundle digest the descriptor rules refuse never reaches the store at all:
+// the claim is malformed and the attestation is refused. A subject digest is a
+// plain string in the claim, so a form the store cannot address is caught by the
+// store, and the reason is that the claim points at nothing rather than that it
+// was checked and failed.
+TEST(TrustPolicy, RefusesATrustedClaimOverBytesTheStoreCannotAddress) {
+    const std::string kRecord(kTrustedRecord);
+    const auto kBadBundle = std::string(kRecord).replace(
+        kRecord.find("sha256:1111"), std::string_view("sha256:1111").size(), "sha512:1111");
+    auto refusedBundle = deriveRecord(kBadBundle, "prepared-tools");
+    ASSERT_FALSE(refusedBundle.has_value());
+    EXPECT_EQ(refusedBundle.error().rejection, TrustRejection::AttestationRefused);
+
+    const auto kBadSubject = std::string(kRecord).replace(
+        kRecord.find("sha256:0307"), std::string_view("sha256:0307").size(), "sha512:0307");
+    auto refusedSubject = deriveRecord(kBadSubject, "prepared-tools");
+    ASSERT_FALSE(refusedSubject.has_value());
+    EXPECT_EQ(refusedSubject.error().rejection, TrustRejection::ProvenanceUnavailable);
 }
 
 TEST(TrustPolicy, NamesEveryClassAndRejectionItCanReport) {

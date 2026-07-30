@@ -1,5 +1,6 @@
 #include "record_command.h"
 
+#include "attestation.h"
 #include "baseline_record.h"
 #include "canonical_json.h"
 #include "descriptor.h"
@@ -12,6 +13,7 @@
 #include "record_gate.h"
 #include "repository_validator.h"
 #include "store_command.h"
+#include "trust_policy.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -312,6 +314,34 @@ int validateRecordOperation(const ParsedOptions& options, std::ostream& output, 
     if (!identity) {
         return failRecord(output, errors, identity.error(), options.format);
     }
+
+    // After the record is canonical, schema-valid, and correctly identified, and
+    // before anything is said about it: the schema admits a trusted_ci claim but
+    // cannot check one, so the check happens here or nowhere.
+    //
+    // The admitted-run ledger is empty because one record is one admission, so
+    // there is no earlier admission in scope for the replay rule to compare
+    // against. That rule needs several admissions in one operation, and nothing
+    // in this generation produces a trusted claim, so there is no ledger to
+    // rebuild and nowhere to pretend one exists.
+    // A host is named only when one was asked for. An untrusted record needs no
+    // verifier, so requiring the option would make every ordinary validation
+    // depend on a prepared toolchain it never touches; a trusted claim without a
+    // host is refused by the derivation itself, which is where the reason
+    // belongs.
+    const std::filesystem::path kPreparedTools =
+        options.hostId ? options.repositoryRoot / "out" / "prepared" / *options.hostId / "tools"
+                       : std::filesystem::path{};
+    auto trustClass = deriveRecordTrustClass(*record, kPreparedTools, storeFor(options), {});
+    if (!trustClass) {
+        return fail(
+            errors,
+            Failure{FailureCode::VerificationFailed,
+                    "trust.provenance",
+                    std::string(trustRejectionName(trustClass.error().rejection)) + ": " + trustClass.error().detail},
+            options.format);
+    }
+
     if (options.format == OutputFormat::Json) {
         if (kMediaType == kRawRunReceiptMediaType) {
             auto summary = summarizeRawRunReceipt(*record);
@@ -328,7 +358,10 @@ int validateRecordOperation(const ParsedOptions& options, std::ostream& output, 
         output << serializeCanonical(describeAsValue(descriptor));
         return 0;
     }
-    renderSuccess(output, "validate_record", *identity + " is canonical and valid", options.format);
+    renderSuccess(output,
+                  "validate_record",
+                  *identity + " is canonical and valid, provenance " + trustClassName(*trustClass),
+                  options.format);
     return 0;
 }
 

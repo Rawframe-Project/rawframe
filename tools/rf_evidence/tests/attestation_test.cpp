@@ -1,7 +1,10 @@
 #include "attestation.h"
 #include "canonical_json.h"
 
+#include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -107,7 +110,11 @@ TEST(Attestation, DecodesAGenuineProvenanceStatement) {
     auto decoded = decodeProvenanceBundle(buildBundle(StatementFields{}));
     ASSERT_TRUE(decoded.has_value()) << (decoded ? "" : decoded.error().detail);
     EXPECT_EQ(decoded->subjectName, kSubjectName);
-    EXPECT_EQ(decoded->subjectDigest, kSubjectDigestHex);
+    // The statement writes the digest in in-toto notation, as bare hexadecimal
+    // under the algorithm name. Decoding converts it once into the notation
+    // every other digest here uses, so that what comes out can be compared
+    // against a locally measured value without either side guessing.
+    EXPECT_EQ(decoded->subjectDigest, "sha256:" + std::string(kSubjectDigestHex));
     EXPECT_EQ(decoded->builderId, kBuilderId);
     EXPECT_EQ(decoded->sourceRepository, kTrustedSourceRepositoryUri);
     EXPECT_EQ(decoded->sourceCommit, kCommit);
@@ -243,6 +250,35 @@ TEST(Attestation, ParsesAWellFormedClaimAndRefusesAZeroRunIdentity) {
 // The verifier is a locked external binary, and its absence is its own answer.
 // Reporting a missing verifier as a failed signature would make an unconfigured
 // host look like a forged bundle.
+// A bundle carries material this code never interprets, and its size is not
+// allowed to decide whether the part that matters can be read. The genuine
+// fixture below has a 5,292-character transparency-log body, which is past the
+// ceiling a maintained record lives under; this states the rule directly rather
+// than leaving it as a property of one artifact.
+TEST(Attestation, DecodesABundleWhoseUnreadMaterialExceedsTheRecordStringCeiling) {
+    const std::string kLong(6'000, 'A');
+    const std::string kGenuine = buildBundle(StatementFields{});
+    const std::string kWithMaterial = kGenuine.substr(0, kGenuine.size() - 1U) +
+                                      R"(,"verificationMaterial":{"tlogEntries":[{"canonicalizedBody":")" + kLong +
+                                      R"("}]}})";
+
+    auto decoded = decodeProvenanceBundle(kWithMaterial);
+    ASSERT_TRUE(decoded.has_value()) << (decoded ? "" : decoded.error().detail);
+    EXPECT_EQ(decoded->runId, kRunId);
+
+    // The same ceiling still applies to what is read. A payload past it is
+    // refused, because that string is one this code parses.
+    StatementFields oversized;
+    oversized.subjectName = kLong;
+    EXPECT_EQ(rejectionOf(buildBundle(oversized)), AttestationRejection::BundleMalformed);
+}
+
+TEST(Attestation, RefusesABundleThatIsNotOneObject) {
+    EXPECT_EQ(rejectionOf(R"(["not","an","object"])"), AttestationRejection::BundleMalformed);
+    EXPECT_EQ(rejectionOf(R"({"mediaType":)"), AttestationRejection::BundleMalformed);
+    EXPECT_EQ(rejectionOf(R"({"dsseEnvelope":{"payload":"e30="}})"), AttestationRejection::EnvelopeMismatch);
+}
+
 TEST(Attestation, ReportsAnAbsentVerifierAsUnavailableRatherThanInvalid) {
     AttestationInputs inputs;
     inputs.bundlePath = "does-not-exist.sigstore.json";
@@ -252,6 +288,48 @@ TEST(Attestation, ReportsAnAbsentVerifierAsUnavailableRatherThanInvalid) {
     auto status = verifyBundleSignature(inputs, "sha256:" + std::string(kSubjectDigestHex));
     ASSERT_FALSE(status.has_value());
     EXPECT_EQ(status.error().rejection, AttestationRejection::VerifierUnavailable);
+}
+
+// The one checked-in bundle, and the reason the rule above exists.
+//
+// Everything else in this file is built from a reference statement, which is
+// the right way to test a rule and the wrong way to learn what a real producer
+// emits. This is the first bundle the protected lane actually produced, byte
+// for byte as GitHub wrote it, and it is here because it caught a defect no
+// synthetic fixture could: the statement carries its subject digest as bare
+// hexadecimal, so a verifier comparing it against a locally measured
+// `sha256:<hex>` refused every genuine attestation while every hand-written
+// case passed.
+//
+// It is also a negative case on its own terms, and deliberately so. The run
+// that produced it was a pull-request run, so its source ref and its builder
+// identity both name `refs/pull/12/merge`. ADR-0082 admits exactly one ref, so
+// this bundle must be refused, and the refusal has to be the ref rather than
+// anything else: a bundle that failed here for a malformed envelope or an
+// unreadable payload would prove nothing about the rule under test.
+TEST(Attestation, DecodesTheFirstGenuineBundleAndRefusesItsUnprotectedRef) {
+    const auto kPath = std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) /
+                       "tools/rf_evidence/tests/fixtures/evidence/attestations/"
+                       "pull-request-run-30535694786.sigstore.json";
+    std::ifstream input(kPath, std::ios::binary);
+    ASSERT_TRUE(input.is_open()) << "missing genuine bundle fixture at " << kPath.generic_string();
+    const std::string kBundle((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    auto decoded = decodeProvenanceBundle(kBundle);
+    ASSERT_TRUE(decoded.has_value()) << (decoded ? "" : decoded.error().detail);
+    EXPECT_EQ(decoded->subjectName, "linux-x86_64-reports.tar");
+    EXPECT_EQ(decoded->subjectDigest, "sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff");
+    EXPECT_EQ(decoded->sourceRepository, kTrustedSourceRepositoryUri);
+    EXPECT_EQ(decoded->sourceCommit, "dc9563e75e1144f5e296d9cb0d883c0fe2ca12ac");
+    EXPECT_EQ(decoded->sourceRef, "refs/pull/12/merge");
+    EXPECT_EQ(decoded->workflowPath, ".github/workflows/verify-pull-request.yml");
+    EXPECT_EQ(decoded->runId, 30535694786);
+    EXPECT_EQ(decoded->runAttempt, 1);
+
+    // The two identities that make this bundle unusable, stated as the
+    // comparisons the verifier makes rather than as prose about them.
+    EXPECT_NE(decoded->sourceRef, kTrustedProtectedRef);
+    EXPECT_NE(decoded->builderId, kTrustedCertificateIdentity);
 }
 
 TEST(Attestation, ReportsAnAbsentSubjectRatherThanDigestingNothing) {
