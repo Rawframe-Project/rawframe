@@ -32,14 +32,10 @@
 # the closure exist without becoming an authority: Stage 0 still verifies its own
 # copies against the signed index, because an image is not evidence.
 #
-# `gpg-agent` is installed for the same reason and belongs to neither list.
-# GnuPG's `gpg` autostarts the agent at its compiled-in absolute path on every
-# operation, including importing a public key that needs no agent at all. With
-# the binary missing, `gpg` still imports the key and still writes the keyring,
-# and then exits nonzero, which the bootstrap correctly reads as a failed
-# keyring construction. The agent is a component of the same GnuPG version, so
-# it is installed at exactly the version the locked verifier records name and is
-# checked afterwards like everything else here.
+# `gpg-agent` and `git` are not handled here at all any more. They are members of
+# the locked host tuple, so they arrive through the first list, are proven
+# against the signed index by the same two passes, and are probed on every host
+# class rather than being something this image knows about.
 set -eu
 
 list="$1"
@@ -121,16 +117,6 @@ apt-get install -y --no-install-recommends --allow-downgrades $pins
 # admits it.
 apt-get install -y --no-install-recommends curl ca-certificates
 
-# The agent that the extracted `gpg` expects to exist, at the version the
-# verifier records name. Read from the list rather than restated, so the version
-# keeps its one authority in `third_party/artifacts.lock.json`.
-agent_version="$(awk -F'|' '$1 == "gpg" { print $2 }' "$verifier_list")"
-if [ -z "$agent_version" ]; then
-    echo "rf: the verifier list has no gpg record to take the agent version from" >&2
-    exit 1
-fi
-apt-get install -y --no-install-recommends "gpg-agent=$agent_version"
-
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
@@ -154,12 +140,6 @@ done < "$both"
 transport_version="$(dpkg-query -W -f='${Version}' curl 2>/dev/null || true)"
 if [ "$transport_version" != "8.5.0-2ubuntu10" ]; then
     echo "rf: curl is $transport_version and the transport record says 8.5.0-2ubuntu10" >&2
-    status=1
-fi
-
-installed_agent="$(dpkg-query -W -f='${Version}' gpg-agent 2>/dev/null || true)"
-if [ "$installed_agent" != "$agent_version" ]; then
-    echo "rf: gpg-agent is $installed_agent and the locked verifier version is $agent_version" >&2
     status=1
 fi
 
