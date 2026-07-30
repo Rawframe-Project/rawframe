@@ -20,8 +20,7 @@ AttestationInputs absentInputs() {
     return inputs;
 }
 
-TrustResult<TrustClass> deriveFromText(std::string_view canonicalTrust,
-                                       std::span<const AdmittedRun> admitted = {}) {
+TrustResult<TrustClass> deriveFromText(std::string_view canonicalTrust, std::span<const AdmittedRun> admitted = {}) {
     auto value = ingestCanonicalBytes(canonicalTrust);
     EXPECT_TRUE(value.has_value()) << "the fixture itself must be canonical: " << canonicalTrust;
     if (!value) {
@@ -70,8 +69,8 @@ TEST(TrustPolicy, RefusesATrustBlockThatIsNotAnObjectOrCarriesNoProvenance) {
     ASSERT_FALSE(missing.has_value());
     EXPECT_EQ(missing.error().rejection, TrustRejection::MalformedTrustBlock);
 
-    const CanonicalValue array = CanonicalValue::makeArray({});
-    auto derived = deriveTrustClass(array, absentInputs(), {});
+    const CanonicalValue kArray = CanonicalValue::makeArray({});
+    auto derived = deriveTrustClass(kArray, absentInputs(), {});
     ASSERT_FALSE(derived.has_value());
     EXPECT_EQ(derived.error().rejection, TrustRejection::MalformedTrustBlock);
 }
@@ -81,14 +80,22 @@ TEST(TrustPolicy, RefusesATrustBlockThatIsNotAnObjectOrCarriesNoProvenance) {
 // refused so a regression cannot pass quietly.
 TEST(TrustPolicy, RefusesEveryRequestThatWouldRaiseAuthorityFromOutsideTheEvidence) {
     const std::array<std::string_view, 10> kAttempts{
-        "--trust=trusted_ci", "--trust",   "--tier=tier_2",       "--provenance=trusted_ci", "--trusted",
-        "--trusted-ci",       "--promote", "--activate-baseline", "--force",                 "--repository-root",
+        "--trust=trusted_ci",
+        "--trust",
+        "--tier=tier_2",
+        "--provenance=trusted_ci",
+        "--trusted",
+        "--trusted-ci",
+        "--promote",
+        "--activate-baseline",
+        "--force",
+        "--repository-root",
     };
-    const auto refused = refusedEscalationRequests(kAttempts);
-    ASSERT_EQ(refused.size(), 9U);
-    EXPECT_EQ(refused.front(), "--trust=trusted_ci");
-    EXPECT_EQ(refused.back(), "--force");
-    for (const std::string& entry : refused) {
+    const auto kRefused = refusedEscalationRequests(kAttempts);
+    ASSERT_EQ(kRefused.size(), 9U);
+    EXPECT_EQ(kRefused.front(), "--trust=trusted_ci");
+    EXPECT_EQ(kRefused.back(), "--force");
+    for (const std::string& entry : kRefused) {
         EXPECT_NE(entry, "--repository-root") << "an ordinary option must not be mistaken for an escalation";
     }
 }

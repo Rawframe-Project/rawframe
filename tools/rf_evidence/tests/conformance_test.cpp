@@ -508,8 +508,8 @@ TEST(Conformance, Item18ALocalCallerCannotClaimTrustedCiHigherTiersOrPromotion) 
     ASSERT_FALSE(kDerived.has_value());
     EXPECT_EQ(kDerived.error().rejection, TrustRejection::ProvenanceUnavailable);
 
-    EXPECT_TRUE(refusedEscalationRequests(std::array<std::string_view, 2>{"--trust=trusted_ci", "--promote"}).size()
-                == 2U);
+    EXPECT_TRUE(refusedEscalationRequests(std::array<std::string_view, 2>{"--trust=trusted_ci", "--promote"}).size() ==
+                2U);
 
     for (const std::string_view kName : {std::string_view{"claims-trusted-provenance"},
                                          std::string_view{"claims-a-higher-tier"},

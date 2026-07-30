@@ -201,8 +201,8 @@ template <typename ValueType> using AttestationResult = std::expected<ValueType,
 // certificate identity. Every ambient Sigstore setting is unset for the child
 // process, so an environment variable cannot redirect the root or re-enable a
 // network fetch.
-[[nodiscard]] AttestationResult<void>
-verifyBundleSignature(const AttestationInputs& inputs, std::string_view subjectDigest);
+[[nodiscard]] AttestationResult<void> verifyBundleSignature(const AttestationInputs& inputs,
+                                                            std::string_view subjectDigest);
 
 // The whole of ADR-0082's verification policy except the replay rule, which
 // needs the ledger and therefore belongs to trust derivation.

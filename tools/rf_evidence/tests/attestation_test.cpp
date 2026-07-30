@@ -26,16 +26,16 @@ std::string base64Encode(std::string_view raw) {
     constexpr std::string_view kAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string encoded;
     for (std::size_t offset = 0; offset < raw.size(); offset += 3U) {
-        const std::size_t remaining = raw.size() - offset;
-        const auto first = static_cast<unsigned char>(raw[offset]);
-        const auto second = remaining > 1U ? static_cast<unsigned char>(raw[offset + 1U]) : 0U;
-        const auto third = remaining > 2U ? static_cast<unsigned char>(raw[offset + 2U]) : 0U;
-        const std::uint32_t triple = (static_cast<std::uint32_t>(first) << 16U)
-                                     | (static_cast<std::uint32_t>(second) << 8U) | static_cast<std::uint32_t>(third);
-        encoded.push_back(kAlphabet[(triple >> 18U) & 0x3FU]);
-        encoded.push_back(kAlphabet[(triple >> 12U) & 0x3FU]);
-        encoded.push_back(remaining > 1U ? kAlphabet[(triple >> 6U) & 0x3FU] : '=');
-        encoded.push_back(remaining > 2U ? kAlphabet[triple & 0x3FU] : '=');
+        const std::size_t kRemaining = raw.size() - offset;
+        const auto kFirst = static_cast<unsigned char>(raw.at(offset));
+        const auto kSecond = kRemaining > 1U ? static_cast<unsigned char>(raw.at(offset + 1U)) : 0U;
+        const auto kThird = kRemaining > 2U ? static_cast<unsigned char>(raw.at(offset + 2U)) : 0U;
+        const std::uint32_t kTriple = (static_cast<std::uint32_t>(kFirst) << 16U) |
+                                      (static_cast<std::uint32_t>(kSecond) << 8U) | static_cast<std::uint32_t>(kThird);
+        encoded.push_back(kAlphabet.at((kTriple >> 18U) & 0x3FU));
+        encoded.push_back(kAlphabet.at((kTriple >> 12U) & 0x3FU));
+        encoded.push_back(kRemaining > 1U ? kAlphabet.at((kTriple >> 6U) & 0x3FU) : '=');
+        encoded.push_back(kRemaining > 2U ? kAlphabet.at(kTriple & 0x3FU) : '=');
     }
     return encoded;
 }
@@ -55,18 +55,20 @@ struct StatementFields {
 };
 
 std::string buildStatement(const StatementFields& fields) {
-    return std::string(R"({"_type":")") + fields.statementType + R"(","predicateType":")" + fields.predicateType
-           + R"(","predicate":{"buildDefinition":{"externalParameters":{"workflow":{"path":")" + fields.workflowPath
-           + R"(","ref":")" + fields.workflowRef + R"(","repository":")" + fields.repository
-           + R"("}},"internalParameters":{"github":{"event_name":"push"}},"resolvedDependencies":[{"digest":{"gitCommit":")"
-           + fields.commit + R"("},"uri":")" + fields.sourceUri
-           + R"("}]},"runDetails":{"builder":{"id":")" + fields.builderId + R"("},"metadata":{"invocationId":")"
-           + fields.invocationId + R"("}}},"subject":[{"digest":{"sha256":")" + fields.subjectDigest + R"("},"name":")"
-           + fields.subjectName + R"("}]})";
+    return std::string(R"({"_type":")") + fields.statementType + R"(","predicateType":")" + fields.predicateType +
+           R"(","predicate":{"buildDefinition":{"externalParameters":{"workflow":{"path":")" + fields.workflowPath +
+           R"(","ref":")" + fields.workflowRef + R"(","repository":")" + fields.repository +
+           R"("}},"internalParameters":{"github":{"event_name":"push"}},"resolvedDependencies":[{"digest":{"gitCommit":")" +
+           fields.commit + R"("},"uri":")" + fields.sourceUri + R"("}]},"runDetails":{"builder":{"id":")" +
+           fields.builderId + R"("},"metadata":{"invocationId":")" + fields.invocationId +
+           R"("}}},"subject":[{"digest":{"sha256":")" + fields.subjectDigest + R"("},"name":")" + fields.subjectName +
+           R"("}]})";
 }
 
-std::string buildBundle(const StatementFields& fields, std::string_view mediaType = kSigstoreBundleMediaType,
-                        std::string_view payloadType = kInTotoPayloadType, std::size_t signatureCount = 1U) {
+std::string buildBundle(const StatementFields& fields,
+                        std::string_view mediaType = kSigstoreBundleMediaType,
+                        std::string_view payloadType = kInTotoPayloadType,
+                        std::size_t signatureCount = 1U) {
     std::string signatures = "[";
     for (std::size_t index = 0; index < signatureCount; ++index) {
         if (index != 0U) {
@@ -75,9 +77,9 @@ std::string buildBundle(const StatementFields& fields, std::string_view mediaTyp
         signatures += R"({"sig":"c2lnbmF0dXJl"})";
     }
     signatures += "]";
-    return std::string(R"({"dsseEnvelope":{"payload":")") + base64Encode(buildStatement(fields))
-           + R"(","payloadType":")" + std::string(payloadType) + R"(","signatures":)" + signatures
-           + R"(},"mediaType":")" + std::string(mediaType) + R"("})";
+    return std::string(R"({"dsseEnvelope":{"payload":")") + base64Encode(buildStatement(fields)) +
+           R"(","payloadType":")" + std::string(payloadType) + R"(","signatures":)" + signatures +
+           R"(},"mediaType":")" + std::string(mediaType) + R"("})";
 }
 
 AttestationRejection rejectionOf(const std::string& bundle) {
@@ -90,14 +92,13 @@ AttestationRejection rejectionOf(const std::string& bundle) {
 }
 
 std::string claimText(std::string_view bundleDigest, std::uint64_t bundleLength) {
-    return std::string(R"({"builderId":")") + std::string(kBuilderId)
-           + R"(","bundle":{"byteLength":)" + std::to_string(bundleLength)
-           + R"(,"digest":"sha256:)" + std::string(bundleDigest)
-           + R"(","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30485058826,"sourceCommit":")"
-           + std::string(kCommit) + R"(","sourceRef":"refs/heads/main","sourceRepository":")"
-           + std::string(kTrustedSourceRepositoryUri) + R"(","subjectDigest":"sha256:)" + std::string(kSubjectDigestHex)
-           + R"(","subjectName":")" + std::string(kSubjectName) + R"(","workflowPath":")"
-           + std::string(kTrustedEntryWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
+    return std::string(R"({"builderId":")") + std::string(kBuilderId) + R"(","bundle":{"byteLength":)" +
+           std::to_string(bundleLength) + R"(,"digest":"sha256:)" + std::string(bundleDigest) +
+           R"(","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30485058826,"sourceCommit":")" +
+           std::string(kCommit) + R"(","sourceRef":"refs/heads/main","sourceRepository":")" +
+           std::string(kTrustedSourceRepositoryUri) + R"(","subjectDigest":"sha256:)" + std::string(kSubjectDigestHex) +
+           R"(","subjectName":")" + std::string(kSubjectName) + R"(","workflowPath":")" +
+           std::string(kTrustedEntryWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
 }
 
 } // namespace
@@ -207,32 +208,31 @@ TEST(Attestation, RefusesASourceUriThatNamesNoRef) {
 // The payload is base64 and only base64. A URL-safe alphabet, misplaced
 // padding, or trailing data would each let two encodings produce one statement.
 TEST(Attestation, RefusesAPayloadThatIsNotStandardPaddedBase64) {
-    const std::string genuine = buildBundle(StatementFields{});
-    const std::string urlSafe = std::string(R"({"dsseEnvelope":{"payload":"e19fXw-_","payloadType":")")
-                                + std::string(kInTotoPayloadType)
-                                + R"(","signatures":[{"sig":"c2ln"}]},"mediaType":")"
-                                + std::string(kSigstoreBundleMediaType) + R"("})";
-    EXPECT_EQ(rejectionOf(urlSafe), AttestationRejection::BundleMalformed);
-    EXPECT_NE(genuine, urlSafe);
+    const std::string kGenuine = buildBundle(StatementFields{});
+    const std::string kUrlSafe = std::string(R"({"dsseEnvelope":{"payload":"e19fXw-_","payloadType":")") +
+                                 std::string(kInTotoPayloadType) + R"(","signatures":[{"sig":"c2ln"}]},"mediaType":")" +
+                                 std::string(kSigstoreBundleMediaType) + R"("})";
+    EXPECT_EQ(rejectionOf(kUrlSafe), AttestationRejection::BundleMalformed);
+    EXPECT_NE(kGenuine, kUrlSafe);
 }
 
 TEST(Attestation, ParsesAWellFormedClaimAndRefusesAZeroRunIdentity) {
-    const std::string bundle = buildBundle(StatementFields{});
-    auto described = describeBytes(bundle, kSigstoreBundleMediaType);
+    const std::string kBundle = buildBundle(StatementFields{});
+    auto described = describeBytes(kBundle, kSigstoreBundleMediaType);
     ASSERT_TRUE(described.has_value());
-    const std::string digestHex = described->digest.substr(std::string_view("sha256:").size());
+    const std::string kDigestHex = described->digest.substr(std::string_view("sha256:").size());
 
-    auto parsedClaim = ingestCanonicalBytes(claimText(digestHex, described->byteLength));
+    auto parsedClaim = ingestCanonicalBytes(claimText(kDigestHex, described->byteLength));
     ASSERT_TRUE(parsedClaim.has_value()) << (parsedClaim ? "" : parsedClaim.error().detail);
     auto claim = parseAttestationClaim(*parsedClaim);
     ASSERT_TRUE(claim.has_value()) << (claim ? "" : claim.error().detail);
     EXPECT_EQ(claim->runId, kRunId);
     EXPECT_EQ(claim->subjectName, kSubjectName);
 
-    std::string zeroed = claimText(digestHex, described->byteLength);
-    const auto runIdOffset = zeroed.find(R"("runId":30485058826)");
-    ASSERT_NE(runIdOffset, std::string::npos);
-    zeroed.replace(runIdOffset, std::string_view(R"("runId":30485058826)").size(), R"("runId":0)");
+    std::string zeroed = claimText(kDigestHex, described->byteLength);
+    const auto kRunIdOffset = zeroed.find(R"("runId":30485058826)");
+    ASSERT_NE(kRunIdOffset, std::string::npos);
+    zeroed.replace(kRunIdOffset, std::string_view(R"("runId":30485058826)").size(), R"("runId":0)");
     auto zeroedValue = ingestCanonicalBytes(zeroed);
     ASSERT_TRUE(zeroedValue.has_value());
     auto zeroedClaim = parseAttestationClaim(*zeroedValue);

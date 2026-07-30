@@ -92,9 +92,8 @@ struct AdmittedRun {
 // admitted for a different subject. A claim that fails is a typed failure and
 // never a silent demotion, because demoting a forgery to a lower tier files it
 // as a merely weaker result.
-[[nodiscard]] TrustResult<TrustClass> deriveTrustClass(const CanonicalValue& trust,
-                                                       const AttestationInputs& inputs,
-                                                       std::span<const AdmittedRun> admitted);
+[[nodiscard]] TrustResult<TrustClass>
+deriveTrustClass(const CanonicalValue& trust, const AttestationInputs& inputs, std::span<const AdmittedRun> admitted);
 
 // The escalation surface, stated as a function so it can be tested rather than
 // asserted in prose. SPEC-0017 forbids raising authority through a flag, an

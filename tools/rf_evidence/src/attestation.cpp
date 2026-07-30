@@ -30,7 +30,7 @@ AttestationResult<std::string> decodeBase64(std::string_view encoded) {
         table.fill(-1);
         constexpr std::string_view kAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         for (std::size_t index = 0; index < kAlphabet.size(); ++index) {
-            table[static_cast<unsigned char>(kAlphabet[index])] = static_cast<std::int8_t>(index);
+            table.at(static_cast<unsigned char>(kAlphabet.at(index))) = static_cast<std::int8_t>(index);
         }
         return table;
     }();
@@ -48,8 +48,8 @@ AttestationResult<std::string> decodeBase64(std::string_view encoded) {
         std::array<std::int8_t, 4> quantum{};
         std::size_t padding = 0;
         for (std::size_t index = 0; index < 4U; ++index) {
-            const char character = encoded[offset + index];
-            if (character == '=') {
+            const char kCharacter = encoded.at(offset + index);
+            if (kCharacter == '=') {
                 // Padding is only ever the last one or two characters of the
                 // last quantum. Anywhere else it is a second encoding of the
                 // same bytes, which is exactly what canonical form forbids.
@@ -57,35 +57,34 @@ AttestationResult<std::string> decodeBase64(std::string_view encoded) {
                     return refuse(AttestationRejection::BundleMalformed, "payload padding is misplaced");
                 }
                 ++padding;
-                quantum[index] = 0;
+                quantum.at(index) = 0;
                 continue;
             }
             if (padding != 0) {
                 return refuse(AttestationRejection::BundleMalformed, "payload has data after padding");
             }
-            const std::int8_t value = kReverse[static_cast<unsigned char>(character)];
-            if (value < 0) {
+            const std::int8_t kValue = kReverse.at(static_cast<unsigned char>(kCharacter));
+            if (kValue < 0) {
                 return refuse(AttestationRejection::BundleMalformed, "payload carries a character outside base64");
             }
-            quantum[index] = value;
+            quantum.at(index) = kValue;
         }
-        const auto triple = static_cast<std::uint32_t>((static_cast<std::uint32_t>(quantum[0]) << 18U)
-                                                       | (static_cast<std::uint32_t>(quantum[1]) << 12U)
-                                                       | (static_cast<std::uint32_t>(quantum[2]) << 6U)
-                                                       | static_cast<std::uint32_t>(quantum[3]));
-        decoded.push_back(static_cast<char>((triple >> 16U) & 0xFFU));
+        const std::uint32_t kTriple =
+            (static_cast<std::uint32_t>(quantum.at(0)) << 18U) | (static_cast<std::uint32_t>(quantum.at(1)) << 12U) |
+            (static_cast<std::uint32_t>(quantum.at(2)) << 6U) | static_cast<std::uint32_t>(quantum.at(3));
+        decoded.push_back(static_cast<char>((kTriple >> 16U) & 0xFFU));
         if (padding < 2U) {
-            decoded.push_back(static_cast<char>((triple >> 8U) & 0xFFU));
+            decoded.push_back(static_cast<char>((kTriple >> 8U) & 0xFFU));
         }
         if (padding < 1U) {
-            decoded.push_back(static_cast<char>(triple & 0xFFU));
+            decoded.push_back(static_cast<char>(kTriple & 0xFFU));
         }
     }
     return decoded;
 }
 
-AttestationResult<std::string> requireString(const CanonicalValue& parent, std::string_view name,
-                                             AttestationRejection rejection) {
+AttestationResult<std::string>
+requireString(const CanonicalValue& parent, std::string_view name, AttestationRejection rejection) {
     const CanonicalValue* member = parent.find(name);
     if (member == nullptr || member->kind() != CanonicalValue::Kind::String) {
         return refuse(rejection, "missing string member: " + std::string(name));
@@ -93,8 +92,8 @@ AttestationResult<std::string> requireString(const CanonicalValue& parent, std::
     return member->text();
 }
 
-AttestationResult<const CanonicalValue*> requireObject(const CanonicalValue& parent, std::string_view name,
-                                                       AttestationRejection rejection) {
+AttestationResult<const CanonicalValue*>
+requireObject(const CanonicalValue& parent, std::string_view name, AttestationRejection rejection) {
     const CanonicalValue* member = parent.find(name);
     if (member == nullptr || member->kind() != CanonicalValue::Kind::Object) {
         return refuse(rejection, "missing object member: " + std::string(name));
@@ -115,7 +114,8 @@ AttestationResult<AttestationClaim> parseAttestationClaim(const CanonicalValue& 
     }
     auto parsedBundle = parseDescriptor(*bundle);
     if (!parsedBundle) {
-        return refuse(AttestationRejection::ClaimMalformed, "bundle descriptor is unusable: " + parsedBundle.error().detail);
+        return refuse(AttestationRejection::ClaimMalformed,
+                      "bundle descriptor is unusable: " + parsedBundle.error().detail);
     }
 
     AttestationClaim claim;
@@ -199,8 +199,8 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
         return refuse(AttestationRejection::EnvelopeMismatch, "unexpected payload type: " + *payloadType);
     }
     const CanonicalValue* signatures = (*envelope)->find("signatures");
-    if (signatures == nullptr || signatures->kind() != CanonicalValue::Kind::Array
-        || signatures->elements().size() != 1U) {
+    if (signatures == nullptr || signatures->kind() != CanonicalValue::Kind::Array ||
+        signatures->elements().size() != 1U) {
         return refuse(AttestationRejection::EnvelopeMismatch, "the envelope must carry exactly one signature");
     }
 
@@ -229,7 +229,8 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
     }
     if (*statementType != kInTotoStatementType || *predicateType != kSlsaProvenancePredicateType) {
         return refuse(AttestationRejection::StatementMismatch,
-                      "statement or predicate type is not the accepted one: " + *statementType + " / " + *predicateType);
+                      "statement or predicate type is not the accepted one: " + *statementType + " / " +
+                          *predicateType);
     }
 
     const CanonicalValue* subjects = statement.find("subject");
@@ -320,12 +321,12 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
     // The resolved source URI carries the ref after an at sign. It is split
     // rather than pattern-matched so that a URI with no ref fails here instead
     // of producing an empty ref that would later compare equal to nothing.
-    const std::string uri = *std::move(sourceUri);
-    const auto separator = uri.rfind('@');
-    if (separator == std::string::npos || separator + 1U >= uri.size()) {
-        return refuse(AttestationRejection::SourceMismatch, "the resolved source URI carries no ref: " + uri);
+    const std::string kUri = *std::move(sourceUri);
+    const auto kSeparator = kUri.rfind('@');
+    if (kSeparator == std::string::npos || kSeparator + 1U >= kUri.size()) {
+        return refuse(AttestationRejection::SourceMismatch, "the resolved source URI carries no ref: " + kUri);
     }
-    decoded.sourceRef = uri.substr(separator + 1U);
+    decoded.sourceRef = kUri.substr(kSeparator + 1U);
 
     auto runDetails = requireObject(**predicate, "runDetails", AttestationRejection::BuilderMismatch);
     if (!runDetails) {
@@ -357,28 +358,28 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
     // numbers would be read as a run identity it never claimed to be.
     constexpr std::string_view kRunsMarker = "/actions/runs/";
     constexpr std::string_view kAttemptsMarker = "/attempts/";
-    const std::string invocation = *std::move(invocationId);
-    const auto runsOffset = invocation.rfind(kRunsMarker);
-    const auto attemptsOffset = invocation.rfind(kAttemptsMarker);
-    if (runsOffset == std::string::npos || attemptsOffset == std::string::npos
-        || attemptsOffset <= runsOffset + kRunsMarker.size()) {
+    const std::string kInvocation = *std::move(invocationId);
+    const auto kRunsOffset = kInvocation.rfind(kRunsMarker);
+    const auto kAttemptsOffset = kInvocation.rfind(kAttemptsMarker);
+    if (kRunsOffset == std::string::npos || kAttemptsOffset == std::string::npos ||
+        kAttemptsOffset <= kRunsOffset + kRunsMarker.size()) {
         return refuse(AttestationRejection::RunIdentityMissing,
-                      "invocation identity is not a run attempt URL: " + invocation);
+                      "invocation identity is not a run attempt URL: " + kInvocation);
     }
-    const std::string runText =
-        invocation.substr(runsOffset + kRunsMarker.size(), attemptsOffset - runsOffset - kRunsMarker.size());
-    const std::string attemptText = invocation.substr(attemptsOffset + kAttemptsMarker.size());
+    const std::string kRunText =
+        kInvocation.substr(kRunsOffset + kRunsMarker.size(), kAttemptsOffset - kRunsOffset - kRunsMarker.size());
+    const std::string kAttemptText = kInvocation.substr(kAttemptsOffset + kAttemptsMarker.size());
 
-    const auto parsePositive = [](std::string_view text, std::int64_t& target) {
+    const auto kParsePositive = [](std::string_view text, std::int64_t& target) {
         if (text.empty() || text.size() > 18U) {
             return false;
         }
         std::int64_t accumulated = 0;
-        for (const char character : text) {
-            if (character < '0' || character > '9') {
+        for (const char kCharacter : text) {
+            if (kCharacter < '0' || kCharacter > '9') {
                 return false;
             }
-            accumulated = (accumulated * 10) + (character - '0');
+            accumulated = (accumulated * 10) + (kCharacter - '0');
         }
         if (accumulated <= 0) {
             return false;
@@ -386,9 +387,9 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
         target = accumulated;
         return true;
     };
-    if (!parsePositive(runText, decoded.runId) || !parsePositive(attemptText, decoded.runAttempt)) {
+    if (!kParsePositive(kRunText, decoded.runId) || !kParsePositive(kAttemptText, decoded.runAttempt)) {
         return refuse(AttestationRejection::RunIdentityMissing,
-                      "invocation identity does not name a positive run and attempt: " + invocation);
+                      "invocation identity does not name a positive run and attempt: " + kInvocation);
     }
     return decoded;
 }
@@ -449,32 +450,30 @@ AttestationResult<void> verifyBundleSignature(const AttestationInputs& inputs, s
         return refuse(AttestationRejection::SignatureInvalid,
                       "the verifier refused the bundle: " + result->standardError);
     }
-    const std::string combined = result->standardOutput + result->standardError;
-    if (combined.find("Verified OK") == std::string::npos) {
+    const std::string kCombined = result->standardOutput + result->standardError;
+    if (!kCombined.contains("Verified OK")) {
         return refuse(AttestationRejection::SignatureInvalid, "the verifier did not report a verified bundle");
     }
     return {};
 }
 
-AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& claim,
-                                                       const AttestationInputs& inputs) {
+AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& claim, const AttestationInputs& inputs) {
     auto bundleBytes = readBoundedFile(inputs.bundlePath, kMaximumBundleBytes);
     if (!bundleBytes) {
-        return refuse(AttestationRejection::BundleUnreadable,
-                      "cannot read the bundle: " + bundleBytes.error().message);
+        return refuse(AttestationRejection::BundleUnreadable, "cannot read the bundle: " + bundleBytes.error().message);
     }
-    const std::string_view bundleView(bundleBytes->data(), bundleBytes->size());
+    const std::string_view kBundleView(bundleBytes->data(), bundleBytes->size());
 
     // The claim's own descriptor is checked against the bundle bytes first. A
     // record that points at a bundle it does not describe is refused before any
     // of the bundle's content is believed.
-    auto descriptorStatus = verifyDescriptor(claim.bundle, bundleView, claim.bundle.mediaType);
+    auto descriptorStatus = verifyDescriptor(claim.bundle, kBundleView, claim.bundle.mediaType);
     if (!descriptorStatus) {
         return refuse(AttestationRejection::ClaimMalformed,
                       "the bundle descriptor does not identify the bundle: " + descriptorStatus.error().detail);
     }
 
-    auto decoded = decodeProvenanceBundle(bundleView);
+    auto decoded = decodeProvenanceBundle(kBundleView);
     if (!decoded) {
         return std::unexpected(decoded.error());
     }
@@ -486,21 +485,21 @@ AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& c
     }
     if (*measured != claim.subjectDigest || *measured != decoded->subjectDigest) {
         return refuse(AttestationRejection::SubjectMismatch,
-                      "the subject digest measured locally is " + *measured + " and the claim says "
-                          + claim.subjectDigest);
+                      "the subject digest measured locally is " + *measured + " and the claim says " +
+                          claim.subjectDigest);
     }
     if (decoded->subjectName != claim.subjectName) {
         return refuse(AttestationRejection::SubjectMismatch, "the attested subject name is " + decoded->subjectName);
     }
 
-    if (decoded->sourceRepository != kTrustedSourceRepositoryUri || decoded->sourceRef != kTrustedProtectedRef
-        || claim.sourceRepository != decoded->sourceRepository || claim.sourceCommit != decoded->sourceCommit
-        || claim.sourceRef != decoded->sourceRef) {
+    if (decoded->sourceRepository != kTrustedSourceRepositoryUri || decoded->sourceRef != kTrustedProtectedRef ||
+        claim.sourceRepository != decoded->sourceRepository || claim.sourceCommit != decoded->sourceCommit ||
+        claim.sourceRef != decoded->sourceRef) {
         return refuse(AttestationRejection::SourceMismatch,
                       "the attested source is " + decoded->sourceRepository + "@" + decoded->sourceRef);
     }
-    if (decoded->workflowPath != kTrustedEntryWorkflowPath || decoded->workflowRef != kTrustedProtectedRef
-        || claim.workflowPath != decoded->workflowPath || claim.workflowRef != decoded->workflowRef) {
+    if (decoded->workflowPath != kTrustedEntryWorkflowPath || decoded->workflowRef != kTrustedProtectedRef ||
+        claim.workflowPath != decoded->workflowPath || claim.workflowRef != decoded->workflowRef) {
         return refuse(AttestationRejection::WorkflowMismatch,
                       "the attested workflow is " + decoded->workflowPath + "@" + decoded->workflowRef);
     }
@@ -514,8 +513,7 @@ AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& c
         return refuse(AttestationRejection::BuilderMismatch, "the attested builder is " + decoded->builderId);
     }
     if (claim.runId != decoded->runId || claim.runAttempt != decoded->runAttempt) {
-        return refuse(AttestationRejection::RunIdentityMissing,
-                      "the claimed run identity is not the attested one");
+        return refuse(AttestationRejection::RunIdentityMissing, "the claimed run identity is not the attested one");
     }
 
     auto signatureStatus = verifyBundleSignature(inputs, *measured);
