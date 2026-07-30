@@ -508,6 +508,44 @@ TEST(Attestation, VerifiesTheGenuineProtectedRefAttestation) {
     EXPECT_EQ(verified->sourceRef, kTrustedProtectedRef);
 }
 
+// The near miss, checked by the verifier rather than by us.
+//
+// ADR-0082 forbids prefix, suffix, glob, and regular-expression matching on the
+// certificate identity precisely because each of them admits a near miss, and
+// the pull-request bundle is a genuine one: same issuer, same repository, same
+// workflow file, real Fulcio certificate, and an identity ending
+// `@refs/pull/12/merge` instead of `@refs/heads/main`. Everything above refuses
+// it on the statement, which proves our own comparison and says nothing about
+// the credential. This hands it to Cosign with the literal identity and issuer
+// the lane uses, so the refusal comes from the certificate itself.
+//
+// The subject bytes are not needed and not checked in: the verifier is told the
+// digest, and the blob is only ever used to compute one.
+TEST(Attestation, TheVerifierRefusesARealCertificateWhoseIdentityIsANearMiss) {
+    AttestationInputs inputs = mainRunInputs();
+    inputs.bundlePath = attestationFixtureRoot() / "pull-request-run-30535694786.sigstore.json";
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(inputs.cosign, error) || error) {
+        RecordProperty("verifier", "absent");
+        GTEST_LOG_(INFO) << "the locked verifier is absent, so the certificate identity was not checked here";
+        auto unavailable =
+            verifyBundleSignature(inputs, "sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff");
+        ASSERT_FALSE(unavailable.has_value());
+        EXPECT_EQ(unavailable.error().rejection, AttestationRejection::VerifierUnavailable);
+        return;
+    }
+    RecordProperty("verifier", "present");
+    auto status =
+        verifyBundleSignature(inputs, "sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff");
+    ASSERT_FALSE(status.has_value()) << "a certificate identity one ref away from the protected one must not verify";
+    EXPECT_EQ(status.error().rejection, AttestationRejection::SignatureInvalid);
+    // The reason has to be the identity. A bundle refused here for an unreadable
+    // root, an expired certificate, or a digest the statement does not carry
+    // would prove nothing about the rule this case exists for.
+    EXPECT_NE(status.error().detail.find("certificate identity"), std::string::npos) << status.error().detail;
+    EXPECT_NE(status.error().detail.find("refs/pull/12/merge"), std::string::npos) << status.error().detail;
+}
+
 // One mutation per identity the claim asserts, over the same genuine bundle.
 // Each is refused before the verifier is reached, so these hold on every host
 // and each names the rule it broke rather than a generic failure.
@@ -567,6 +605,18 @@ TEST(Attestation, ReportsAnAbsentSubjectRatherThanDigestingNothing) {
     auto digest = digestSubject("does-not-exist.json");
     ASSERT_FALSE(digest.has_value());
     EXPECT_EQ(digest.error().rejection, AttestationRejection::BundleUnreadable);
+}
+
+// A claim whose bundle is not there. It is separated from the malformed cases
+// because absent and wrong are different findings: nothing was read, so nothing
+// was judged, and reporting that as a bad bundle would describe a check that
+// never happened.
+TEST(Attestation, ReportsAnAbsentBundleRatherThanAMalformedOne) {
+    AttestationInputs inputs = mainRunInputs();
+    inputs.bundlePath = attestationFixtureRoot() / "no-such-run.sigstore.json";
+    auto verified = verifyAttestation(mainRunClaim(), inputs);
+    ASSERT_FALSE(verified.has_value());
+    EXPECT_EQ(verified.error().rejection, AttestationRejection::BundleUnreadable);
 }
 
 } // namespace rawframe::tool::evidence
