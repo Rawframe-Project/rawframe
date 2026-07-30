@@ -19,6 +19,12 @@ SHELL ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "$E
 COPY install-build-tools.ps1 C:\\rf\\install-build-tools.ps1
 RUN C:\rf\install-build-tools.ps1; Remove-Item -Force C:\rf\install-build-tools.ps1
 
+# Stage 0 needs a locked CMake that does not live beneath the checkout. On a
+# workstation the developer pre-stages it; here it belongs to the image, so the
+# digest that identifies the host covers it too.
+COPY install-bootstrap-cmake.ps1 C:\\rf\\install-bootstrap-cmake.ps1
+RUN C:\rf\install-bootstrap-cmake.ps1; Remove-Item -Force C:\rf\install-bootstrap-cmake.ps1
+
 # States which host class the probe is running under. It says what this image is,
 # never that it may be trusted: a hand-built image can carry the same file, and
 # it would still produce `diagnostic_untrusted` evidence, because trust comes

@@ -49,10 +49,12 @@ PY
 cp "${staging}/locked-packages.txt" "${context}/locked-packages.txt"
 trap 'rm -f "${context}/locked-packages.txt"' EXIT
 
-if [[ ! -f "${context}/host-identity.json" ]]; then
-    echo "rf: the container host identity marker is missing from ${context}" >&2
-    exit 1
-fi
+for required in Dockerfile install-locked-packages.sh install-bootstrap-cmake.sh host-identity.json; do
+    if [[ ! -f "${context}/${required}" ]]; then
+        echo "rf: the Linux image definition is missing ${required}" >&2
+        exit 1
+    fi
+done
 
 tag="${1:-rawframe/ci-linux:local}"
 # Provenance and SBOM attestations turn the result into a manifest list whose

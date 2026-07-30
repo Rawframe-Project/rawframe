@@ -44,6 +44,25 @@ function Assert-Equal {
     }
 }
 
+# Runs a native tool purely to read the banner it prints, and returns everything
+# it wrote on both streams.
+#
+# `cl.exe` with no arguments prints its version banner to stderr and exits
+# nonzero, which is correct behaviour for a compiler asked to compile nothing. It
+# is not an error here, because the banner is the entire point of the call, so the
+# stop-on-error preference is lifted for exactly the length of the call rather
+# than for the script.
+function Get-BannerOutput {
+    param([string]$Path, [string[]]$Arguments = @())
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        return (& $Path @Arguments 2>&1 | Out-String)
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+}
+
 function Assert-FileIdentity {
     param([string]$Path, [int]$Bytes, [string]$Sha256, [string]$Subject)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -131,13 +150,13 @@ if (-not (Test-Path -LiteralPath $toolsetRoot -PathType Container)) {
     throw "rf: the locked MSVC toolset tree is missing at $toolsetRoot"
 }
 
-$clOutput = & "$toolsetRoot\bin\Hostx64\x64\cl.exe" 2>&1 | Out-String
+$clOutput = Get-BannerOutput -Path "$toolsetRoot\bin\Hostx64\x64\cl.exe"
 $clPattern = "C/C\+\+ Optimizing Compiler Version $([regex]::Escape($expectedClVersion))(\.0)? for x64"
 if ($clOutput -notmatch $clPattern) {
     throw "rf: cl.exe identity differs from the locked tuple"
 }
 
-$nmakeOutput = & "$toolsetRoot\bin\Hostx64\x64\nmake.exe" /? 2>&1 | Out-String
+$nmakeOutput = Get-BannerOutput -Path "$toolsetRoot\bin\Hostx64\x64\nmake.exe" -Arguments '/?'
 if ($nmakeOutput -notmatch " $([regex]::Escape($expectedNmakeVersion))") {
     throw "rf: nmake.exe identity differs from the locked tuple"
 }

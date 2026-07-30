@@ -10,7 +10,7 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 context="${repository_root}/ci/images/windows"
 
-for required in Dockerfile install-build-tools.ps1 host-identity.json; do
+for required in Dockerfile install-build-tools.ps1 install-bootstrap-cmake.ps1 host-identity.json; do
     if [[ ! -f "${context}/${required}" ]]; then
         echo "rf: the Windows image definition is missing ${required}" >&2
         exit 1

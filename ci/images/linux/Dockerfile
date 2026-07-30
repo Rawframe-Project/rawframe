@@ -23,6 +23,12 @@ COPY install-locked-packages.sh /rf/install-locked-packages.sh
 # concept of one.
 RUN sh /rf/install-locked-packages.sh /rf/locked-packages.txt && rm -rf /rf/install-locked-packages.sh
 
+# Stage 0 needs a locked CMake that does not live beneath the checkout. On a
+# workstation the developer pre-stages it; here it belongs to the image, so the
+# digest that identifies the host covers it too.
+COPY install-bootstrap-cmake.sh /rf/install-bootstrap-cmake.sh
+RUN sh /rf/install-bootstrap-cmake.sh && rm -rf /rf/install-bootstrap-cmake.sh
+
 # States which host class the probe is running under. It says what this image is,
 # never that it may be trusted: a hand-built image can carry the same file, and
 # it would still produce `diagnostic_untrusted` evidence, because trust comes
