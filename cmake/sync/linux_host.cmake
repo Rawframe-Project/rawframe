@@ -17,8 +17,10 @@ set(RF_LINUX_HOST_ID "host.ubuntu_24_04_x86_64")
 # nothing about what is proven: an Ubuntu container reports the same
 # distribution, release, and codename as the workstation, so the existing
 # identity probe stays exactly as it is and still means what it says.
-set(RF_LINUX_CONTAINER_HOST_ID "host.container_ubuntu_24_04_x86_64")
-set(RF_LINUX_CONTAINER_HOST_MARKER "/rf/host-identity.json")
+# The container tuple ID and the marker that names it live in
+# `cmake/bootstrap/common.cmake`, because Stage 0 admits the bootstrap transport
+# before this probe runs and needs the same answer. A copy here would be a second
+# authority that can disagree with the one the transport was selected by.
 set(RF_LINUX_HOST_DISTRIBUTION "Ubuntu")
 set(RF_LINUX_HOST_RELEASE "24.04")
 set(RF_LINUX_HOST_CODENAME "noble")
@@ -68,36 +70,6 @@ set(RF_LINUX_HOST_PACKAGES
     "git|1:2.43.0-1ubuntu7|pool/main/g/git/git_2.43.0-1ubuntu7_amd64.deb|3673594|664e394169ca5f1643b096059cf45169e360ced9e96ed378465dd03d47309074"
     "gpg-agent|2.4.4-2ubuntu17|pool/main/g/gnupg2/gpg-agent_2.4.4-2ubuntu17_amd64.deb|227322|5e65fa0ee8a37e4999fa65e98dd1acac188769db5fa463395b24c7f43d1b0887"
 )
-
-# Resolves which ADR-0083 host class this probe is running under.
-#
-# The marker states what the environment is, never what it may be trusted with.
-# A hand-built image can carry the same file and still produces
-# `diagnostic_untrusted` evidence, because trust comes from an ADR-0082
-# attestation over the protected workflow and from nothing else. The digest that
-# makes a container an identity is enforced by whoever starts it, which is the
-# only place it can be known, so this function must not pretend to check it.
-function(rf_resolve_linux_host_class output_class output_host_id)
-    if(NOT EXISTS "${RF_LINUX_CONTAINER_HOST_MARKER}")
-        set(${output_class} "workstation" PARENT_SCOPE)
-        set(${output_host_id} "${RF_LINUX_HOST_ID}" PARENT_SCOPE)
-        return()
-    endif()
-    file(READ "${RF_LINUX_CONTAINER_HOST_MARKER}" marker_text LIMIT 4096)
-    string(JSON marker_class ERROR_VARIABLE class_error GET "${marker_text}" hostClass)
-    string(JSON marker_host ERROR_VARIABLE host_error GET "${marker_text}" hostId)
-    string(JSON marker_probe ERROR_VARIABLE probe_error GET "${marker_text}" probeHostId)
-    if(class_error OR host_error OR probe_error)
-        rf_bootstrap_fail("RF1558" "container host identity marker is unreadable")
-    endif()
-    if(NOT marker_class STREQUAL "container" OR
-       NOT marker_host STREQUAL RF_LINUX_CONTAINER_HOST_ID OR
-       NOT marker_probe STREQUAL "linux-x86_64")
-        rf_bootstrap_fail("RF1559" "container host identity marker names a different host")
-    endif()
-    set(${output_class} "container" PARENT_SCOPE)
-    set(${output_host_id} "${RF_LINUX_CONTAINER_HOST_ID}" PARENT_SCOPE)
-endfunction()
 
 function(rf_probe_linux_os_identity)
     set(release_file "/etc/os-release")
@@ -187,7 +159,7 @@ function(rf_probe_linux_glibc)
 endfunction()
 
 function(rf_probe_linux_host_tuple repository_root)
-    rf_resolve_linux_host_class(host_class host_id)
+    rf_resolve_bootstrap_host_class("linux-x86_64" "${RF_LINUX_HOST_ID}" host_class host_id)
     rf_probe_linux_os_identity()
     rf_probe_linux_glibc()
     rf_probe_linux_package_closure("${repository_root}")

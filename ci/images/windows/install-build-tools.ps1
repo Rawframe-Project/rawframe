@@ -183,6 +183,13 @@ Assert-Equal -Actual $sdkPackage -Expected $expectedSdkPackageVersion -Subject '
 Assert-FileIdentity -Path $signTool -Bytes $expectedSignToolBytes -Sha256 $expectedSignToolSha256 `
     -Subject 'the locked SignTool'
 
+# The container class has its own transport record, at its own floor, for the
+# reason ADR-0083 gave operating-system identity its own record: what a container
+# ships is fixed by the base image digest, and what a workstation ships is
+# serviced in place by the operating system. The workstation floor stays at
+# 8.19.0, where the newer transport it actually has protects it. Lowering that
+# shared value to admit this image would have weakened the lane that does not
+# need it.
 Write-Host 'rf: proving the bootstrap transport identity'
 $transport = 'C:\Windows\System32\curl.exe'
 if (-not (Test-Path -LiteralPath $transport -PathType Leaf)) {
@@ -193,8 +200,8 @@ if ($transportOutput -notmatch '^curl (\d+)\.(\d+)\.(\d+) ') {
     throw "rf: the bootstrap transport did not report a parsable curl version"
 }
 $transportVersion = [version]("$($Matches[1]).$($Matches[2]).$($Matches[3])")
-if ($transportVersion -lt [version]'8.19.0') {
-    throw "rf: the inbox curl is $transportVersion and the transport record requires 8.19.0 or later"
+if ($transportVersion -lt [version]'8.16.0') {
+    throw "rf: the inbox curl is $transportVersion and the container transport record requires 8.16.0 or later"
 }
 
 Remove-Item -Recurse -Force 'C:\rf\work'

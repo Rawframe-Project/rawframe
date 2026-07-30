@@ -25,8 +25,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/windows_signature.cmake")
 # base layer rather than the environment. A digest over the whole image is
 # strictly stronger evidence than a build number the machine reports about
 # itself, which is why this is a strengthening and not a concession.
-set(RF_WINDOWS_CONTAINER_HOST_ID "host.container_windows_servercore_ltsc2025_x86_64")
-set(RF_WINDOWS_CONTAINER_HOST_MARKER "C:/rf/host-identity.json")
+# The container tuple ID and the marker that names it live in
+# `cmake/bootstrap/common.cmake`, because Stage 0 admits the bootstrap transport
+# before this probe runs and needs the same answer. A copy here would be a second
+# authority that can disagree with the one the transport was selected by.
+set(RF_WINDOWS_HOST_ID "host.windows_11_25h2_x86_64")
 set(RF_WINDOWS_HOST_OS_BUILD "26200")
 set(RF_WINDOWS_HOST_OS_UBR_MINIMUM "8655")
 set(RF_WINDOWS_HOST_OS_DISPLAY_VERSION "25H2")
@@ -53,36 +56,6 @@ set(RF_WINDOWS_HOST_SDK_PACKAGE_VERSION "10.1.26100.8249")
 set(RF_WINDOWS_HOST_SDK_PACKAGE_GUID "{204d0387-6d9a-48cf-bb7d-93d49ec0141c}")
 # The locked SignTool identity is owned by cmake/bootstrap/windows_signature.cmake
 # because Stage 0 needs it before this probe runs. Do not restate it here.
-
-# Resolves which ADR-0083 host class this probe is running under.
-#
-# The marker states what the environment is, never what it may be trusted with.
-# A hand-built image can carry the same file and still produces
-# `diagnostic_untrusted` evidence, because trust comes from an ADR-0082
-# attestation over the protected workflow and from nothing else. The digest that
-# makes a container an identity is enforced by whoever starts it, which is the
-# only place it can be known, so this function must not pretend to check it.
-function(rf_resolve_windows_host_class output_class output_host_id)
-    if(NOT EXISTS "${RF_WINDOWS_CONTAINER_HOST_MARKER}")
-        set(${output_class} "workstation" PARENT_SCOPE)
-        set(${output_host_id} "host.windows_11_25h2_x86_64" PARENT_SCOPE)
-        return()
-    endif()
-    file(READ "${RF_WINDOWS_CONTAINER_HOST_MARKER}" marker_text LIMIT 4096)
-    string(JSON marker_class ERROR_VARIABLE class_error GET "${marker_text}" hostClass)
-    string(JSON marker_host ERROR_VARIABLE host_error GET "${marker_text}" hostId)
-    string(JSON marker_probe ERROR_VARIABLE probe_error GET "${marker_text}" probeHostId)
-    if(class_error OR host_error OR probe_error)
-        rf_bootstrap_fail("RF1510" "container host identity marker is unreadable")
-    endif()
-    if(NOT marker_class STREQUAL "container" OR
-       NOT marker_host STREQUAL RF_WINDOWS_CONTAINER_HOST_ID OR
-       NOT marker_probe STREQUAL "windows-x86_64")
-        rf_bootstrap_fail("RF1511" "container host identity marker names a different host")
-    endif()
-    set(${output_class} "container" PARENT_SCOPE)
-    set(${output_host_id} "${RF_WINDOWS_CONTAINER_HOST_ID}" PARENT_SCOPE)
-endfunction()
 
 function(rf_probe_windows_os_identity)
     cmake_host_system_information(RESULT build_number QUERY WINDOWS_REGISTRY
@@ -289,14 +262,14 @@ function(rf_capture_windows_msvc_environment repository_root)
 endfunction()
 
 function(rf_probe_windows_host_tuple repository_root)
-    rf_resolve_windows_host_class(host_class host_id)
+    rf_resolve_bootstrap_host_class("windows-x86_64" "${RF_WINDOWS_HOST_ID}" host_class host_id)
     if(host_class STREQUAL "container")
         # The operating-system values below describe the base layer, and the
         # image digest that names the whole environment has already replaced
         # them. Recording them as measured would be a false claim, so they are
         # recorded as what they are.
         set(RF_WINDOWS_HOST_OS_UBR_MEASURED "container")
-        set(os_build "${RF_WINDOWS_CONTAINER_HOST_ID}")
+        set(os_build "${host_id}")
         set(os_display_version "container")
         set(os_edition "container")
     else()
