@@ -40,6 +40,11 @@ Write-Host 'rf: stage 1, the locked dependency closure through the prepared CMak
 Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @(
     '-DRF_OPERATION=sync', "-DRF_REPOSITORY_ROOT=$RepositoryRoot", '-P', 'cmake/sync/windows.cmake')
 
+Write-Host 'rf: the locked dependency closure built offline through the prepared vcpkg'
+Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @(
+    '-DRF_OPERATION=dependencies', "-DRF_REPOSITORY_ROOT=$RepositoryRoot",
+    '-P', 'cmake/sync/windows_dependency_build.cmake')
+
 Write-Host 'rf: configure, build, and test at the debug preset'
 Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @('--preset', 'task-0001-windows-x86_64-debug')
 Invoke-Checked -Path "$prepared\cmake.exe" -Arguments @('--build', '--preset', 'task-0001-windows-x86_64-debug')

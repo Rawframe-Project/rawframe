@@ -27,6 +27,10 @@ echo "rf: stage 0, through the bootstrap CMake outside the tree"
 echo "rf: stage 1, the locked dependency closure through the prepared CMake"
 "${prepared}/cmake" -DRF_OPERATION=sync -DRF_REPOSITORY_ROOT="$repository_root" -P cmake/sync/linux.cmake
 
+echo "rf: the locked dependency closure built offline through the prepared vcpkg"
+"${prepared}/cmake" -DRF_OPERATION=dependencies -DRF_REPOSITORY_ROOT="$repository_root" \
+    -P cmake/sync/linux_dependency_build.cmake
+
 echo "rf: configure, build, and test at the debug preset"
 "${prepared}/cmake" --preset task-0001-linux-x86_64-debug
 "${prepared}/cmake" --build --preset task-0001-linux-x86_64-debug
