@@ -59,7 +59,7 @@ jobs:
         uses: ./.github/actions/verify-host
         with:
           host: linux-x86_64
-          image: ghcr.io/rawframe-project/rawframe-ci-linux@sha256:6461f80fc294eeb082977ad389a0dea78f57e390d188fc7ae9b73e92e7b76684
+          image: ghcr.io/rawframe-project/rawframe-ci-linux@sha256:5f4a99bc1c2e32adde88927ae5785366dd7c0318ab1ad0e69508778cd8edcde9
 
       # One subject, the archive of everything the tool recorded. The digest in
       # the statement is not what the verifier believes: it recomputes the digest
