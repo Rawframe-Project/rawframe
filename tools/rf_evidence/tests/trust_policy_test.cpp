@@ -3,7 +3,9 @@
 
 #include <array>
 #include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -44,7 +46,7 @@ TEST(TrustPolicy, AdmitsAnUntrustedRecordWithoutAskingItToProveAnything) {
 // two halves of a record disagreeing, and the disagreement is the finding.
 TEST(TrustPolicy, RefusesAnUntrustedRecordThatCarriesAnAttestationAnyway) {
     constexpr std::string_view kContradictory =
-        R"({"attestation":{"builderId":"b","bundle":{"byteLength":1,"digest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":1,"sourceCommit":"0123456789abcdef0123456789abcdef01234567","sourceRef":"refs/heads/main","sourceRepository":"https://github.com/Rawframe-Project/rawframe","subjectDigest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","subjectName":"s","workflowPath":".github/workflows/trusted-verification.yml","workflowRef":"refs/heads/main"},"provenance":"diagnostic_untrusted"})";
+        R"({"attestation":{"builderId":"b","bundle":{"byteLength":1,"digest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":1,"sourceCommit":"0123456789abcdef0123456789abcdef01234567","sourceRef":"refs/heads/main","sourceRepository":"Rawframe-Project/rawframe","subjectDigest":"sha256:015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862","subjectName":"s","workflowPath":".github/workflows/trusted-verification.yml","workflowRef":"refs/heads/main"},"provenance":"diagnostic_untrusted"})";
     auto derived = deriveFromText(kContradictory);
     ASSERT_FALSE(derived.has_value());
     EXPECT_EQ(derived.error().rejection, TrustRejection::MalformedTrustBlock);
@@ -114,8 +116,12 @@ TrustResult<TrustClass> deriveRecord(std::string_view canonicalRecord, const std
 }
 
 // One claim shaped exactly as the schema requires, over bytes no store holds.
+// The repository is in the `owner/name` shorthand the schema constrains a claim
+// to. It said otherwise until the first genuine bundle showed that the URL
+// spelling could never verify, and this fixture had not noticed because the case
+// it serves is refused before the source is ever compared.
 constexpr std::string_view kTrustedRecord =
-    R"({"recordKind":"raw_run_receipt","trust":{"attestation":{"builderId":"https://github.com/Rawframe-Project/rawframe/.github/workflows/trusted-verification.yml@refs/heads/main","bundle":{"byteLength":11101,"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30535694786,"sourceCommit":"dc9563e75e1144f5e296d9cb0d883c0fe2ca12ac","sourceRef":"refs/heads/main","sourceRepository":"https://github.com/Rawframe-Project/rawframe","subjectDigest":"sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff","subjectName":"linux-x86_64-reports.tar","workflowPath":".github/workflows/verify-main.yml","workflowRef":"refs/heads/main"},"provenance":"trusted_ci"}})";
+    R"({"recordKind":"raw_run_receipt","trust":{"attestation":{"builderId":"https://github.com/Rawframe-Project/rawframe/.github/workflows/trusted-verification.yml@refs/heads/main","bundle":{"byteLength":11101,"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30535694786,"sourceCommit":"dc9563e75e1144f5e296d9cb0d883c0fe2ca12ac","sourceRef":"refs/heads/main","sourceRepository":"Rawframe-Project/rawframe","subjectDigest":"sha256:03074dece2e6c4a99f66eae62f4f01b96343847e3300f8ac717268ab77de77ff","subjectName":"linux-x86_64-reports.tar","workflowPath":".github/workflows/verify-main.yml","workflowRef":"refs/heads/main"},"provenance":"trusted_ci"}})";
 
 } // namespace
 
@@ -162,6 +168,126 @@ TEST(TrustPolicy, RefusesATrustedClaimOverBytesTheStoreCannotAddress) {
     auto refusedSubject = deriveRecord(kBadSubject, "prepared-tools");
     ASSERT_FALSE(refusedSubject.has_value());
     EXPECT_EQ(refusedSubject.error().rejection, TrustRejection::ProvenanceUnavailable);
+}
+
+// The replay rule, over the genuine protected-ref pair.
+//
+// It is here rather than beside the other attestation cases because it is the
+// one requirement a signature cannot answer: the statement being replayed is
+// correctly signed, correctly issued, and names the protected producer, and it
+// is refused anyway because that run identity has already been admitted for
+// different bytes. Nothing short of the real bundle proves that, since the check
+// runs only after the other seven requirements have already passed.
+namespace {
+
+const std::filesystem::path& attestationFixtureRoot() {
+    static const std::filesystem::path kRoot =
+        std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) / "tools/rf_evidence/tests/fixtures/evidence/attestations";
+    return kRoot;
+}
+
+constexpr std::string_view kMainBundleFixture = "main-run-30554540067.sigstore.json";
+constexpr std::string_view kMainSubjectFixture = "main-run-30554540067-subject.tar";
+constexpr std::string_view kMainSubjectDigest =
+    "sha256:e2e03a33c123de0fb4527afe2a4a6d48573181d51aca578213cd8e297df81e9e";
+constexpr std::int64_t kMainRunId = 30554540067;
+constexpr std::int64_t kMainRunAttempt = 1;
+
+// The trust block the genuine run would carry, with the bundle descriptor
+// measured from the fixture rather than written down. A transcribed length or
+// digest would make this test fail for the wrong reason the day the fixture is
+// replaced, and the descriptor rules are proven elsewhere.
+std::string genuineTrustBlock() {
+    const auto kBundle = attestationFixtureRoot() / std::filesystem::path(std::string(kMainBundleFixture));
+    std::ifstream input(kBundle, std::ios::binary);
+    EXPECT_TRUE(input.is_open()) << kBundle.generic_string();
+    const std::string kBytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    auto described = describeBytes(kBytes, kSigstoreBundleMediaType);
+    EXPECT_TRUE(described.has_value());
+    const Descriptor kDescriptor = described.value_or(Descriptor{});
+
+    return std::string(R"({"attestation":{"builderId":")") + std::string(kTrustedCertificateIdentity) +
+           R"(","bundle":{"byteLength":)" + std::to_string(kDescriptor.byteLength) + R"(,"digest":")" +
+           kDescriptor.digest + R"(","mediaType":")" + std::string(kSigstoreBundleMediaType) + R"("},"runAttempt":)" +
+           std::to_string(kMainRunAttempt) + R"(,"runId":)" + std::to_string(kMainRunId) +
+           R"(,"sourceCommit":"8ff564495b0818d6ebcd7abcfdae1d5c44c2d38e","sourceRef":")" +
+           std::string(kTrustedProtectedRef) + R"(","sourceRepository":")" + std::string(kTrustedSourceRepositoryPath) +
+           R"(","subjectDigest":")" + std::string(kMainSubjectDigest) +
+           R"(","subjectName":"linux-x86_64-reports.tar","workflowPath":")" + std::string(kTrustedEntryWorkflowPath) +
+           R"(","workflowRef":")" + std::string(kTrustedProtectedRef) + R"("},"provenance":"trusted_ci"})";
+}
+
+AttestationInputs genuineInputs() {
+    const auto kCosignRoot = std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) / "out" / "prepared" /
+                             RAWFRAME_TEST_HOST_ID / "tools" / "cosign";
+    return AttestationInputs{
+        .bundlePath = attestationFixtureRoot() / std::filesystem::path(std::string(kMainBundleFixture)),
+        .subjectPath = attestationFixtureRoot() / std::filesystem::path(std::string(kMainSubjectFixture)),
+#ifdef _WIN32
+        .cosign = kCosignRoot / "bin" / "cosign.exe",
+#else
+        .cosign = kCosignRoot / "bin" / "cosign",
+#endif
+        .trustedRoot = kCosignRoot / "share" / "trusted_root.json",
+    };
+}
+
+TrustResult<TrustClass> deriveGenuine(std::span<const AdmittedRun> admitted) {
+    auto value = ingestCanonicalBytes(genuineTrustBlock());
+    EXPECT_TRUE(value.has_value()) << "the trust block built here must itself be canonical";
+    if (!value) {
+        return std::unexpected(TrustFailure{TrustRejection::MalformedTrustBlock, "fixture is not canonical"});
+    }
+    return deriveTrustClass(*value, genuineInputs(), admitted);
+}
+
+} // namespace
+
+TEST(TrustPolicy, RefusesAGenuineAttestationWhoseRunIdentityWasAdmittedForOtherBytes) {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(genuineInputs().cosign, error) || error) {
+        // Named out loud for the same reason the attestation case names it: a
+        // green result that quietly took this branch would read as a proven
+        // replay refusal, and it is not one.
+        RecordProperty("verifier", "absent");
+        GTEST_LOG_(INFO) << "the locked verifier is absent, so the replay rule was not reached here";
+        auto unavailable = deriveGenuine({});
+        ASSERT_FALSE(unavailable.has_value());
+        EXPECT_EQ(unavailable.error().rejection, TrustRejection::AttestationRefused);
+        return;
+    }
+    RecordProperty("verifier", "present");
+
+    // The same statement, admitted three ways. It is trusted with an empty
+    // ledger, still trusted when the ledger already holds this run over these
+    // same bytes, because re-deriving one admission is not a second one, and
+    // refused only when the run identity is already spoken for by a different
+    // subject.
+    auto first = deriveGenuine({});
+    ASSERT_TRUE(first.has_value()) << (first ? "" : first.error().detail);
+    EXPECT_EQ(*first, TrustClass::TrustedCi);
+
+    const std::array<AdmittedRun, 1> kSameSubject{
+        AdmittedRun{kMainRunId, kMainRunAttempt, std::string(kMainSubjectDigest)}};
+    auto repeated = deriveGenuine(kSameSubject);
+    ASSERT_TRUE(repeated.has_value()) << (repeated ? "" : repeated.error().detail);
+    EXPECT_EQ(*repeated, TrustClass::TrustedCi);
+
+    const std::array<AdmittedRun, 1> kOtherSubject{
+        AdmittedRun{kMainRunId, kMainRunAttempt, "sha256:" + std::string(64U, 'a')}};
+    auto replayed = deriveGenuine(kOtherSubject);
+    ASSERT_FALSE(replayed.has_value());
+    EXPECT_EQ(replayed.error().rejection, TrustRejection::AttestationRefused);
+    EXPECT_NE(replayed.error().detail.find("run_identity_replayed"), std::string::npos)
+        << "the refusal must name the replay rather than report a generic failure: " << replayed.error().detail;
+
+    // A different attempt of the same run is a different run identity, so it is
+    // not a replay. The distinction matters because a rerun is ordinary.
+    const std::array<AdmittedRun, 1> kOtherAttempt{
+        AdmittedRun{kMainRunId, kMainRunAttempt + 1, "sha256:" + std::string(64U, 'a')}};
+    auto other = deriveGenuine(kOtherAttempt);
+    ASSERT_TRUE(other.has_value()) << (other ? "" : other.error().detail);
+    EXPECT_EQ(*other, TrustClass::TrustedCi);
 }
 
 TEST(TrustPolicy, NamesEveryClassAndRejectionItCanReport) {
