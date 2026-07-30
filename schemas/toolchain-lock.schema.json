@@ -18,8 +18,8 @@
         "verifierArtifactIds": { "$ref": "#/$defs/idSet" },
         "transportExecutables": {
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/bootstrapTransport" }
         }
@@ -111,9 +111,10 @@
     "bootstrapTransport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hostId", "absolutePath", "minimumVersion", "vendorSignature", "packageIdentity"],
+      "required": ["hostId", "hostClass", "absolutePath", "minimumVersion", "vendorSignature", "packageIdentity"],
       "properties": {
         "hostId": { "enum": ["windows-x86_64", "linux-x86_64"] },
+        "hostClass": { "enum": ["workstation", "container"] },
         "absolutePath": { "type": "string", "minLength": 1, "maxLength": 260 },
         "minimumVersion": { "$ref": "#/$defs/version" },
         "vendorSignature": { "enum": ["authenticode_microsoft_windows", "distribution_package_chain"] },

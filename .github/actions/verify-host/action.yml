@@ -1,0 +1,123 @@
+name: Verify one container host
+description: Runs the rf-evidence corpus inside one digest-pinned ADR-0083 container host and collects its reports.
+
+inputs:
+  host:
+    description: The host ID the corpus runs as, either linux-x86_64 or windows-x86_64
+    required: true
+  image:
+    description: The container host, referenced by digest and never by tag
+    required: true
+
+outputs:
+  archive:
+    description: The repository-relative path of the report archive the run produced
+    value: ${{ steps.collect.outputs.archive }}
+
+runs:
+  using: composite
+  steps:
+    # ADR-0083 makes a container host's operating-system identity its image
+    # digest. A tag names whatever was pushed most recently, so a tagged
+    # reference would mean the recorded host identity is whatever the registry
+    # felt like serving. Refusing the reference here is the only place the rule
+    # can be enforced, because the container cannot read its own digest.
+    - name: Refuse a host reference that is not pinned by digest
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        HOST: ${{ inputs.host }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]]; then
+            echo "rf: the container host must be pinned by digest and $IMAGE is not" >&2
+            exit 1
+        fi
+        case "$HOST" in
+            linux-x86_64|windows-x86_64) ;;
+            *) echo "rf: $HOST is not an admitted host ID" >&2; exit 1 ;;
+        esac
+
+    - name: Pull the container host
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: docker pull "$IMAGE"
+
+    # The engine is asked what it actually has, because a pull that resolved
+    # something else is the one failure this whole mechanism exists to prevent.
+    - name: Prove the pulled digest is the requested digest
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: |
+        set -euo pipefail
+        requested="${IMAGE##*@}"
+        resolved="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")"
+        resolved="${resolved##*@}"
+        if [[ "$requested" != "$resolved" ]]; then
+            echo "rf: asked for $requested and the engine resolved $resolved" >&2
+            exit 1
+        fi
+        echo "rf: running on $requested"
+
+    - name: Run the corpus inside the container host
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        HOST: ${{ inputs.host }}
+      run: |
+        set -euo pipefail
+        if [[ "$HOST" == "linux-x86_64" ]]; then
+            docker run --rm \
+                --volume "${PWD}:/src" \
+                --workdir /src \
+                "$IMAGE" \
+                sh /src/.github/actions/verify-host/verify-linux.sh /src
+        else
+            # Git Bash rewrites anything that looks like a POSIX path into a
+            # Windows one, which would turn the container-side paths into host
+            # paths before the engine ever sees them.
+            MSYS_NO_PATHCONV=1 docker run --rm \
+                --volume "$(cygpath -w "$PWD"):C:\\src" \
+                --workdir 'C:\src' \
+                "$IMAGE" \
+                powershell -NoProfile -ExecutionPolicy Bypass \
+                    -File 'C:\src\.github\actions\verify-host\verify-windows.ps1' \
+                    -RepositoryRoot 'C:\src'
+        fi
+
+    # One archive, because the attestation names exactly one subject. A statement
+    # with several subjects would leave a reader choosing which one verification
+    # was about, and there is no correct choice.
+    # The archive is written by the same container that wrote the reports. A
+    # Linux container runs as root, so everything it created in the workspace is
+    # root owned, and the runner user cannot create a file next to it. Reading is
+    # all the attestation and upload steps need.
+    - name: Collect the reports the run produced
+      id: collect
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        HOST: ${{ inputs.host }}
+      run: |
+        set -euo pipefail
+        reports="out/reports/task-0001/ci/${HOST}"
+        archive="out/reports/task-0001/ci/${HOST}-reports.tar"
+        if [[ ! -d "$reports" ]]; then
+            echo "rf: the run produced no reports at $reports" >&2
+            exit 1
+        fi
+        if [[ "$HOST" == "linux-x86_64" ]]; then
+            docker run --rm --volume "${PWD}:/src" --workdir /src "$IMAGE" \
+                tar --create --file "$archive" --directory "$reports" .
+        else
+            tar --create --file "$archive" --directory "$reports" .
+        fi
+        collected="$(tar --list --file "$archive" | grep -c '\.json$' || true)"
+        if [[ "$collected" -lt 1 ]]; then
+            echo "rf: the archive carries no report" >&2
+            exit 1
+        fi
+        echo "archive=${archive}" >> "$GITHUB_OUTPUT"
+        echo "rf: collected ${collected} report(s)"

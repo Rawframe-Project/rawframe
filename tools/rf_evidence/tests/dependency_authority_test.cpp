@@ -37,6 +37,14 @@ std::filesystem::path scratchRootFor(std::string_view name) {
     std::filesystem::copy(realRoot() / "third_party" / "licenses",
                           kRoot / "third_party" / "licenses",
                           std::filesystem::copy_options::recursive);
+    // The workflow and image definitions are authority inputs too, because the
+    // delegated-fetch records are compared against what actually performs the
+    // fetch. A copy without them would make the baseline case fail for a reason
+    // that has nothing to do with the authority set.
+    for (const auto* kTree : {".github", "ci/images"}) {
+        std::filesystem::create_directories((kRoot / kTree).parent_path());
+        std::filesystem::copy(realRoot() / kTree, kRoot / kTree, std::filesystem::copy_options::recursive);
+    }
     return kRoot;
 }
 
@@ -188,6 +196,44 @@ TEST(DependencyAuthority, AdmitsAToolDeclaringAKnownDependency) {
 
     auto status = validateDependencyAuthorities(kRoot, snapshot);
     EXPECT_TRUE(status.has_value()) << status.error().path << ": " << status.error().message;
+}
+
+// A lock that is never compared against reality is decoration, so the
+// delegated-fetch records are checked in both directions. These three cases are
+// what makes the record binding rather than descriptive.
+TEST(DependencyAuthority, RejectsAnActionPinnedToACommitNoRecordCovers) {
+    const auto kRoot = scratchRootFor("action_moved_commit");
+    mutateFile(kRoot / ".github/workflows/trusted-verification.yml",
+               "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+               "actions/checkout@0000000000000000000000000000000000000000");
+
+    auto status = validateDependencyAuthorities(kRoot, realSnapshot());
+    ASSERT_FALSE(status.has_value());
+    EXPECT_EQ(status.error().code, FailureCode::VerificationFailed);
+}
+
+// A tag is a name its owner can move, so a reference without a commit is refused
+// where it is written rather than compared as though it were a pin.
+TEST(DependencyAuthority, RefusesAnActionReferenceThatCarriesNoCommit) {
+    const auto kRoot = scratchRootFor("action_floating_tag");
+    mutateFile(kRoot / ".github/workflows/trusted-verification.yml",
+               "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+               "actions/checkout");
+
+    auto status = validateDependencyAuthorities(kRoot, realSnapshot());
+    ASSERT_FALSE(status.has_value());
+    EXPECT_EQ(status.error().code, FailureCode::InvalidManifest);
+}
+
+TEST(DependencyAuthority, RejectsABaseImageDigestNoRecordCovers) {
+    const auto kRoot = scratchRootFor("image_moved_digest");
+    mutateFile(kRoot / "ci/images/linux/Dockerfile",
+               "sha256:562456a05a0dbd62a671c1854868862a4687bf979a96d48ae8e766642cd911e8",
+               "sha256:0000000000000000000000000000000000000000000000000000000000000000");
+
+    auto status = validateDependencyAuthorities(kRoot, realSnapshot());
+    ASSERT_FALSE(status.has_value());
+    EXPECT_EQ(status.error().code, FailureCode::VerificationFailed);
 }
 
 } // namespace rawframe::tool::evidence

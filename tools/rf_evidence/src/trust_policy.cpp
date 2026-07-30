@@ -1,0 +1,169 @@
+#include "trust_policy.h"
+
+#include <algorithm>
+#include <array>
+#include <utility>
+
+namespace rawframe::tool::evidence {
+
+namespace {
+
+std::unexpected<TrustFailure> refuse(TrustRejection rejection, std::string detail) {
+    return std::unexpected(TrustFailure{rejection, std::move(detail)});
+}
+
+// The vocabulary SPEC-0017 forbids from raising authority.
+//
+// It is a list rather than a rule because each entry is a concrete thing
+// somebody has reached for: a flag, a tier request, an environment override, a
+// provenance assertion, and the two verbs that belong to a reviewed human
+// change. Naming them individually means a new one has to be added
+// deliberately, and that the test that proves they are refused can name what it
+// proved.
+constexpr std::array<std::string_view, 8> kEscalationVocabulary{
+    "--trust",
+    "--tier",
+    "--provenance",
+    "--trusted",
+    "--trusted-ci",
+    "--promote",
+    "--activate-baseline",
+    "--force",
+};
+
+} // namespace
+
+TrustResult<TrustClass>
+deriveTrustClass(const CanonicalValue& trust, const AttestationInputs& inputs, std::span<const AdmittedRun> admitted) {
+    if (trust.kind() != CanonicalValue::Kind::Object) {
+        return refuse(TrustRejection::MalformedTrustBlock, "the trust block is not an object");
+    }
+    const CanonicalValue* provenance = trust.find("provenance");
+    if (provenance == nullptr || provenance->kind() != CanonicalValue::Kind::String) {
+        return refuse(TrustRejection::MalformedTrustBlock, "the trust block carries no provenance string");
+    }
+    const CanonicalValue* attestation = trust.find("attestation");
+
+    if (provenance->text() == trustClassName(TrustClass::DiagnosticUntrusted)) {
+        // Claiming less than you can prove is not a security problem, so this
+        // path needs no evidence. It does need the record to be honest about
+        // what it carries: an untrusted record with an attestation attached is
+        // a record whose two halves disagree, and the disagreement is the
+        // finding.
+        if (attestation != nullptr) {
+            return refuse(TrustRejection::MalformedTrustBlock,
+                          "an untrusted record carries an attestation it does not claim");
+        }
+        return TrustClass::DiagnosticUntrusted;
+    }
+
+    if (provenance->text() != trustClassName(TrustClass::TrustedCi)) {
+        return refuse(TrustRejection::TrustClaimUnsupported, "unsupported provenance class: " + provenance->text());
+    }
+
+    if (attestation == nullptr) {
+        return refuse(TrustRejection::ProvenanceUnavailable,
+                      "the record claims trusted_ci and carries nothing that could prove it");
+    }
+
+    auto claim = parseAttestationClaim(*attestation);
+    if (!claim) {
+        return refuse(TrustRejection::AttestationRefused,
+                      std::string(attestationRejectionName(claim.error().rejection)) + ": " + claim.error().detail);
+    }
+
+    auto verified = verifyAttestation(*claim, inputs);
+    if (!verified) {
+        return refuse(TrustRejection::AttestationRefused,
+                      std::string(attestationRejectionName(verified.error().rejection)) + ": " +
+                          verified.error().detail);
+    }
+
+    // ADR-0082's seventh requirement. A run identity that has already been
+    // admitted for a different subject is a replay: the signature over the old
+    // statement is still perfectly valid, which is precisely why the signature
+    // alone cannot answer this.
+    const auto kReplayed = std::ranges::find_if(admitted, [&](const AdmittedRun& previous) {
+        return previous.runId == verified->runId && previous.runAttempt == verified->runAttempt &&
+               previous.subjectDigest != verified->subjectDigest;
+    });
+    if (kReplayed != admitted.end()) {
+        return refuse(TrustRejection::AttestationRefused,
+                      std::string(attestationRejectionName(AttestationRejection::RunIdentityReplayed)) +
+                          ": run identity was already admitted for " + kReplayed->subjectDigest);
+    }
+
+    return TrustClass::TrustedCi;
+}
+
+TrustResult<TrustClass> deriveRecordTrustClass(const CanonicalValue& record,
+                                               const std::filesystem::path& preparedToolsRoot,
+                                               const BlobStore& store,
+                                               std::span<const AdmittedRun> admitted) {
+    const CanonicalValue* trust = record.find("trust");
+    if (trust == nullptr) {
+        return TrustClass::DiagnosticUntrusted;
+    }
+
+    // The inputs are resolved only once a claim asks for them. Deriving with
+    // absent inputs is what proves an untrusted record needs no verifier, no
+    // prepared toolchain, and no stored bytes.
+    AttestationInputs inputs;
+    const CanonicalValue* provenance = trust->find("provenance");
+    const CanonicalValue* attestation = trust->find("attestation");
+    const bool kClaimsTrust = provenance != nullptr && provenance->kind() == CanonicalValue::Kind::String &&
+                              provenance->text() == trustClassName(TrustClass::TrustedCi);
+    if (kClaimsTrust && attestation != nullptr) {
+        if (preparedToolsRoot.empty()) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the record claims trusted_ci and no host was named, so the offline verifier this "
+                          "generation verifies with could not be located");
+        }
+        auto claim = parseAttestationClaim(*attestation);
+        if (!claim) {
+            return refuse(TrustRejection::AttestationRefused,
+                          std::string(attestationRejectionName(claim.error().rejection)) + ": " + claim.error().detail);
+        }
+        auto bundlePath = store.pathFor(claim->bundle.digest);
+        if (!bundlePath) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the claimed bundle is not addressable in the local store: " + bundlePath.error().detail);
+        }
+        auto subjectPath = store.pathFor(claim->subjectDigest);
+        if (!subjectPath) {
+            return refuse(TrustRejection::ProvenanceUnavailable,
+                          "the claimed subject is not addressable in the local store: " + subjectPath.error().detail);
+        }
+        const auto kCosignRoot = preparedToolsRoot / "cosign";
+        inputs = AttestationInputs{
+            .bundlePath = *std::move(bundlePath),
+            .subjectPath = *std::move(subjectPath),
+#ifdef _WIN32
+            .cosign = kCosignRoot / "bin" / "cosign.exe",
+#else
+            .cosign = kCosignRoot / "bin" / "cosign",
+#endif
+            .trustedRoot = kCosignRoot / "share" / "trusted_root.json",
+        };
+    }
+
+    return deriveTrustClass(*trust, inputs, admitted);
+}
+
+std::vector<std::string> refusedEscalationRequests(std::span<const std::string_view> arguments) {
+    std::vector<std::string> refused;
+    for (const std::string_view kArgument : arguments) {
+        // Both spellings are checked, because `--trust=trusted_ci` and
+        // `--trust trusted_ci` are the same request and only one of them is a
+        // bare token.
+        const auto kSeparator = kArgument.find('=');
+        const std::string_view kName =
+            kSeparator == std::string_view::npos ? kArgument : kArgument.substr(0, kSeparator);
+        if (std::ranges::find(kEscalationVocabulary, kName) != kEscalationVocabulary.end()) {
+            refused.emplace_back(kArgument);
+        }
+    }
+    return refused;
+}
+
+} // namespace rawframe::tool::evidence

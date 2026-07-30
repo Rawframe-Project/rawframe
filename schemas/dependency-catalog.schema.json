@@ -61,7 +61,8 @@
             "vendored_source",
             "verified_artifact",
             "installed_sdk",
-            "external_product"
+            "external_product",
+            "delegated_fetch"
           ]
         },
         "provider": {
@@ -70,7 +71,14 @@
           "required": ["type", "reference"],
           "properties": {
             "type": {
-              "enum": ["vcpkg", "vendor_origin", "artifact_lock", "installed_sdk", "external_product"]
+              "enum": [
+                "vcpkg",
+                "vendor_origin",
+                "artifact_lock",
+                "installed_sdk",
+                "external_product",
+                "delegated_fetch"
+              ]
             },
             "reference": { "$ref": "#/$defs/id" }
           }

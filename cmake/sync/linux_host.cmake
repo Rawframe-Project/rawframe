@@ -12,6 +12,15 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/verifier.cmake")
 
 set(RF_LINUX_HOST_ID "host.ubuntu_24_04_x86_64")
+# ADR-0083 admits a second host class whose operating-system identity is its
+# image digest. On this lane the class changes what the tuple is called and
+# nothing about what is proven: an Ubuntu container reports the same
+# distribution, release, and codename as the workstation, so the existing
+# identity probe stays exactly as it is and still means what it says.
+# The container tuple ID and the marker that names it live in
+# `cmake/bootstrap/common.cmake`, because Stage 0 admits the bootstrap transport
+# before this probe runs and needs the same answer. A copy here would be a second
+# authority that can disagree with the one the transport was selected by.
 set(RF_LINUX_HOST_DISTRIBUTION "Ubuntu")
 set(RF_LINUX_HOST_RELEASE "24.04")
 set(RF_LINUX_HOST_CODENAME "noble")
@@ -27,10 +36,19 @@ set(RF_LINUX_HOST_GLIBC_VERSION "2.39-0ubuntu8")
 # the tuple, so it is pinned by the same signed-index evidence as everything
 # else.
 #
-# The last three carry `pkg-config`, which the OpenSSL port's Autotools
-# configuration invokes and which vcpkg does not acquire on Linux. `pkgconf`
-# supplies the `pkg-config` name itself; the Ubuntu `pkg-config` package is only
-# a transitional shim over it and is deliberately not locked.
+# Entries fifteen through seventeen carry `pkg-config`, which the OpenSSL port's
+# Autotools configuration invokes and which vcpkg does not acquire on Linux.
+# `pkgconf` supplies the `pkg-config` name itself; the Ubuntu `pkg-config`
+# package is only a transitional shim over it and is deliberately not locked.
+#
+# The last two were ambient until a host with nothing ambient ran the same lane.
+# `git` is what vcpkg refuses to start without, at 2.7.4 or later, so the offline
+# dependency build fails immediately when it is missing. `gpg-agent` is what
+# Stage 0's `gpg` autostarts on every operation, including importing a public key
+# that needs no agent at all, so its absence turns a correctly constructed
+# keyring into a nonzero exit. Both are required by accepted lanes, so both are
+# pinned by the same signed-index evidence as everything else instead of being
+# left to whatever a machine happens to have installed.
 set(RF_LINUX_HOST_PACKAGES
     "libc6|2.39-0ubuntu8|pool/main/g/glibc/libc6_2.39-0ubuntu8_amd64.deb|3264806|af36c7ac770770fe3d3c10e85d6bc538e76e57570ba7db7d397fb9f654783ef3"
     "libc-bin|2.39-0ubuntu8|pool/main/g/glibc/libc-bin_2.39-0ubuntu8_amd64.deb|681940|4ff873a8ae9622f0bc4e4be8cb1e5b3e94ff53a93a18af10e54f6e55cd7f92d0"
@@ -49,6 +67,8 @@ set(RF_LINUX_HOST_PACKAGES
     "libpkgconf3|1.8.1-2build1|pool/main/p/pkgconf/libpkgconf3_1.8.1-2build1_amd64.deb|30652|fc3a57e8f931ec06cb7c51acc56878f1fec247ff02a7adcab26905c2faeb2792"
     "pkgconf-bin|1.8.1-2build1|pool/main/p/pkgconf/pkgconf-bin_1.8.1-2build1_amd64.deb|20730|7a812f05ee1610154b433e2ad54f6e4163fcbb306b9fb31afe959afb2e5e1545"
     "pkgconf|1.8.1-2build1|pool/main/p/pkgconf/pkgconf_1.8.1-2build1_amd64.deb|16790|834a58031069d97d7cfb8b2f5bfd5effc69cecf7f30cc362071875f1f8dc1828"
+    "git|1:2.43.0-1ubuntu7|pool/main/g/git/git_2.43.0-1ubuntu7_amd64.deb|3673594|664e394169ca5f1643b096059cf45169e360ced9e96ed378465dd03d47309074"
+    "gpg-agent|2.4.4-2ubuntu17|pool/main/g/gnupg2/gpg-agent_2.4.4-2ubuntu17_amd64.deb|227322|5e65fa0ee8a37e4999fa65e98dd1acac188769db5fa463395b24c7f43d1b0887"
 )
 
 function(rf_probe_linux_os_identity)
@@ -116,8 +136,8 @@ function(rf_probe_linux_package_closure repository_root)
         list(APPEND measured "${package}")
     endforeach()
     list(LENGTH measured measured_count)
-    if(NOT measured_count EQUAL 17)
-        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly seventeen packages")
+    if(NOT measured_count EQUAL 19)
+        rf_bootstrap_fail("RF1555" "locked Ubuntu package closure is not exactly nineteen packages")
     endif()
 endfunction()
 
@@ -139,6 +159,7 @@ function(rf_probe_linux_glibc)
 endfunction()
 
 function(rf_probe_linux_host_tuple repository_root)
+    rf_resolve_bootstrap_host_class("linux-x86_64" "${RF_LINUX_HOST_ID}" host_class host_id)
     rf_probe_linux_os_identity()
     rf_probe_linux_glibc()
     rf_probe_linux_package_closure("${repository_root}")
@@ -147,12 +168,13 @@ function(rf_probe_linux_host_tuple repository_root)
     file(MAKE_DIRECTORY "${report_root}")
     file(WRITE "${report_root}/host-tuple.json.tmp"
         "{\n"
-        "  \"host\": \"${RF_LINUX_HOST_ID}\",\n"
+        "  \"host\": \"${host_id}\",\n"
+        "  \"hostClass\": \"${host_class}\",\n"
         "  \"distribution\": \"${RF_LINUX_HOST_DISTRIBUTION}\",\n"
         "  \"release\": \"${RF_LINUX_HOST_RELEASE}\",\n"
         "  \"codename\": \"${RF_LINUX_HOST_CODENAME}\",\n"
         "  \"glibc\": \"${RF_LINUX_HOST_GLIBC_VERSION}\",\n"
-        "  \"lockedPackages\": 17,\n"
+        "  \"lockedPackages\": 19,\n"
         "  \"packageAuthority\": \"host.ubuntu.noble_packages\",\n"
         "  \"state\": \"probed\"\n"
         "}\n")

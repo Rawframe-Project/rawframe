@@ -1,0 +1,35 @@
+# The pull-request entry point. Its runs are `diagnostic_untrusted` by
+# construction, and it is here to prove that rather than to work around it.
+#
+# It calls the same producer with the same permissions and produces a real
+# attestation. That attestation fails verification for three independent reasons:
+# the certificate identity covers the producer at the protected ref and a local
+# call resolves the producer at this branch, the verified code is not on the
+# protected ref, and this file is not the admitted entry point. A mechanism that
+# only ever sees inputs it accepts is a mechanism nobody has tested, so the
+# negative case is produced on every pull request rather than imagined.
+#
+# There is no reduced mode and no skipped step. A pull request from a fork cannot
+# be granted the signing token and fails loudly at the attestation step, which is
+# the right outcome: an unexpected trust configuration should stop, not quietly
+# produce something weaker than it looks.
+name: Verify pull request
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: verify-pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    uses: ./.github/workflows/trusted-verification.yml
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+      attestations: write

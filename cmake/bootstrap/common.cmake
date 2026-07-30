@@ -4,6 +4,65 @@ function(rf_bootstrap_fail code detail)
     message(FATAL_ERROR "${code} ${detail}")
 endfunction()
 
+# The two ADR-0083 host classes, and the one file that distinguishes them.
+#
+# These live in Stage 0 because Stage 0 is where the class is first needed. The
+# bootstrap transport is admitted before the host tuple is probed, and a
+# container's inbox transport is not the workstation's, so a check that ran
+# without knowing the class would have to either guess or accept both. Keeping
+# the marker path and the container tuple IDs here rather than in the two
+# Stage 1 probes means the class has one authority instead of a Stage 0 copy and
+# a Stage 1 copy that can disagree.
+set(RF_CONTAINER_HOST_MARKERS
+    "windows-x86_64|C:/rf/host-identity.json|host.container_windows_servercore_ltsc2025_x86_64"
+    "linux-x86_64|/rf/host-identity.json|host.container_ubuntu_24_04_x86_64"
+)
+
+# Resolves which host class this process is running under, and the tuple ID that
+# class is called by.
+#
+# The marker states what the environment is, never what it may be trusted with.
+# A hand-built image can carry the same file and still produces
+# `diagnostic_untrusted` evidence, because trust comes from an ADR-0082
+# attestation over the protected workflow and from nothing else. The digest that
+# makes a container an identity is enforced by whoever starts it, which is the
+# only place it can be known, so this function must not pretend to check it.
+function(rf_resolve_bootstrap_host_class probe_host_id workstation_host_id output_class output_host_id)
+    set(marker_path "")
+    set(container_host_id "")
+    foreach(entry IN LISTS RF_CONTAINER_HOST_MARKERS)
+        string(REPLACE "|" ";" fields "${entry}")
+        list(GET fields 0 entry_host)
+        if(entry_host STREQUAL probe_host_id)
+            list(GET fields 1 marker_path)
+            list(GET fields 2 container_host_id)
+        endif()
+    endforeach()
+    if(marker_path STREQUAL "")
+        rf_bootstrap_fail("RF1235" "no host class is defined for ${probe_host_id}")
+    endif()
+
+    if(NOT EXISTS "${marker_path}")
+        set(${output_class} "workstation" PARENT_SCOPE)
+        set(${output_host_id} "${workstation_host_id}" PARENT_SCOPE)
+        return()
+    endif()
+    file(READ "${marker_path}" marker_text LIMIT 4096)
+    string(JSON marker_class ERROR_VARIABLE class_error GET "${marker_text}" hostClass)
+    string(JSON marker_host ERROR_VARIABLE host_error GET "${marker_text}" hostId)
+    string(JSON marker_probe ERROR_VARIABLE probe_error GET "${marker_text}" probeHostId)
+    if(class_error OR host_error OR probe_error)
+        rf_bootstrap_fail("RF1236" "container host identity marker is unreadable")
+    endif()
+    if(NOT marker_class STREQUAL "container" OR
+       NOT marker_host STREQUAL "${container_host_id}" OR
+       NOT marker_probe STREQUAL "${probe_host_id}")
+        rf_bootstrap_fail("RF1236" "container host identity marker names a different host")
+    endif()
+    set(${output_class} "container" PARENT_SCOPE)
+    set(${output_host_id} "${container_host_id}" PARENT_SCOPE)
+endfunction()
+
 function(rf_reject_duplicate_json_members json_variable source_path)
     set(content "${${json_variable}}")
     string(LENGTH "${content}" content_length)
@@ -210,18 +269,35 @@ function(rf_load_bootstrap_authority repository_root host_id)
         rf_bootstrap_fail("RF1234" "unsupported bootstrap verifier contract")
     endif()
 
+    # One record per host and class, selected by both. A container's inbox
+    # transport is whatever its base image ships and a workstation's is whatever
+    # the operating system services, so they are two different admissions even
+    # where the floor happens to coincide. Selecting by host ID alone would make
+    # one of the two lanes silently accept a transport that was never measured
+    # for it, and lowering the shared floor to cover both would weaken the lane
+    # that already has the newer transport.
+    #
+    # The class is resolved before the tuple is probed. That is safe: the marker
+    # says what the environment is, and admitting a transport is the first thing
+    # this lane does with that answer.
+    # The workstation tuple name is passed empty and the resolved name is not
+    # read: Stage 0 needs to know which class it is running under, and the tuple
+    # it belongs to is Stage 1's question.
+    rf_resolve_bootstrap_host_class("${host_id}" "" host_class unused_tuple_id)
+
     string(JSON transport_count LENGTH "${toolchain_json}" bootstrap transportExecutables)
-    if(NOT transport_count EQUAL 2)
-        rf_bootstrap_fail("RF1226" "toolchain bootstrap must contain exactly two host transports")
+    if(NOT transport_count EQUAL 4)
+        rf_bootstrap_fail("RF1226" "toolchain bootstrap must contain exactly one transport per host and class")
     endif()
     set(transport_found FALSE)
     math(EXPR transport_last "${transport_count} - 1")
     foreach(transport_index RANGE 0 ${transport_last})
-        rf_require_json_members(toolchain_json "bootstrap transport" "hostId,absolutePath,minimumVersion,vendorSignature,packageIdentity" bootstrap transportExecutables ${transport_index})
+        rf_require_json_members(toolchain_json "bootstrap transport" "hostId,hostClass,absolutePath,minimumVersion,vendorSignature,packageIdentity" bootstrap transportExecutables ${transport_index})
         string(JSON candidate_host GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} hostId)
-        if(candidate_host STREQUAL host_id)
+        string(JSON candidate_class GET "${toolchain_json}" bootstrap transportExecutables ${transport_index} hostClass)
+        if(candidate_host STREQUAL "${host_id}" AND candidate_class STREQUAL "${host_class}")
             if(transport_found)
-                rf_bootstrap_fail("RF1227" "duplicate bootstrap transport for ${host_id}")
+                rf_bootstrap_fail("RF1227" "duplicate bootstrap transport for ${host_id} ${host_class}")
             endif()
             set(transport_found TRUE)
             foreach(field IN ITEMS absolutePath minimumVersion vendorSignature packageIdentity)
@@ -230,10 +306,14 @@ function(rf_load_bootstrap_authority repository_root host_id)
         endif()
     endforeach()
     if(NOT transport_found)
-        rf_bootstrap_fail("RF1228" "bootstrap transport is missing for ${host_id}")
+        rf_bootstrap_fail("RF1228" "bootstrap transport is missing for ${host_id} ${host_class}")
     endif()
 
-    rf_require_json_members(artifact_json "artifact lock" "\$schema,schemaVersion,lockVersion,verificationCorpus,artifacts")
+    # `delegatedFetches` records inputs another engine acquires on our behalf,
+    # which Stage 0 neither fetches nor verifies. It is admitted here so that the
+    # exact-member rule stays exact rather than being loosened to a subset check.
+    rf_require_json_members(artifact_json "artifact lock"
+        "\$schema,schemaVersion,lockVersion,verificationCorpus,artifacts,delegatedFetches")
     string(JSON artifact_count LENGTH "${artifact_json}" artifacts)
     if(artifact_count LESS 1 OR artifact_count GREATER 4096)
         rf_bootstrap_fail("RF1229" "artifact lock count is outside bootstrap limits")

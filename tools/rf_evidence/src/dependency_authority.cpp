@@ -5,7 +5,9 @@
 #include "sha256.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <filesystem>
 #include <map>
 #include <set>
 #include <simdjson.h>
@@ -150,10 +152,13 @@ Status loadCatalog(const std::filesystem::path& repositoryRoot, AuthoritySets& s
             return std::unexpected(Failure{FailureCode::InvalidManifest, *id, "provider type/reference is incomplete"});
         }
     }
-    if (sets.catalogIds.size() != 16U) {
-        return std::unexpected(Failure{FailureCode::InvalidManifest,
-                                       kPath.generic_string(),
-                                       "TASK-0001 catalog must contain exactly 16 admitted entries"});
+    // Sixteen from TASK-0001, plus the Windows container base layer and the four
+    // pinned first-party GitHub Actions that TASK-0009 admitted. The count is
+    // exact rather than a minimum because an unreviewed dependency arriving
+    // quietly is the failure this check exists to catch.
+    if (sets.catalogIds.size() != 21U) {
+        return std::unexpected(Failure{
+            FailureCode::InvalidManifest, kPath.generic_string(), "catalog must contain exactly 21 admitted entries"});
     }
     return {};
 }
@@ -208,9 +213,12 @@ Status loadLicenses(const std::filesystem::path& repositoryRoot, AuthoritySets& 
     }
 
     simdjson::dom::array entries;
-    if (((*root).at_key("entries").get_array().get(entries) != 0) || entries.size() != 16U) {
+    // Eighteen policies for twenty-one catalog entries: the four pinned actions
+    // are one MIT policy over one notice section, and the coverage rule below
+    // still requires each catalog entry to be named exactly once.
+    if (((*root).at_key("entries").get_array().get(entries) != 0) || entries.size() != 18U) {
         return std::unexpected(Failure{
-            FailureCode::InvalidManifest, kPath.generic_string(), "license index must contain exactly 16 policies"});
+            FailureCode::InvalidManifest, kPath.generic_string(), "license index must contain exactly 18 policies"});
     }
     std::set<std::string, std::less<>> coveredCatalogs;
     for (const auto kElement : entries) {
@@ -520,6 +528,199 @@ Status loadToolchain(const std::filesystem::path& repositoryRoot, AuthoritySets&
     return {};
 }
 
+// Collects every `owner/name@commit` an Actions workflow pins.
+//
+// Local actions are excluded by their leading `./`: they are this repository's
+// own files, already under review, and have no upstream to pin. A reference
+// without a commit is not collected and not tolerated either, because the caller
+// requires the collected set and the locked set to be equal, and a floating tag
+// therefore cannot be in both.
+Result<std::set<std::string, std::less<>>> collectPinnedActions(const std::filesystem::path& repositoryRoot) {
+    std::set<std::string, std::less<>> pinned;
+    const std::array kRoots{std::filesystem::path{".github/workflows"}, std::filesystem::path{".github/actions"}};
+    for (const auto& kRoot : kRoots) {
+        const auto kAbsolute = repositoryRoot / kRoot;
+        std::error_code walkError;
+        if (!std::filesystem::exists(kAbsolute, walkError)) {
+            continue;
+        }
+        std::filesystem::recursive_directory_iterator walk(
+            kAbsolute, std::filesystem::directory_options::none, walkError);
+        for (const std::filesystem::recursive_directory_iterator kEnd; walk != kEnd; walk.increment(walkError)) {
+            if (walkError) {
+                return std::unexpected(
+                    Failure{FailureCode::InvalidPath, kRoot.generic_string(), "workflow tree cannot be walked"});
+            }
+            const auto& kEntry = *walk;
+            if (!kEntry.is_regular_file() || kEntry.path().extension() != ".yml") {
+                continue;
+            }
+            auto content = readBoundedFile(kEntry.path());
+            if (!content) {
+                return std::unexpected(content.error());
+            }
+            const std::string_view kText(*content);
+            constexpr std::string_view kMarker = "uses:";
+            for (std::size_t at = kText.find(kMarker); at != std::string_view::npos;
+                 at = kText.find(kMarker, at + kMarker.size())) {
+                std::size_t begin = at + kMarker.size();
+                while (begin < kText.size() && (kText.at(begin) == ' ' || kText.at(begin) == '\t')) {
+                    ++begin;
+                }
+                std::size_t end = begin;
+                while (end < kText.size() && kText.at(end) != ' ' && kText.at(end) != '\r' && kText.at(end) != '\n') {
+                    ++end;
+                }
+                const std::string_view kReference = kText.substr(begin, end - begin);
+                if (kReference.starts_with("./")) {
+                    continue;
+                }
+                const auto kSeparator = kReference.rfind('@');
+                if (kSeparator == std::string_view::npos) {
+                    return std::unexpected(
+                        Failure{FailureCode::InvalidManifest,
+                                kEntry.path().generic_string(),
+                                "an action reference carries no commit: " + std::string(kReference)});
+                }
+                // Only the repository is pinned, so `actions/cache/restore` and
+                // `actions/cache/save` are one dependency at one commit rather
+                // than two records that could drift apart.
+                std::string_view repository = kReference.substr(0, kSeparator);
+                std::size_t slashes = 0;
+                for (std::size_t index = 0; index < repository.size(); ++index) {
+                    if (repository.at(index) == '/' && ++slashes == 2U) {
+                        repository = repository.substr(0, index);
+                        break;
+                    }
+                }
+                pinned.insert(lowercase(repository) + "@" + lowercase(kReference.substr(kSeparator + 1U)));
+            }
+        }
+    }
+    return pinned;
+}
+
+// Collects every image digest the maintained container definitions pull.
+//
+// Only the base layers are collected. The digest of an image this repository
+// publishes is its own host identity under ADR-0083, not a third-party
+// acquisition, and it is pinned where the lane starts the container.
+Result<std::set<std::string, std::less<>>> collectPulledImages(const std::filesystem::path& repositoryRoot) {
+    std::set<std::string, std::less<>> pulled;
+    const auto kRoot = repositoryRoot / "ci/images";
+    std::error_code walkError;
+    if (!std::filesystem::exists(kRoot, walkError)) {
+        return pulled;
+    }
+    std::filesystem::recursive_directory_iterator walk(kRoot, std::filesystem::directory_options::none, walkError);
+    for (const std::filesystem::recursive_directory_iterator kEnd; walk != kEnd; walk.increment(walkError)) {
+        if (walkError) {
+            return std::unexpected(Failure{FailureCode::InvalidPath, "ci/images", "image tree cannot be walked"});
+        }
+        const auto& kEntry = *walk;
+        if (!kEntry.is_regular_file() || kEntry.path().filename() != "Dockerfile") {
+            continue;
+        }
+        auto content = readBoundedFile(kEntry.path());
+        if (!content) {
+            return std::unexpected(content.error());
+        }
+        const std::string_view kText(*content);
+        constexpr std::string_view kMarker = "sha256:";
+        constexpr std::size_t kHexLength = 64;
+        for (std::size_t at = kText.find(kMarker); at != std::string_view::npos;
+             at = kText.find(kMarker, at + kMarker.size())) {
+            if (at + kMarker.size() + kHexLength > kText.size()) {
+                break;
+            }
+            pulled.insert(lowercase(kText.substr(at, kMarker.size() + kHexLength)));
+        }
+    }
+    return pulled;
+}
+
+// The record class for inputs another engine fetches on our behalf.
+//
+// The container engine pulls an image and the Actions runner fetches an action.
+// Neither has an extraction root, and an action pinned by a forty-hex commit has
+// no content digest at all, so encoding either as a verified artifact would mean
+// stating something untrue. What can be stated is the exact reference, the exact
+// pin, and which engine performs the fetch.
+//
+// The lock is then compared against the files that actually do the fetching, in
+// both directions. A record nothing uses is stale and a use no record covers is
+// an unreviewed dependency, and a lock that is never compared to reality is
+// decoration.
+Status loadDelegatedFetches(const std::filesystem::path& repositoryRoot, AuthoritySets& sets) {
+    const auto kPath = repositoryRoot / "third_party/artifacts.lock.json";
+    simdjson::dom::parser parser;
+    simdjson::padded_string storage;
+    auto root = loadObject(kPath, parser, storage);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    simdjson::dom::array records;
+    if ((*root).at_key("delegatedFetches").get_array().get(records) != 0) {
+        return std::unexpected(
+            Failure{FailureCode::InvalidJson, kPath.generic_string(), "delegated fetch list is invalid"});
+    }
+    std::set<std::string, std::less<>> lockedActions;
+    std::set<std::string, std::less<>> lockedImages;
+    for (const auto kElement : records) {
+        simdjson::dom::object record;
+        if (kElement.get_object().get(record) != 0) {
+            return std::unexpected(
+                Failure{FailureCode::InvalidJson, kPath.generic_string(), "delegated fetch must be an object"});
+        }
+        auto id = stringField(record, "id", kPath);
+        auto catalogId = stringField(record, "catalogId", kPath);
+        auto kind = stringField(record, "kind", kPath);
+        auto reference = stringField(record, "reference", kPath);
+        auto pin = stringField(record, "pin", kPath);
+        auto licenseReference = stringField(record, "licenseReference", kPath);
+        if (!id || !catalogId || !kind || !reference || !pin || !licenseReference) {
+            return std::unexpected(
+                Failure{FailureCode::InvalidJson, kPath.generic_string(), "delegated fetch fields are incomplete"});
+        }
+        if (auto status = insertUnique(sets.artifactIds, *id, kPath, "delegated fetch"); !status) {
+            return status;
+        }
+        if (!sets.catalogIds.contains(lowercase(*catalogId))) {
+            return std::unexpected(
+                Failure{FailureCode::InvalidManifest, *id, "delegated fetch references an unknown catalog ID"});
+        }
+        if (!sets.licenseIds.contains(lowercase(*licenseReference))) {
+            return std::unexpected(
+                Failure{FailureCode::InvalidManifest, *id, "delegated fetch references unknown license material"});
+        }
+        if (*kind == "github_action") {
+            lockedActions.insert(lowercase(*reference) + "@" + lowercase(*pin));
+        } else {
+            lockedImages.insert(lowercase(*pin));
+        }
+    }
+
+    auto pinnedActions = collectPinnedActions(repositoryRoot);
+    if (!pinnedActions) {
+        return std::unexpected(pinnedActions.error());
+    }
+    if (*pinnedActions != lockedActions) {
+        return std::unexpected(Failure{FailureCode::VerificationFailed,
+                                       kPath.generic_string(),
+                                       "the pinned actions and the locked action records are not the same set"});
+    }
+    auto pulledImages = collectPulledImages(repositoryRoot);
+    if (!pulledImages) {
+        return std::unexpected(pulledImages.error());
+    }
+    if (*pulledImages != lockedImages) {
+        return std::unexpected(Failure{FailureCode::VerificationFailed,
+                                       kPath.generic_string(),
+                                       "the pulled base images and the locked image records are not the same set"});
+    }
+    return {};
+}
+
 } // namespace
 
 Status validateDependencyAuthorities(const std::filesystem::path& repositoryRoot,
@@ -532,6 +733,9 @@ Status validateDependencyAuthorities(const std::filesystem::path& repositoryRoot
         return status;
     }
     if (auto status = loadArtifacts(repositoryRoot, sets); !status) {
+        return status;
+    }
+    if (auto status = loadDelegatedFetches(repositoryRoot, sets); !status) {
         return status;
     }
     if (auto status = loadToolchain(repositoryRoot, sets); !status) {

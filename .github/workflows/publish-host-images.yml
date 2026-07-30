@@ -1,0 +1,127 @@
+# Builds and publishes the two ADR-0083 container hosts.
+#
+# This workflow is not the trusted producer. It exists so that the digest which
+# becomes a host identity is produced by a reviewed definition on a reviewed ref
+# rather than by whatever a workstation happened to have installed. Publishing an
+# image is an explicit dispatched act for the same reason a locked artifact is
+# never floated: a host identity that could change without review is not an
+# identity.
+name: Publish host images
+
+# The push trigger is deliberate rather than convenience. A change to an image
+# definition has to produce the digest it will be locked to, and producing it
+# anywhere other than here would mean the recorded host identity came from
+# somewhere unreviewed. It is narrowed to the definitions themselves, so ordinary
+# work never rebuilds an image.
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: Which container host to publish
+        required: true
+        default: both
+        type: choice
+        options: [both, linux, windows]
+  push:
+    paths:
+      - ci/images/**
+      - .github/workflows/publish-host-images.yml
+
+permissions: {}
+
+jobs:
+  linux:
+    if: github.event_name == 'push' || inputs.lane == 'both' || inputs.lane == 'linux'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the image definition
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Sign in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build the Linux container host
+        run: bash ci/images/build-linux-image.sh "$IMAGE:$GITHUB_SHA"
+        env:
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-linux
+
+      - name: Publish and record the digest
+        env:
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-linux
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$GITHUB_SHA"
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$GITHUB_SHA")"
+          echo "rf: published $digest"
+          {
+            echo '## Linux container host'
+            echo
+            echo "\`$digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    if: github.event_name == 'push' || inputs.lane == 'both' || inputs.lane == 'windows'
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the image definition
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Windows runner image ships the engine but does not start it, unlike
+      # the Linux one. Starting it explicitly is the difference, not a missing
+      # dependency.
+      - name: Start the container engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $service = Get-Service -Name docker -ErrorAction SilentlyContinue
+          if ($null -eq $service) {
+              throw 'rf: the runner image has no docker service'
+          }
+          if ($service.Status -ne 'Running') {
+              Start-Service -Name docker
+          }
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              docker version --format '{{.Server.Os}}' 2>$null
+              if ($LASTEXITCODE -eq 0) { break }
+              Start-Sleep -Seconds 2
+          }
+          docker version
+
+      - name: Sign in to the container registry
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build the Windows container host
+        shell: bash
+        run: bash ci/images/build-windows-image.sh "$IMAGE:$GITHUB_SHA"
+        env:
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-windows
+
+      - name: Publish and record the digest
+        shell: bash
+        env:
+          IMAGE: ghcr.io/rawframe-project/rawframe-ci-windows
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$GITHUB_SHA"
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$GITHUB_SHA")"
+          echo "rf: published $digest"
+          {
+            echo '## Windows container host'
+            echo
+            echo "\`$digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"

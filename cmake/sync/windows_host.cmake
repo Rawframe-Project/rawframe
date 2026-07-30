@@ -15,6 +15,21 @@ include("${CMAKE_CURRENT_LIST_DIR}/../bootstrap/windows_signature.cmake")
 # cumulative update, which sets this Task against the ADR-0079 rule that
 # security updates are applied promptly. The measured revision is recorded as
 # evidence in the host tuple report. Every other value below stays exact.
+# ADR-0083 admits a second host class whose operating-system identity is its
+# image digest. That replaces the four self-reported values below and nothing
+# else: inside a container host the Visual Studio, MSVC, compiler, linker, SDK,
+# and SignTool identities are probed exactly as they are on a workstation, and a
+# container that drifts fails the same checks for the same reasons.
+#
+# Only the operating-system values are replaced because only they describe the
+# base layer rather than the environment. A digest over the whole image is
+# strictly stronger evidence than a build number the machine reports about
+# itself, which is why this is a strengthening and not a concession.
+# The container tuple ID and the marker that names it live in
+# `cmake/bootstrap/common.cmake`, because Stage 0 admits the bootstrap transport
+# before this probe runs and needs the same answer. A copy here would be a second
+# authority that can disagree with the one the transport was selected by.
+set(RF_WINDOWS_HOST_ID "host.windows_11_25h2_x86_64")
 set(RF_WINDOWS_HOST_OS_BUILD "26200")
 set(RF_WINDOWS_HOST_OS_UBR_MINIMUM "8655")
 set(RF_WINDOWS_HOST_OS_DISPLAY_VERSION "25H2")
@@ -247,7 +262,22 @@ function(rf_capture_windows_msvc_environment repository_root)
 endfunction()
 
 function(rf_probe_windows_host_tuple repository_root)
-    rf_probe_windows_os_identity()
+    rf_resolve_bootstrap_host_class("windows-x86_64" "${RF_WINDOWS_HOST_ID}" host_class host_id)
+    if(host_class STREQUAL "container")
+        # The operating-system values below describe the base layer, and the
+        # image digest that names the whole environment has already replaced
+        # them. Recording them as measured would be a false claim, so they are
+        # recorded as what they are.
+        set(RF_WINDOWS_HOST_OS_UBR_MEASURED "container")
+        set(os_build "${host_id}")
+        set(os_display_version "container")
+        set(os_edition "container")
+    else()
+        rf_probe_windows_os_identity()
+        set(os_build "${RF_WINDOWS_HOST_OS_BUILD}.${RF_WINDOWS_HOST_OS_UBR_MEASURED}")
+        set(os_display_version "${RF_WINDOWS_HOST_OS_DISPLAY_VERSION}")
+        set(os_edition "${RF_WINDOWS_HOST_OS_EDITION}")
+    endif()
     rf_probe_windows_visual_studio()
     rf_probe_windows_sdk()
     rf_capture_windows_msvc_environment("${repository_root}")
@@ -257,11 +287,12 @@ function(rf_probe_windows_host_tuple repository_root)
     file(MAKE_DIRECTORY "${report_root}")
     file(WRITE "${report_root}/host-tuple.json.tmp"
         "{\n"
-        "  \"host\": \"host.windows_11_25h2_x86_64\",\n"
-        "  \"osBuild\": \"${RF_WINDOWS_HOST_OS_BUILD}.${RF_WINDOWS_HOST_OS_UBR_MEASURED}\",\n"
+        "  \"host\": \"${host_id}\",\n"
+        "  \"hostClass\": \"${host_class}\",\n"
+        "  \"osBuild\": \"${os_build}\",\n"
         "  \"osUpdateBuildRevisionMinimum\": \"${RF_WINDOWS_HOST_OS_UBR_MINIMUM}\",\n"
-        "  \"osDisplayVersion\": \"${RF_WINDOWS_HOST_OS_DISPLAY_VERSION}\",\n"
-        "  \"osEdition\": \"${RF_WINDOWS_HOST_OS_EDITION}\",\n"
+        "  \"osDisplayVersion\": \"${os_display_version}\",\n"
+        "  \"osEdition\": \"${os_edition}\",\n"
         "  \"visualStudioVersion\": \"${RF_WINDOWS_HOST_VS_VERSION}\",\n"
         "  \"visualStudioInstance\": \"${vs_probed_instance}\",\n"
         "  \"msvcToolset\": \"${RF_WINDOWS_HOST_MSVC_TOOLSET}\",\n"

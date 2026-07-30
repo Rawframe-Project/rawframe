@@ -1,0 +1,38 @@
+# The one entry point whose runs can carry `trusted_ci`.
+#
+# ADR-0082 makes the reusable workflow the producer and this the entry point. The
+# separation is what lets the producer's identity stay constant while callers
+# come and go: a reusable workflow's provenance records the entry point in its
+# external parameters and the workflow that signed in its builder identity, so
+# `rf-evidence` can anchor both. This file is named in the verifier as the
+# admitted entry point, which means adding another one is a reviewed change to a
+# compiled tool rather than a new workflow file.
+#
+# Nothing here decides trust. A run of this workflow is trusted because of what
+# signed its attestation and the ref that signature covers, and for no other
+# reason. Renaming this file without changing the verifier produces untrusted
+# evidence, which is the correct outcome.
+name: Verify main
+
+on:
+  push:
+    branches: [main]
+  # Dispatch is admitted because a dispatch of this workflow still runs on this
+  # ref. What ADR-0082 refuses is a dispatch outside the protected ref, and that
+  # is refused by the ref checks rather than by withholding the trigger.
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: verify-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/trusted-verification.yml
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+      attestations: write

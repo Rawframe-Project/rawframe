@@ -10,15 +10,19 @@
 #include "shipping_closure.h"
 #include "source_inspector.h"
 #include "store_command.h"
+#include "trust_policy.h"
 
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
 #include <optional>
 #include <ostream>
+#include <span>
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 namespace rawframe::tool::evidence {
 
@@ -375,6 +379,25 @@ int runCommand(std::span<const std::string_view> arguments, std::ostream& output
     if (arguments.empty()) {
         return fail(
             errors, Failure{FailureCode::InvalidArguments, "command", "expected an operation"}, OutputFormat::Human);
+    }
+
+    // Before anything is parsed: nothing on this command line may raise the
+    // authority of what the tool produces. An unknown option would already be
+    // refused below, but "unknown option" is the wrong reason, and a reason is
+    // what a reader needs. Naming the refusal makes the property mechanical
+    // rather than incidental, so a later revision that added a real `--trust`
+    // option would have to delete this check to do it.
+    if (const std::vector<std::string> kEscalations = refusedEscalationRequests(arguments); !kEscalations.empty()) {
+        std::string named = kEscalations.front();
+        for (const auto& kRequest : std::span(kEscalations).subspan(1)) {
+            named.append(", ").append(kRequest);
+        }
+        return fail(
+            errors,
+            Failure{FailureCode::InvalidArguments,
+                    std::move(named),
+                    "authority is not raised by an argument; provenance is derived from a verified attestation"},
+            OutputFormat::Human);
     }
 
     const std::string_view kOperation = arguments.front();

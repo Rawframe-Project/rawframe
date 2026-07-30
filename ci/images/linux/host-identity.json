@@ -1,0 +1,6 @@
+{
+  "hostClass": "container",
+  "hostId": "host.container_ubuntu_24_04_x86_64",
+  "probeHostId": "linux-x86_64",
+  "authority": "ADR-0083"
+}

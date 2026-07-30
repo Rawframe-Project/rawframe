@@ -27,17 +27,35 @@
     "transportExecutables": [
       {
         "hostId": "windows-x86_64",
+        "hostClass": "workstation",
         "absolutePath": "C:/Windows/System32/curl.exe",
         "minimumVersion": "8.19.0",
         "vendorSignature": "authenticode_microsoft_windows",
         "packageIdentity": "Windows 11 25H2 inbox curl, serviced in place by the operating system"
       },
       {
+        "hostId": "windows-x86_64",
+        "hostClass": "container",
+        "absolutePath": "C:/Windows/System32/curl.exe",
+        "minimumVersion": "8.16.0",
+        "vendorSignature": "authenticode_microsoft_windows",
+        "packageIdentity": "Windows Server Core ltsc2025 build 26100 inbox curl 8.16.0, fixed by the base image digest"
+      },
+      {
         "hostId": "linux-x86_64",
+        "hostClass": "workstation",
         "absolutePath": "/usr/bin/curl",
         "minimumVersion": "8.5.0",
         "vendorSignature": "distribution_package_chain",
         "packageIdentity": "Ubuntu 24.04 inbox curl 8.5.0-2ubuntu10, serviced in place by the distribution"
+      },
+      {
+        "hostId": "linux-x86_64",
+        "hostClass": "container",
+        "absolutePath": "/usr/bin/curl",
+        "minimumVersion": "8.5.0",
+        "vendorSignature": "distribution_package_chain",
+        "packageIdentity": "Ubuntu 24.04 noble base image curl 8.5.0-2ubuntu10, installed at image build and fixed by the image digest"
       }
     ]
   },
