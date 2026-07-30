@@ -1,4 +1,5 @@
 add_executable(rawframe_tool_rf_evidence_tests
+    attestation_test.cpp
     baseline_record_test.cpp
     blob_store_test.cpp
     canonical_json_test.cpp
@@ -29,6 +30,7 @@ add_executable(rawframe_tool_rf_evidence_tests
     sha256_test.cpp
     shipping_closure_test.cpp
     source_inspector_test.cpp
+    trust_policy_test.cpp
 )
 target_link_libraries(rawframe_tool_rf_evidence_tests PRIVATE
     rawframe_tool_rf_evidence_private

@@ -24,6 +24,7 @@
 #include "schema_oracle.h"
 #include "sha256.h"
 #include "shipping_closure.h"
+#include "trust_policy.h"
 
 #include <array>
 #include <cstdint>
@@ -481,12 +482,35 @@ TEST(Conformance, Item17APolicyChangeChangesEvaluationIdentityWithoutEditingRawR
 }
 
 // 18. A local caller cannot claim trusted provenance, a higher tier, runner
-// qualification, or a promotion. The trust value is a schema const, so the
-// refusal is structural rather than a check that could be forgotten.
+// qualification, or a promotion.
+//
+// TASK-0009 replaced the schema const with a rule, which is stricter rather
+// than looser: trusted_ci is now a statable class, and stating it requires
+// handing over the attestation that refutes it. A local caller still cannot
+// reach it, because it has no bundle the pinned root will verify, and no flag,
+// environment variable, label, or edit produces one.
 TEST(Conformance, Item18ALocalCallerCannotClaimTrustedCiHigherTiersOrPromotion) {
     const std::string kCommon = readAllBytes(repositoryRoot() / "schemas/evidence-common-v1.schema.json");
-    EXPECT_NE(kCommon.find("\"const\": \"diagnostic_untrusted\""), std::string::npos);
-    EXPECT_EQ(kCommon.find("trusted_ci"), std::string::npos);
+    EXPECT_NE(kCommon.find(R"("enum": ["diagnostic_untrusted", "trusted_ci"])"), std::string::npos);
+    EXPECT_NE(kCommon.find(R"("then": { "required": ["attestation"] })"), std::string::npos);
+    EXPECT_NE(kCommon.find(R"("else": { "not": { "required": ["attestation"] } })"), std::string::npos);
+
+    // The claim is refused by the derivation, not merely by the schema, and it
+    // is refused with a typed reason rather than demoted to the lower class.
+    auto claimed = ingestCanonicalBytes(R"({"provenance":"trusted_ci"})");
+    ASSERT_TRUE(claimed.has_value());
+    AttestationInputs kAbsent;
+    kAbsent.bundlePath = "does-not-exist.sigstore.json";
+    kAbsent.subjectPath = "does-not-exist.json";
+    kAbsent.cosign = "does-not-exist-cosign";
+    kAbsent.trustedRoot = "does-not-exist-trusted-root.json";
+    const auto kDerived = deriveTrustClass(*claimed, kAbsent, {});
+    ASSERT_FALSE(kDerived.has_value());
+    EXPECT_EQ(kDerived.error().rejection, TrustRejection::ProvenanceUnavailable);
+
+    EXPECT_TRUE(refusedEscalationRequests(std::array<std::string_view, 2>{"--trust=trusted_ci", "--promote"}).size()
+                == 2U);
+
     for (const std::string_view kName : {std::string_view{"claims-trusted-provenance"},
                                          std::string_view{"claims-a-higher-tier"},
                                          std::string_view{"claims-runner-qualification"},

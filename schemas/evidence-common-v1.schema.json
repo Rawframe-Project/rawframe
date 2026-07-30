@@ -70,15 +70,54 @@
         "producer": { "$ref": "#/$defs/identifier" }
       }
     },
+    "attestation": {
+      "description": "What an ADR-0082 trusted_ci claim has to carry so that it can be refuted. Every member is an assertion this schema does not check and rf-evidence verifies offline against the pinned Sigstore trusted root: the bundle descriptor identifies the bytes that were signed, the subject names what those bytes attest to, and the source, workflow, and run members name the producer whose certificate identity must match exactly. The schema's job is to make an unverifiable claim impossible to state; the verifier's job is to refuse a verifiable one that is false.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle",
+        "subjectName",
+        "subjectDigest",
+        "builderId",
+        "sourceRepository",
+        "sourceCommit",
+        "sourceRef",
+        "workflowPath",
+        "workflowRef",
+        "runId",
+        "runAttempt"
+      ],
+      "properties": {
+        "bundle": { "$ref": "#/$defs/descriptor" },
+        "subjectName": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "subjectDigest": { "$ref": "#/$defs/digest" },
+        "builderId": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "sourceRepository": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,100}/[A-Za-z0-9._-]{1,100}$" },
+        "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "sourceRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "workflowPath": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "workflowRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "runId": { "$ref": "#/$defs/nonNegativeInteger" },
+        "runAttempt": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
     "trust": {
-      "description": "Provenance, not a verdict. diagnostic_untrusted is the only admitted value: trusted CI provenance does not exist at this gate, and admitting the value it would carry would be a future flag with nothing behind it. A later generation widens this by being a later generation.",
+      "description": "Provenance, not a verdict. The two admitted classes are separated by evidence rather than by assertion: diagnostic_untrusted carries no attestation and may carry none, and trusted_ci must carry the ADR-0082 attestation that makes the claim checkable. That is the rule the earlier const ceiling has been replaced by, and it is stricter than it looks: a record cannot claim trust without also handing over what refutes it, and a claim whose attestation does not verify is a typed failure rather than a quiet demotion.",
       "type": "object",
       "additionalProperties": false,
       "required": ["provenance"],
       "properties": {
-        "provenance": { "const": "diagnostic_untrusted" },
-        "reference": { "type": "string", "minLength": 1, "maxLength": 512 }
-      }
+        "provenance": { "enum": ["diagnostic_untrusted", "trusted_ci"] },
+        "reference": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "attestation": { "$ref": "#/$defs/attestation" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "provenance": { "const": "trusted_ci" } }, "required": ["provenance"] },
+          "then": { "required": ["attestation"] },
+          "else": { "not": { "required": ["attestation"] } }
+        }
+      ]
     }
   }
 }

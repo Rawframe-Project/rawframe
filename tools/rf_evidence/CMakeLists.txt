@@ -3,6 +3,7 @@ find_package(OpenSSL 3.5.7 EXACT REQUIRED COMPONENTS Crypto)
 
 add_library(rawframe_tool_rf_evidence_private STATIC)
 target_sources(rawframe_tool_rf_evidence_private PRIVATE
+    src/attestation.cpp
     src/baseline_record.cpp
     src/blob_store.cpp
     src/evidence_set.cpp
@@ -32,6 +33,7 @@ target_sources(rawframe_tool_rf_evidence_private PRIVATE
     src/shipping_closure.cpp
     src/source_inspector.cpp
     src/store_command.cpp
+    src/trust_policy.cpp
 )
 target_include_directories(rawframe_tool_rf_evidence_private PUBLIC src)
 target_link_libraries(rawframe_tool_rf_evidence_private PUBLIC
@@ -66,6 +68,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         message(FATAL_ERROR "RF1120 the preset's locked clang-format executable is absent")
     endif()
     set(rawframe_tool_rf_evidence_maintained_sources
+        src/attestation.cpp
+        src/attestation.h
         src/baseline_record.cpp
         src/baseline_record.h
         src/blob_store.cpp
@@ -126,6 +130,9 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/source_inspector.h
         src/store_command.cpp
         src/store_command.h
+        src/trust_policy.cpp
+        src/trust_policy.h
+        tests/attestation_test.cpp
         tests/baseline_record_test.cpp
         tests/blob_store_test.cpp
         tests/evaluation_policy_test.cpp
@@ -148,6 +155,7 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         tests/repository_audit_test.cpp
         tests/repository_validator_test.cpp
         tests/sha256_test.cpp
+        tests/trust_policy_test.cpp
     )
     add_custom_target(rawframe_tool_rf_evidence_format_check ALL
         COMMAND "${RAWFRAME_CLANG_FORMAT_EXECUTABLE}" --style=file --dry-run --Werror
