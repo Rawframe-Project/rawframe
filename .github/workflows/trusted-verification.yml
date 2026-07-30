@@ -56,17 +56,47 @@ jobs:
       # disagreed would be refetched and refused, not believed.
       #
       # The key is the locks themselves, so a change to any locked identity
-      # produces a different cache and never a stale hit. The 12 GiB prepared
-      # LLVM tree is deliberately not cached: it exceeds the 10 GiB repository
-      # cache limit, so attempting it would fail every save.
+      # produces a different cache and never a stale hit. There is deliberately
+      # no `restore-keys`: a prefix match would hand this run the artifacts of a
+      # different locked closure, and although Stage 1 would refuse every object
+      # that disagreed, the run would then pay a full refetch on top of a full
+      # restore. A miss is cheaper than a wrong hit, so a miss is what a changed
+      # lock produces.
+      #
+      # The 12 GiB prepared LLVM tree is not cached. The reason is the runner's
+      # 14 GiB of disk before the cache limit is even reached: the tree plus the
+      # artifacts it was expanded from does not fit alongside a build. Trimming
+      # it is real work with a real risk of silently discarding something
+      # clang-tidy needs, so it belongs to its own Task rather than to this one.
       - name: Restore the verified artifact cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             out/cache
             out/bootstrap
           key: rf-linux-artifacts-${{ hashFiles('third_party/artifacts.lock.json', 'third_party/toolchain.lock.json', 'third_party/vcpkg/**', 'cmake/bootstrap/**') }}
-          restore-keys: rf-linux-artifacts-
+
+      # The first attempt at caching reported a saved cache and saved nothing:
+      # the container writes as root, and `tar` could not read the trees it had
+      # to archive. A cache that silently does not work looks exactly like one
+      # that does, and the only difference is in the timings nobody was reading,
+      # so what the cache actually did is recorded here instead of assumed.
+      - name: Report what the cache did
+        env:
+          CACHE_KEY: ${{ steps.cache.outputs.cache-primary-key }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          echo "rf: cache key ${CACHE_KEY}"
+          echo "rf: exact hit ${CACHE_HIT:-false}"
+          for tree in out/cache out/bootstrap; do
+            if [ -d "$tree" ]; then
+              echo "rf: restored ${tree}, $(du -sh "$tree" | cut -f1)"
+            else
+              echo "rf: ${tree} was not restored"
+            fi
+          done
 
       - name: Sign in to the container registry
         env:
@@ -79,6 +109,24 @@ jobs:
         with:
           host: linux-x86_64
           image: ghcr.io/rawframe-project/rawframe-ci-linux@sha256:ea43b3d191034cb19ac254d45590ac067defaf6aeb3f45ceb1b5d31ce5949c6d
+
+      # Saved from a push to the protected ref and from nowhere else, and saved
+      # here rather than at the end of the job so that a later failure in
+      # attestation or publication does not discard a closure that was acquired
+      # and verified correctly.
+      #
+      # A cache written by a pull request lives in that pull request's own scope,
+      # is evicted with it, and is a tree a contributor influenced. Pull requests
+      # read the protected ref's cache and never write one, which is the same
+      # asymmetry the trust boundary itself has.
+      - name: Save the verified artifact cache
+        if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            out/cache
+            out/bootstrap
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
       # One subject, the archive of everything the tool recorded. The digest in
       # the statement is not what the verifier believes: it recomputes the digest

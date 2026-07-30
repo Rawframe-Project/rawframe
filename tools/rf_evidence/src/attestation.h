@@ -61,6 +61,19 @@ inline constexpr std::string_view kTrustedProtectedRef = "refs/heads/main";
 inline constexpr std::string_view kTrustedProducerWorkflowPath = ".github/workflows/trusted-verification.yml";
 inline constexpr std::string_view kTrustedEntryWorkflowPath = ".github/workflows/verify-main.yml";
 
+// The one runner environment ADR-0082 admits.
+//
+// The decision says the producing lane runs on GitHub-hosted runners and
+// explicitly rejects self-hosted runners for it. Until this constant existed
+// that was a sentence in a document: a self-hosted runner in this organization,
+// entering through the protected ref, would receive a certificate with the same
+// issuer and the same identity, and would have verified as `trusted_ci`. The
+// provenance names the environment in `internalParameters.github`, so the
+// requirement can be mechanical instead of remembered, and it is checked here
+// rather than trusted from a claim, because the claim is written by the same
+// party the check is about.
+inline constexpr std::string_view kTrustedRunnerEnvironment = "github-hosted";
+
 // The certificate identity is matched literally. ADR-0082 forbids prefix,
 // suffix, glob, and regular-expression matching here, because every one of them
 // admits a near miss, and a near miss is what an attacker who controls a
@@ -133,6 +146,7 @@ enum class AttestationRejection : std::uint8_t {
     WorkflowMismatch,
     RunIdentityMissing,
     RunIdentityReplayed,
+    RunnerEnvironmentUnadmitted,
     SignatureInvalid,
     VerifierUnavailable,
 };
@@ -161,6 +175,8 @@ enum class AttestationRejection : std::uint8_t {
         return "run_identity_missing";
     case AttestationRejection::RunIdentityReplayed:
         return "run_identity_replayed";
+    case AttestationRejection::RunnerEnvironmentUnadmitted:
+        return "runner_environment_unadmitted";
     case AttestationRejection::SignatureInvalid:
         return "signature_invalid";
     case AttestationRejection::VerifierUnavailable:

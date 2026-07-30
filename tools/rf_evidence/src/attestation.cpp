@@ -479,6 +479,21 @@ AttestationResult<DecodedProvenance> decodeProvenanceBundle(std::string_view bun
         return std::unexpected(github.error());
     }
 
+    // The environment that produced the run, which the certificate does not
+    // distinguish. A self-hosted runner in this organization entering through
+    // the protected ref receives the same issuer and the same certificate
+    // identity as a hosted one, so without this the six identity checks would
+    // all pass for a machine ADR-0082 does not admit as a producer.
+    auto runnerEnvironment =
+        requireString(**github, "runner_environment", AttestationRejection::RunnerEnvironmentUnadmitted);
+    if (!runnerEnvironment) {
+        return std::unexpected(runnerEnvironment.error());
+    }
+    if (*runnerEnvironment != kTrustedRunnerEnvironment) {
+        return refuse(AttestationRejection::RunnerEnvironmentUnadmitted,
+                      "the run was not produced on an admitted runner environment: " + *runnerEnvironment);
+    }
+
     const CanonicalValue* resolved = (*buildDefinition)->find("resolvedDependencies");
     if (resolved == nullptr || resolved->kind() != CanonicalValue::Kind::Array || resolved->elements().empty()) {
         return refuse(AttestationRejection::SourceMismatch, "the statement resolves no source dependency");

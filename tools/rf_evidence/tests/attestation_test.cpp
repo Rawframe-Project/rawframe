@@ -53,6 +53,7 @@ struct StatementFields {
     std::string workflowPath{kTrustedEntryWorkflowPath};
     std::string workflowRef{kTrustedProtectedRef};
     std::string sourceUri{"git+https://github.com/Rawframe-Project/rawframe@refs/heads/main"};
+    std::string runnerEnvironment{kTrustedRunnerEnvironment};
     std::string commit{kCommit};
     std::string invocationId{"https://github.com/Rawframe-Project/rawframe/actions/runs/30485058826/attempts/1"};
 };
@@ -61,17 +62,17 @@ std::string buildStatement(const StatementFields& fields) {
     return std::string(R"({"_type":")") + fields.statementType + R"(","predicateType":")" + fields.predicateType +
            R"(","predicate":{"buildDefinition":{"externalParameters":{"workflow":{"path":")" + fields.workflowPath +
            R"(","ref":")" + fields.workflowRef + R"(","repository":")" + fields.repository +
-           R"("}},"internalParameters":{"github":{"event_name":"push"}},"resolvedDependencies":[{"digest":{"gitCommit":")" +
-           fields.commit + R"("},"uri":")" + fields.sourceUri + R"("}]},"runDetails":{"builder":{"id":")" +
-           fields.builderId + R"("},"metadata":{"invocationId":")" + fields.invocationId +
-           R"("}}},"subject":[{"digest":{"sha256":")" + fields.subjectDigest + R"("},"name":")" + fields.subjectName +
-           R"("}]})";
+           R"("}},"internalParameters":{"github":{"event_name":"push","runner_environment":")" +
+           fields.runnerEnvironment + R"("}},"resolvedDependencies":[{"digest":{"gitCommit":")" + fields.commit +
+           R"("},"uri":")" + fields.sourceUri + R"("}]},"runDetails":{"builder":{"id":")" + fields.builderId +
+           R"("},"metadata":{"invocationId":")" + fields.invocationId + R"("}}},"subject":[{"digest":{"sha256":")" +
+           fields.subjectDigest + R"("},"name":")" + fields.subjectName + R"("}]})";
 }
 
-std::string buildBundle(const StatementFields& fields,
-                        std::string_view mediaType = kSigstoreBundleMediaType,
-                        std::string_view payloadType = kInTotoPayloadType,
-                        std::size_t signatureCount = 1U) {
+std::string bundleAround(std::string_view statement,
+                         std::string_view mediaType = kSigstoreBundleMediaType,
+                         std::string_view payloadType = kInTotoPayloadType,
+                         std::size_t signatureCount = 1U) {
     std::string signatures = "[";
     for (std::size_t index = 0; index < signatureCount; ++index) {
         if (index != 0U) {
@@ -80,9 +81,16 @@ std::string buildBundle(const StatementFields& fields,
         signatures += R"({"sig":"c2lnbmF0dXJl"})";
     }
     signatures += "]";
-    return std::string(R"({"dsseEnvelope":{"payload":")") + base64Encode(buildStatement(fields)) +
-           R"(","payloadType":")" + std::string(payloadType) + R"(","signatures":)" + signatures +
-           R"(},"mediaType":")" + std::string(mediaType) + R"("})";
+    return std::string(R"({"dsseEnvelope":{"payload":")") + base64Encode(statement) + R"(","payloadType":")" +
+           std::string(payloadType) + R"(","signatures":)" + signatures + R"(},"mediaType":")" +
+           std::string(mediaType) + R"("})";
+}
+
+std::string buildBundle(const StatementFields& fields,
+                        std::string_view mediaType = kSigstoreBundleMediaType,
+                        std::string_view payloadType = kInTotoPayloadType,
+                        std::size_t signatureCount = 1U) {
+    return bundleAround(buildStatement(fields), mediaType, payloadType, signatureCount);
 }
 
 AttestationRejection rejectionOf(const std::string& bundle) {
@@ -204,6 +212,29 @@ TEST(Attestation, RefusesAStatementWithNoResolvableRunIdentity) {
     StatementFields nonNumeric;
     nonNumeric.invocationId = "https://github.com/Rawframe-Project/rawframe/actions/runs/main/attempts/first";
     EXPECT_EQ(rejectionOf(buildBundle(nonNumeric)), AttestationRejection::RunIdentityMissing);
+}
+
+// The check the certificate cannot make. ADR-0082 admits GitHub-hosted runners
+// and rejects self-hosted ones for this lane, and a self-hosted runner in this
+// organization would satisfy every other requirement: same issuer, same
+// certificate identity, same protected ref, same workflow paths. Only the
+// provenance says where the run actually happened, and a statement that declines
+// to say is refused rather than assumed, because the assumption would always be
+// the permissive one.
+TEST(Attestation, RefusesARunProducedOutsideTheAdmittedRunnerEnvironment) {
+    StatementFields selfHosted;
+    selfHosted.runnerEnvironment = "self-hosted";
+    EXPECT_EQ(rejectionOf(buildBundle(selfHosted)), AttestationRejection::RunnerEnvironmentUnadmitted);
+
+    // The member removed from an otherwise genuine statement, rather than a
+    // statement written without it, so that this case differs from the one above
+    // in exactly one member.
+    std::string silent = buildStatement(StatementFields{});
+    const std::string kMember = R"(,"runner_environment":")" + std::string(kTrustedRunnerEnvironment) + R"(")";
+    const auto kAt = silent.find(kMember);
+    ASSERT_NE(kAt, std::string::npos);
+    silent.erase(kAt, kMember.size());
+    EXPECT_EQ(rejectionOf(bundleAround(silent)), AttestationRejection::RunnerEnvironmentUnadmitted);
 }
 
 TEST(Attestation, RefusesASourceUriThatNamesNoRef) {
