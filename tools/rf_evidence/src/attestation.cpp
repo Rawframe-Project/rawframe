@@ -617,6 +617,13 @@ AttestationResult<void> verifyBundleSignature(const AttestationInputs& inputs, s
 
     ProcessRequest request;
     request.executable = inputs.cosign;
+    // A directory the child is certain to have, and one whose identity the lane
+    // already proved. Every path handed to the verifier is absolute, so this
+    // decides nothing about what is verified; it exists because a process needs
+    // somewhere to start. Leaving it empty was not neutral: Windows refuses to
+    // create the process at all, and POSIX would have changed to no directory
+    // and run somewhere unstated, so the verifier could not run on either host.
+    request.workingDirectory = inputs.cosign.parent_path();
     request.arguments = {
         "verify-blob-attestation",
         "--bundle",
@@ -687,8 +694,12 @@ AttestationResult<DecodedProvenance> verifyAttestation(const AttestationClaim& c
         return refuse(AttestationRejection::SubjectMismatch, "the attested subject name is " + decoded->subjectName);
     }
 
+    // The statement and the claim spell the repository differently, so each is
+    // held to the spelling its own format uses and the two constants carry the
+    // fact that they are one repository. Comparing the two fields to each other
+    // instead would be refusing a claim for being what its schema requires.
     if (decoded->sourceRepository != kTrustedSourceRepositoryUri || decoded->sourceRef != kTrustedProtectedRef ||
-        claim.sourceRepository != decoded->sourceRepository || claim.sourceCommit != decoded->sourceCommit ||
+        claim.sourceRepository != kTrustedSourceRepositoryPath || claim.sourceCommit != decoded->sourceCommit ||
         claim.sourceRef != decoded->sourceRef) {
         return refuse(AttestationRejection::SourceMismatch,
                       "the attested source is " + decoded->sourceRepository + "@" + decoded->sourceRef);

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <iterator>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -107,9 +108,9 @@ std::string claimText(std::string_view bundleDigest, std::uint64_t bundleLength)
            std::to_string(bundleLength) + R"(,"digest":"sha256:)" + std::string(bundleDigest) +
            R"(","mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"},"runAttempt":1,"runId":30485058826,"sourceCommit":")" +
            std::string(kCommit) + R"(","sourceRef":"refs/heads/main","sourceRepository":")" +
-           std::string(kTrustedSourceRepositoryUri) + R"(","subjectDigest":"sha256:)" + std::string(kSubjectDigestHex) +
-           R"(","subjectName":")" + std::string(kSubjectName) + R"(","workflowPath":")" +
-           std::string(kTrustedEntryWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
+           std::string(kTrustedSourceRepositoryPath) + R"(","subjectDigest":"sha256:)" +
+           std::string(kSubjectDigestHex) + R"(","subjectName":")" + std::string(kSubjectName) +
+           R"(","workflowPath":")" + std::string(kTrustedEntryWorkflowPath) + R"(","workflowRef":"refs/heads/main"})";
 }
 
 } // namespace
@@ -237,6 +238,38 @@ TEST(Attestation, RefusesARunProducedOutsideTheAdmittedRunnerEnvironment) {
     EXPECT_EQ(rejectionOf(bundleAround(silent)), AttestationRejection::RunnerEnvironmentUnadmitted);
 }
 
+// The bug this closes was invisible to every case above, and the reason is
+// structural rather than incidental: these tests build a claim and none of them
+// asks the schema whether it is one. So the claim's repository spelling was
+// compared directly against the statement's, which is a URL, while the schema
+// constrains a claim to `owner/name`. A schema-valid claim could not verify and
+// a verifiable claim was not schema-valid, and no genuine attestation could ever
+// have passed.
+//
+// The pattern is read from the schema file rather than restated here, so the two
+// cannot drift apart again without this failing.
+TEST(Attestation, TheClaimRepositorySpellingIsTheOneTheSchemaRequires) {
+    const std::filesystem::path kSchema =
+        std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) / "schemas" / "evidence-common-v1.schema.json";
+    std::ifstream input(kSchema, std::ios::binary);
+    ASSERT_TRUE(input.is_open()) << kSchema.generic_string();
+    const std::string kText((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    const auto kMember = kText.find(R"("sourceRepository")");
+    ASSERT_NE(kMember, std::string::npos);
+    constexpr std::string_view kPatternKey = R"("pattern": ")";
+    const auto kPatternAt = kText.find(kPatternKey, kMember);
+    ASSERT_NE(kPatternAt, std::string::npos);
+    const auto kValueAt = kPatternAt + kPatternKey.size();
+    const auto kValueEnd = kText.find('"', kValueAt);
+    ASSERT_NE(kValueEnd, std::string::npos);
+    const std::regex kPattern(kText.substr(kValueAt, kValueEnd - kValueAt), std::regex::ECMAScript);
+
+    EXPECT_TRUE(std::regex_search(std::string(kTrustedSourceRepositoryPath), kPattern));
+    EXPECT_FALSE(std::regex_search(std::string(kTrustedSourceRepositoryUri), kPattern));
+    EXPECT_TRUE(std::string(kTrustedSourceRepositoryUri).ends_with(kTrustedSourceRepositoryPath));
+}
+
 TEST(Attestation, RefusesASourceUriThatNamesNoRef) {
     StatementFields fields;
     fields.sourceUri = "git+https://github.com/Rawframe-Project/rawframe";
@@ -361,6 +394,173 @@ TEST(Attestation, DecodesTheFirstGenuineBundleAndRefusesItsUnprotectedRef) {
     // comparisons the verifier makes rather than as prose about them.
     EXPECT_NE(decoded->sourceRef, kTrustedProtectedRef);
     EXPECT_NE(decoded->builderId, kTrustedCertificateIdentity);
+}
+
+namespace {
+
+const std::filesystem::path& attestationFixtureRoot() {
+    static const std::filesystem::path kRoot =
+        std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) / "tools/rf_evidence/tests/fixtures/evidence/attestations";
+    return kRoot;
+}
+
+// The genuine protected-ref run, and the exact artifact it attests to. Both are
+// checked in because a claim can only be verified against bytes, and the whole
+// point of this pair is that nothing about it is constructed here.
+constexpr std::string_view kMainBundleFixture = "main-run-30554540067.sigstore.json";
+constexpr std::string_view kMainSubjectFixture = "main-run-30554540067-subject.tar";
+constexpr std::string_view kMainSubjectName = "linux-x86_64-reports.tar";
+constexpr std::string_view kMainSubjectDigest =
+    "sha256:e2e03a33c123de0fb4527afe2a4a6d48573181d51aca578213cd8e297df81e9e";
+constexpr std::string_view kMainCommit = "8ff564495b0818d6ebcd7abcfdae1d5c44c2d38e";
+constexpr std::int64_t kMainRunId = 30554540067;
+
+AttestationClaim mainRunClaim() {
+    const auto kBundle = attestationFixtureRoot() / std::filesystem::path(std::string(kMainBundleFixture));
+    std::ifstream input(kBundle, std::ios::binary);
+    EXPECT_TRUE(input.is_open()) << kBundle.generic_string();
+    const std::string kBytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    auto described = describeBytes(kBytes, kSigstoreBundleMediaType);
+    EXPECT_TRUE(described.has_value());
+
+    AttestationClaim claim;
+    claim.bundle = described.value_or(Descriptor{});
+    claim.subjectName = kMainSubjectName;
+    claim.subjectDigest = kMainSubjectDigest;
+    claim.builderId = kTrustedCertificateIdentity;
+    claim.sourceRepository = kTrustedSourceRepositoryPath;
+    claim.sourceCommit = kMainCommit;
+    claim.sourceRef = kTrustedProtectedRef;
+    claim.workflowPath = kTrustedEntryWorkflowPath;
+    claim.workflowRef = kTrustedProtectedRef;
+    claim.runId = kMainRunId;
+    claim.runAttempt = 1;
+    return claim;
+}
+
+AttestationInputs mainRunInputs() {
+    // The verifier is deliberately named where the offline lane prepares it, so
+    // a host that has it verifies for real and a host that has not says exactly
+    // that. Neither outcome is a skip.
+    const auto kCosignRoot = std::filesystem::path(RAWFRAME_TEST_REPOSITORY_ROOT) / "out" / "prepared" /
+                             RAWFRAME_TEST_HOST_ID / "tools" / "cosign";
+    return AttestationInputs{
+        .bundlePath = attestationFixtureRoot() / std::filesystem::path(std::string(kMainBundleFixture)),
+        .subjectPath = attestationFixtureRoot() / std::filesystem::path(std::string(kMainSubjectFixture)),
+#ifdef _WIN32
+        .cosign = kCosignRoot / "bin" / "cosign.exe",
+#else
+        .cosign = kCosignRoot / "bin" / "cosign",
+#endif
+        .trustedRoot = kCosignRoot / "share" / "trusted_root.json",
+    };
+}
+
+} // namespace
+
+// The positive case, and the one this Task existed to produce. Everything above
+// proves a refusal; a mechanism that has only ever refused is a mechanism nobody
+// has shown to accept anything.
+TEST(Attestation, DecodesTheGenuineProtectedRefBundle) {
+    const auto kPath = attestationFixtureRoot() / std::filesystem::path(std::string(kMainBundleFixture));
+    std::ifstream input(kPath, std::ios::binary);
+    ASSERT_TRUE(input.is_open()) << "missing genuine bundle fixture at " << kPath.generic_string();
+    const std::string kBundle((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    auto decoded = decodeProvenanceBundle(kBundle);
+    ASSERT_TRUE(decoded.has_value()) << (decoded ? "" : decoded.error().detail);
+
+    // Seven of the eight requirements, read off a real statement rather than a
+    // constructed one. The eighth is the signature, which needs the verifier.
+    EXPECT_EQ(decoded->subjectName, kMainSubjectName);
+    EXPECT_EQ(decoded->subjectDigest, kMainSubjectDigest);
+    EXPECT_EQ(decoded->sourceRepository, kTrustedSourceRepositoryUri);
+    EXPECT_EQ(decoded->sourceCommit, kMainCommit);
+    EXPECT_EQ(decoded->sourceRef, kTrustedProtectedRef);
+    EXPECT_EQ(decoded->workflowPath, kTrustedEntryWorkflowPath);
+    EXPECT_EQ(decoded->workflowRef, kTrustedProtectedRef);
+    EXPECT_EQ(decoded->builderId, kTrustedCertificateIdentity);
+    EXPECT_EQ(decoded->runId, kMainRunId);
+    EXPECT_EQ(decoded->runAttempt, 1);
+}
+
+// End to end over the genuine pair. On a host where the offline lane has
+// prepared the locked Cosign this verifies the signature against the pinned
+// root; on a host where it has not, the answer is the typed unavailability
+// rather than a pass, a fail, or a silent skip.
+TEST(Attestation, VerifiesTheGenuineProtectedRefAttestation) {
+    const auto kInputs = mainRunInputs();
+    auto verified = verifyAttestation(mainRunClaim(), kInputs);
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(kInputs.cosign, error) || error) {
+        // Said out loud, because a green result that silently took this branch
+        // would read as a verified signature to anyone scanning the output.
+        RecordProperty("verifier", "absent");
+        GTEST_LOG_(INFO) << "the locked verifier is absent at " << kInputs.cosign.generic_string()
+                         << ", so the signature was not checked here";
+        ASSERT_FALSE(verified.has_value());
+        EXPECT_EQ(verified.error().rejection, AttestationRejection::VerifierUnavailable);
+        return;
+    }
+    RecordProperty("verifier", "present");
+    ASSERT_TRUE(verified.has_value()) << (verified ? "" : verified.error().detail);
+    EXPECT_EQ(verified->runId, kMainRunId);
+    EXPECT_EQ(verified->sourceRef, kTrustedProtectedRef);
+}
+
+// One mutation per identity the claim asserts, over the same genuine bundle.
+// Each is refused before the verifier is reached, so these hold on every host
+// and each names the rule it broke rather than a generic failure.
+TEST(Attestation, RefusesEachClaimThatDisagreesWithTheGenuineStatement) {
+    const auto kInputs = mainRunInputs();
+    const auto kRefusal = [&kInputs](const AttestationClaim& claim) {
+        auto verified = verifyAttestation(claim, kInputs);
+        EXPECT_FALSE(verified.has_value()) << "expected a refusal for this claim";
+        return verified ? AttestationRejection::ClaimMalformed : verified.error().rejection;
+    };
+
+    AttestationClaim bundleLength = mainRunClaim();
+    bundleLength.bundle.byteLength += 1U;
+    EXPECT_EQ(kRefusal(bundleLength), AttestationRejection::ClaimMalformed);
+
+    AttestationClaim bundleDigest = mainRunClaim();
+    bundleDigest.bundle.digest = "sha256:" + std::string(64U, '0');
+    EXPECT_EQ(kRefusal(bundleDigest), AttestationRejection::ClaimMalformed);
+
+    AttestationClaim subjectDigest = mainRunClaim();
+    subjectDigest.subjectDigest = "sha256:" + std::string(64U, '1');
+    EXPECT_EQ(kRefusal(subjectDigest), AttestationRejection::SubjectMismatch);
+
+    AttestationClaim subjectName = mainRunClaim();
+    subjectName.subjectName = "windows-x86_64-reports.tar";
+    EXPECT_EQ(kRefusal(subjectName), AttestationRejection::SubjectMismatch);
+
+    // The URL spelling, which is what the statement carries and what a claim is
+    // forbidden to carry. This is the defect the first real bundle exposed, kept
+    // as a case so that reintroducing it fails here.
+    AttestationClaim repositoryUri = mainRunClaim();
+    repositoryUri.sourceRepository = kTrustedSourceRepositoryUri;
+    EXPECT_EQ(kRefusal(repositoryUri), AttestationRejection::SourceMismatch);
+
+    AttestationClaim commit = mainRunClaim();
+    commit.sourceCommit = std::string(40U, 'a');
+    EXPECT_EQ(kRefusal(commit), AttestationRejection::SourceMismatch);
+
+    AttestationClaim ref = mainRunClaim();
+    ref.sourceRef = "refs/heads/task/0009";
+    EXPECT_EQ(kRefusal(ref), AttestationRejection::SourceMismatch);
+
+    AttestationClaim workflowPath = mainRunClaim();
+    workflowPath.workflowPath = ".github/workflows/verify-pull-request.yml";
+    EXPECT_EQ(kRefusal(workflowPath), AttestationRejection::WorkflowMismatch);
+
+    AttestationClaim runId = mainRunClaim();
+    runId.runId = kMainRunId + 1;
+    EXPECT_EQ(kRefusal(runId), AttestationRejection::RunIdentityMissing);
+
+    AttestationClaim runAttempt = mainRunClaim();
+    runAttempt.runAttempt = 2;
+    EXPECT_EQ(kRefusal(runAttempt), AttestationRejection::RunIdentityMissing);
 }
 
 TEST(Attestation, ReportsAnAbsentSubjectRatherThanDigestingNothing) {
