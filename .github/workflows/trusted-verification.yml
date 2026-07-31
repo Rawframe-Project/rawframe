@@ -44,10 +44,51 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      # The full history rather than one commit, because the STD-0007 coverage
+      # floors are diff scoped and a shallow checkout has nothing to be scoped
+      # against. It is the cheapest thing in this job by a wide margin.
       - name: Check out the commit under verification
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      # The floors need the set of lines this change touched, and that set comes
+      # from git. Git runs here, where the history is, and never inside the
+      # container: `rf-verify` is a reader of committed and generated inputs and
+      # executes no process, which SPEC-0017 forbids the evidence tooling by
+      # name. The diff is written into the workspace the container mounts, so it
+      # arrives as an ordinary input file.
+      #
+      # A pull request is measured against the merge base with its target branch.
+      # A push is measured against the commit the branch advanced from. A manual
+      # dispatch, a first push, and a force push that discarded the previous tip
+      # have no honest base, and in that case no file is written and the lane
+      # reports that the floors were not measured rather than reporting a gate
+      # that did not run.
+      - name: Record the changed-line set the coverage floors measure
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base=''
+          if [ -n "${BASE_REF}" ]; then
+              if git rev-parse --verify --quiet "origin/${BASE_REF}" > /dev/null; then
+                  base="$(git merge-base "origin/${BASE_REF}" HEAD)"
+              fi
+          elif [ -n "${BEFORE:-}" ] && [ "${BEFORE}" != "0000000000000000000000000000000000000000" ]; then
+              if git cat-file -e "${BEFORE}^{commit}" 2> /dev/null; then
+                  base="${BEFORE}"
+              fi
+          fi
+          if [ -z "${base}" ]; then
+              echo 'rf: no base commit is reachable, so the diff-scoped tier floors will not be measured'
+              exit 0
+          fi
+          mkdir -p out/verify
+          git diff --unified=0 --no-color "${base}" -- . > out/verify/changed.diff
+          echo "rf: the changed-line set is measured against ${base}"
 
       # The locked artifacts are 4.7 GiB of bytes whose identity is fixed by the
       # locks, so refetching them on every run buys nothing. Restoring them is

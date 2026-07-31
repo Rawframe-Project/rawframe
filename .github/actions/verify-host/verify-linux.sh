@@ -21,6 +21,99 @@ reports="out/reports/task-0001/ci/linux-x86_64"
 
 cd "$repository_root"
 
+# The STD-0007 lane: build instrumented, run the suite, turn the raw profiles
+# into one `llvm-cov export`, and let rf-verify measure the change against the
+# tier floors. Nothing here decides anything; the tool writes the verdict and
+# its exit status carries it.
+rf_coverage_lane() {
+    host="$1"
+    preset="rf-${host}-coverage"
+    build="out/build/${preset}"
+    llvm="${repository_root}/out/prepared/${host}/tools/llvm/bin"
+    coverage="out/coverage"
+    # rf-verify writes only beneath `out/reports/verify/`, which is its own
+    # report root and not the rf-evidence one used elsewhere in this lane.
+    verify_reports="out/reports/verify/ci/${host}"
+    mkdir -p "$coverage" "$verify_reports"
+
+    "${prepared}/cmake" --preset "$preset"
+    "${prepared}/cmake" --build --preset "$preset"
+    rm -rf "${build}/coverage-profiles"
+    "${prepared}/ctest" --preset "$preset" --output-on-failure
+
+    # One isolated run per entry point. Every executable defines `main`, an
+    # external symbol, so a profile merged across programs keeps one record for
+    # it and llvm-cov reports the rest as mismatched and drops their translation
+    # unit entirely. Each entry point is therefore measured against a profile
+    # from its own program alone, and the merged export leaves main.cpp out so
+    # that no source unit is described twice.
+    for entry in \
+        "verify:rf_verify:Command.RequirementsReportRefusesNoTestReport" \
+        "archcheck:rf_archcheck:Command.ArchitectureRulesAreEnumerable" \
+        "evidence:rf_evidence:Command.LoadEvidenceIndex"; do
+        tool_name="${entry%%:*}"
+        rest="${entry#*:}"
+        entry_test="${rest#*:}"
+        LLVM_PROFILE_FILE="${repository_root}/${build}/coverage-profiles/entry-${tool_name}/rf-%p.profraw" \
+            "${prepared}/ctest" --preset "$preset" -R "$entry_test"
+    done
+
+    find "${build}/coverage-profiles" -maxdepth 1 -name '*.profraw' > "${coverage}/profile-list.txt"
+    "${llvm}/llvm-profdata" merge -sparse -f "${coverage}/profile-list.txt" -o "${coverage}/rawframe.profdata"
+
+    exports="--export ${coverage}/export.json"
+    "${llvm}/llvm-cov" export \
+        "${build}/tools/rf_evidence/tests/rawframe_tool_rf_evidence_tests" \
+        -object "${build}/tools/rf_archcheck/tests/rawframe_tool_rf_archcheck_tests" \
+        -object "${build}/tools/rf_verify/tests/rawframe_tool_rf_verify_tests" \
+        -object "${build}/tools/rf-evidence" \
+        -object "${build}/tools/rf-archcheck" \
+        -object "${build}/tools/rf-verify" \
+        -instr-profile="${coverage}/rawframe.profdata" --format=text \
+        -ignore-filename-regex='.*[/\\]main\.cpp' > "${coverage}/export.json"
+
+    for entry in "verify:rf_verify" "archcheck:rf_archcheck" "evidence:rf_evidence"; do
+        tool_name="${entry%%:*}"
+        tool_root="${entry#*:}"
+        "${llvm}/llvm-profdata" merge -sparse \
+            "${build}/coverage-profiles/entry-${tool_name}"/*.profraw \
+            -o "${coverage}/entry-${tool_name}.profdata"
+        "${llvm}/llvm-cov" export "${build}/tools/rf-${tool_name}" \
+            -instr-profile="${coverage}/entry-${tool_name}.profdata" --format=text \
+            "tools/${tool_root}/src/main.cpp" > "${coverage}/export-entry-${tool_name}.json"
+        exports="${exports} --export ${coverage}/export-entry-${tool_name}.json"
+    done
+
+    verify="${build}/tools/rf-verify"
+
+    # The whole-tree figure and the requirement bindings are published on every
+    # run. STD-0007 makes both accounting rather than gates, so neither is
+    # conditional on there being a diff to measure.
+    "$verify" coverage_summary --root "$repository_root" ${exports} \
+        --report "${verify_reports}/coverage-summary.json"
+    "$verify" requirements_report --root "$repository_root" \
+        --test-report "${build}/test_output/verify_test_report.json" \
+        --report "${verify_reports}/requirements-report.json"
+
+    # The floors are diff scoped, so they need the set of lines the change
+    # touched. That set is a fact about the event rather than about this host,
+    # and it is produced by the workflow step that already has git and the
+    # history, then handed in as a file. Nothing here runs git: the container is
+    # not required to carry it, and the verification tool is a reader of
+    # committed and generated inputs rather than something that executes
+    # processes, which SPEC-0017 forbids it by name.
+    #
+    # A run with no changed-line set reports the whole-tree figure above and says
+    # the floors were not measured. It never reports a gate that did not run.
+    changed="out/verify/changed.diff"
+    if [ ! -f "$changed" ]; then
+        echo "rf: no changed-line set was handed in, so the diff-scoped tier floors were not measured" >&2
+        return 0
+    fi
+    "$verify" coverage_floors --root "$repository_root" ${exports} \
+        --diff "$changed" --report "${verify_reports}/coverage-floors.json"
+}
+
 echo "rf: stage 0, through the bootstrap CMake outside the tree"
 "$bootstrap_cmake" --version
 "$bootstrap_cmake" \
@@ -35,16 +128,19 @@ echo "rf: the locked dependency closure built offline through the prepared vcpkg
     -P cmake/sync/linux_dependency_build.cmake
 
 echo "rf: configure, build, and test at the debug preset"
-"${prepared}/cmake" --preset task-0001-linux-x86_64-debug
-"${prepared}/cmake" --build --preset task-0001-linux-x86_64-debug
-"${prepared}/ctest" --preset task-0001-linux-x86_64-debug --output-on-failure
+"${prepared}/cmake" --preset rf-linux-x86_64-debug
+"${prepared}/cmake" --build --preset rf-linux-x86_64-debug
+"${prepared}/ctest" --preset rf-linux-x86_64-debug --output-on-failure
 
 echo "rf: configure and build at the analysis preset"
-"${prepared}/cmake" --preset task-0001-linux-x86_64-analysis
-"${prepared}/cmake" --build --preset task-0001-linux-x86_64-analysis
+"${prepared}/cmake" --preset rf-linux-x86_64-analysis
+"${prepared}/cmake" --build --preset rf-linux-x86_64-analysis
 
-tool="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-evidence"
-archcheck="${repository_root}/out/build/task-0001-linux-x86_64-debug/tools/rf-archcheck"
+echo "rf: the STD-0007 verification lane at the coverage preset"
+rf_coverage_lane linux-x86_64
+
+tool="${repository_root}/out/build/rf-linux-x86_64-debug/tools/rf-evidence"
+archcheck="${repository_root}/out/build/rf-linux-x86_64-debug/tools/rf-archcheck"
 mkdir -p "${repository_root}/${reports}"
 
 # Each of these reads the repository and writes its own report, so they are

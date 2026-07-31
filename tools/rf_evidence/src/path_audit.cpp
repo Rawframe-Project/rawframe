@@ -65,6 +65,13 @@ constexpr std::array kEnvelopeRoots{
     std::string_view{"tools/rf_evidence/"},
     // TASK-0010 envelope: the second repository tool's root.
     std::string_view{"tools/rf_archcheck/"},
+    // TASK-0017 envelope: the third repository tool's root, and the two target
+    // authority roots that Task creates. `targets/` is admitted as a root
+    // because the configuration and instrumentation definitions beneath it are
+    // maintained authorities listed in the root index, and the index is what
+    // decides which of them exist.
+    std::string_view{"tools/rf_verify/"},
+    std::string_view{"targets/"},
 };
 
 // Read-only material that legitimately coexists with the Task in the same
@@ -160,6 +167,7 @@ constexpr std::array kKnownTopDirectories{
     std::string_view{"docs"},
     std::string_view{"evidence"},
     std::string_view{"schemas"},
+    std::string_view{"targets"},
     std::string_view{"third_party"},
     std::string_view{"tools"},
 };

@@ -7,7 +7,7 @@
   },
   "configurePresets": [
     {
-      "name": "task-0001-base",
+      "name": "rf-base",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -21,9 +21,9 @@
       }
     },
     {
-      "name": "task-0001-windows-x86_64-debug",
-      "inherits": "task-0001-base",
-      "displayName": "TASK-0001 Windows x86-64 Debug",
+      "name": "rf-windows-x86_64-debug",
+      "inherits": "rf-base",
+      "displayName": "Rawframe Windows x86-64 Debug",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -31,6 +31,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "RAWFRAME_CONFIGURATION": "build.debug",
         "RAWFRAME_HOST_ID": "windows-x86_64",
         "CMAKE_C_COMPILER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-cl.exe",
         "CMAKE_CXX_COMPILER": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-cl.exe",
@@ -46,18 +47,44 @@
       }
     },
     {
-      "name": "task-0001-windows-x86_64-analysis",
-      "inherits": "task-0001-windows-x86_64-debug",
-      "displayName": "TASK-0001 Windows x86-64 Analysis",
+      "name": "rf-windows-x86_64-development",
+      "inherits": "rf-windows-x86_64-debug",
+      "displayName": "Rawframe Windows x86-64 Development",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "RAWFRAME_CONFIGURATION": "build.development"
+      }
+    },
+    {
+      "name": "rf-windows-x86_64-shipping",
+      "inherits": "rf-windows-x86_64-debug",
+      "displayName": "Rawframe Windows x86-64 Shipping",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "RAWFRAME_CONFIGURATION": "build.shipping"
+      }
+    },
+    {
+      "name": "rf-windows-x86_64-coverage",
+      "inherits": "rf-windows-x86_64-debug",
+      "displayName": "Rawframe Windows x86-64 Coverage",
+      "cacheVariables": {
+        "RAWFRAME_INSTRUMENTATION": "instrumentation.coverage"
+      }
+    },
+    {
+      "name": "rf-windows-x86_64-analysis",
+      "inherits": "rf-windows-x86_64-debug",
+      "displayName": "Rawframe Windows x86-64 Analysis",
       "cacheVariables": {
         "RAWFRAME_ENABLE_ANALYSIS": "ON",
         "RAWFRAME_CLANG_FORMAT_EXECUTABLE": "${sourceDir}/out/prepared/windows-x86_64/tools/llvm/bin/clang-format.exe"
       }
     },
     {
-      "name": "task-0001-linux-x86_64-debug",
-      "inherits": "task-0001-base",
-      "displayName": "TASK-0001 Linux x86-64 Debug",
+      "name": "rf-linux-x86_64-debug",
+      "inherits": "rf-base",
+      "displayName": "Rawframe Linux x86-64 Debug",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -65,6 +92,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "RAWFRAME_CONFIGURATION": "build.debug",
         "RAWFRAME_HOST_ID": "linux-x86_64",
         "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/prepared/linux-x86_64/tools/ninja/ninja",
         "RAWFRAME_CLANG_TIDY_EXECUTABLE": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang-tidy",
@@ -76,9 +104,35 @@
       }
     },
     {
-      "name": "task-0001-linux-x86_64-analysis",
-      "inherits": "task-0001-linux-x86_64-debug",
-      "displayName": "TASK-0001 Linux x86-64 Analysis",
+      "name": "rf-linux-x86_64-development",
+      "inherits": "rf-linux-x86_64-debug",
+      "displayName": "Rawframe Linux x86-64 Development",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "RAWFRAME_CONFIGURATION": "build.development"
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-shipping",
+      "inherits": "rf-linux-x86_64-debug",
+      "displayName": "Rawframe Linux x86-64 Shipping",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "RAWFRAME_CONFIGURATION": "build.shipping"
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-coverage",
+      "inherits": "rf-linux-x86_64-debug",
+      "displayName": "Rawframe Linux x86-64 Coverage",
+      "cacheVariables": {
+        "RAWFRAME_INSTRUMENTATION": "instrumentation.coverage"
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-analysis",
+      "inherits": "rf-linux-x86_64-debug",
+      "displayName": "Rawframe Linux x86-64 Analysis",
       "cacheVariables": {
         "RAWFRAME_ENABLE_ANALYSIS": "ON",
         "RAWFRAME_CLANG_FORMAT_EXECUTABLE": "${sourceDir}/out/prepared/linux-x86_64/tools/llvm/bin/clang-format"
@@ -87,39 +141,111 @@
   ],
   "buildPresets": [
     {
-      "name": "task-0001-windows-x86_64-debug",
-      "configurePreset": "task-0001-windows-x86_64-debug",
+      "name": "rf-windows-x86_64-debug",
+      "configurePreset": "rf-windows-x86_64-debug",
       "jobs": 0
     },
     {
-      "name": "task-0001-windows-x86_64-analysis",
-      "configurePreset": "task-0001-windows-x86_64-analysis",
+      "name": "rf-windows-x86_64-development",
+      "configurePreset": "rf-windows-x86_64-development",
+      "jobs": 0
+    },
+    {
+      "name": "rf-windows-x86_64-shipping",
+      "configurePreset": "rf-windows-x86_64-shipping",
+      "jobs": 0
+    },
+    {
+      "name": "rf-windows-x86_64-coverage",
+      "configurePreset": "rf-windows-x86_64-coverage",
+      "jobs": 0
+    },
+    {
+      "name": "rf-windows-x86_64-analysis",
+      "configurePreset": "rf-windows-x86_64-analysis",
       "jobs": 0,
       "nativeToolOptions": ["-k", "0"]
     },
     {
-      "name": "task-0001-linux-x86_64-debug",
-      "configurePreset": "task-0001-linux-x86_64-debug",
+      "name": "rf-linux-x86_64-debug",
+      "configurePreset": "rf-linux-x86_64-debug",
       "jobs": 0
     },
     {
-      "name": "task-0001-linux-x86_64-analysis",
-      "configurePreset": "task-0001-linux-x86_64-analysis",
+      "name": "rf-linux-x86_64-development",
+      "configurePreset": "rf-linux-x86_64-development",
+      "jobs": 0
+    },
+    {
+      "name": "rf-linux-x86_64-shipping",
+      "configurePreset": "rf-linux-x86_64-shipping",
+      "jobs": 0
+    },
+    {
+      "name": "rf-linux-x86_64-coverage",
+      "configurePreset": "rf-linux-x86_64-coverage",
+      "jobs": 0
+    },
+    {
+      "name": "rf-linux-x86_64-analysis",
+      "configurePreset": "rf-linux-x86_64-analysis",
       "jobs": 0,
       "nativeToolOptions": ["-k", "0"]
     }
   ],
   "testPresets": [
     {
-      "name": "task-0001-windows-x86_64-debug",
-      "configurePreset": "task-0001-windows-x86_64-debug",
+      "name": "rf-windows-x86_64-debug",
+      "configurePreset": "rf-windows-x86_64-debug",
       "output": {
         "outputOnFailure": true
       }
     },
     {
-      "name": "task-0001-linux-x86_64-debug",
-      "configurePreset": "task-0001-linux-x86_64-debug",
+      "name": "rf-windows-x86_64-development",
+      "configurePreset": "rf-windows-x86_64-development",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-windows-x86_64-shipping",
+      "configurePreset": "rf-windows-x86_64-shipping",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-windows-x86_64-coverage",
+      "configurePreset": "rf-windows-x86_64-coverage",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-debug",
+      "configurePreset": "rf-linux-x86_64-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-development",
+      "configurePreset": "rf-linux-x86_64-development",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-shipping",
+      "configurePreset": "rf-linux-x86_64-shipping",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rf-linux-x86_64-coverage",
+      "configurePreset": "rf-linux-x86_64-coverage",
       "output": {
         "outputOnFailure": true
       }
@@ -127,19 +253,19 @@
   ],
   "workflowPresets": [
     {
-      "name": "task-0001-windows-x86_64",
+      "name": "rf-windows-x86_64",
       "steps": [
-        { "type": "configure", "name": "task-0001-windows-x86_64-debug" },
-        { "type": "build", "name": "task-0001-windows-x86_64-debug" },
-        { "type": "test", "name": "task-0001-windows-x86_64-debug" }
+        { "type": "configure", "name": "rf-windows-x86_64-debug" },
+        { "type": "build", "name": "rf-windows-x86_64-debug" },
+        { "type": "test", "name": "rf-windows-x86_64-debug" }
       ]
     },
     {
-      "name": "task-0001-linux-x86_64",
+      "name": "rf-linux-x86_64",
       "steps": [
-        { "type": "configure", "name": "task-0001-linux-x86_64-debug" },
-        { "type": "build", "name": "task-0001-linux-x86_64-debug" },
-        { "type": "test", "name": "task-0001-linux-x86_64-debug" }
+        { "type": "configure", "name": "rf-linux-x86_64-debug" },
+        { "type": "build", "name": "rf-linux-x86_64-debug" },
+        { "type": "test", "name": "rf-linux-x86_64-debug" }
       ]
     }
   ]

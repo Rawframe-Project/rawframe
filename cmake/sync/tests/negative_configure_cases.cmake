@@ -16,7 +16,7 @@ foreach(argument IN ITEMS RF_REPOSITORY_ROOT RF_HOST RF_CASE RF_SCRATCH)
 endforeach()
 
 set(prepared_root "${RF_REPOSITORY_ROOT}/out/prepared/${RF_HOST}")
-set(preset "task-0001-${RF_HOST}-debug")
+set(preset "rf-${RF_HOST}-debug")
 set(child_environment "")
 if(RF_HOST STREQUAL "windows-x86_64")
     set(expected_triplet "x64-windows-rawframe")

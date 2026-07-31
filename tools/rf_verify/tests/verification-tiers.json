@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "owner": "rawframe.quality_engineering",
+  "purpose": "The declared verification tier of every maintained source unit in this root, as STD-0007 requires. A unit is Tier H when its input can be chosen by something outside the lane's trust boundary, or when it validates a path or a locator, which the standard names by name. A unit is Tier A when it owns an accepted invariant whose violation is silent. Everything else is Tier O. Where a unit could belong to two tiers the higher applies.",
+  "units": [
+    {
+      "path": "src/command.cpp",
+      "tier": "A",
+      "reason": "Maps a measurement to an exit code, and a wrong exit lets a change below a floor land."
+    },
+    {
+      "path": "src/command.h",
+      "tier": "A",
+      "reason": "Maps a measurement to an exit code, and a wrong exit lets a change below a floor land."
+    },
+    {
+      "path": "src/coverage_export.cpp",
+      "tier": "A",
+      "reason": "Reads the artifact of record; a misread field is a coverage figure that means nothing."
+    },
+    {
+      "path": "src/coverage_export.h",
+      "tier": "A",
+      "reason": "Reads the artifact of record; a misread field is a coverage figure that means nothing."
+    },
+    {
+      "path": "src/coverage_summary.cpp",
+      "tier": "A",
+      "reason": "Owns the whole-tree figure and the uncovered set, the artifacts review actually reads."
+    },
+    {
+      "path": "src/coverage_summary.h",
+      "tier": "A",
+      "reason": "Owns the whole-tree figure and the uncovered set, the artifacts review actually reads."
+    },
+    {
+      "path": "src/diff_reader.cpp",
+      "tier": "A",
+      "reason": "Owns the changed-line set, and a wrong line number moves a floor onto lines nobody touched."
+    },
+    {
+      "path": "src/diff_reader.h",
+      "tier": "A",
+      "reason": "Owns the changed-line set, and a wrong line number moves a floor onto lines nobody touched."
+    },
+    {
+      "path": "src/failure.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/findings.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/floors.cpp",
+      "tier": "A",
+      "reason": "Owns the floor verdict itself, which is the authority this tool exists to produce."
+    },
+    {
+      "path": "src/floors.h",
+      "tier": "A",
+      "reason": "Owns the floor verdict itself, which is the authority this tool exists to produce."
+    },
+    {
+      "path": "src/json_reader.cpp",
+      "tier": "A",
+      "reason": "Reads generated artifacts inside the lane, and a wrong parse silently changes every figure."
+    },
+    {
+      "path": "src/json_reader.h",
+      "tier": "A",
+      "reason": "Reads generated artifacts inside the lane, and a wrong parse silently changes every figure."
+    },
+    {
+      "path": "src/main.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/report_writer.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/report_writer.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/repository_paths.cpp",
+      "tier": "H",
+      "reason": "Validates repository paths and refuses a report destination outside the write root."
+    },
+    {
+      "path": "src/repository_paths.h",
+      "tier": "H",
+      "reason": "Validates repository paths and refuses a report destination outside the write root."
+    },
+    {
+      "path": "src/requirements.cpp",
+      "tier": "A",
+      "reason": "Owns the generated requirement bindings and the unbound and undeclared sets."
+    },
+    {
+      "path": "src/requirements.h",
+      "tier": "A",
+      "reason": "Owns the generated requirement bindings and the unbound and undeclared sets."
+    },
+    {
+      "path": "src/tier_declarations.cpp",
+      "tier": "A",
+      "reason": "Owns which floor applies to which unit, where a wrong answer is invisible."
+    },
+    {
+      "path": "src/tier_declarations.h",
+      "tier": "A",
+      "reason": "Owns which floor applies to which unit, where a wrong answer is invisible."
+    },
+    {
+      "path": "src/tool_limits.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    }
+  ]
+}

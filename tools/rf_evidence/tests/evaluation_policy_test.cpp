@@ -9,6 +9,8 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace rawframe::tool::evidence {
 
@@ -84,7 +86,19 @@ void expectMalformed(std::string_view bytes) {
 }
 
 // Resolving the maintained pair is the anchor for every binding rejection.
-RecordResult<std::vector<BoundPolicyEntry>> bindMaintained() {
+//
+// A bound entry is a pair of non-owning views into the policy and the registry,
+// so all three travel together. Returning the binding by itself would return
+// pointers into two objects destroyed on the way out, and a test that reads
+// freed memory passes for as long as the bytes happen to survive, which is most
+// of the time and never all of it.
+struct MaintainedBinding {
+    EvaluationPolicy policy;
+    MetricRegistry registry;
+    std::vector<BoundPolicyEntry> bound;
+};
+
+RecordResult<MaintainedBinding> bindMaintained() {
     auto policy = loadPolicy(maintainedPolicy());
     EXPECT_TRUE(policy.has_value());
     auto registry = loadRegistry(maintainedRegistry());
@@ -92,7 +106,16 @@ RecordResult<std::vector<BoundPolicyEntry>> bindMaintained() {
     if (!policy || !registry) {
         return std::unexpected(RecordFailure{RecordRejection::SchemaInvalid, "the maintained pair did not load"});
     }
-    return bindPolicyToRegistry(*policy, *registry);
+    // Bound after the pair is in its final home, and moved out as a whole
+    // afterwards. Moving a vector carries its buffer rather than its elements,
+    // so the addresses the binding holds survive the move that returns it.
+    MaintainedBinding result{std::move(*policy), std::move(*registry), {}};
+    auto bound = bindPolicyToRegistry(result.policy, result.registry);
+    if (!bound) {
+        return std::unexpected(bound.error());
+    }
+    result.bound = std::move(*bound);
+    return result;
 }
 
 } // namespace
@@ -109,8 +132,8 @@ TEST(EvaluationPolicy, LoadsTheMaintainedPolicyExactlyAsCommitted) {
 TEST(EvaluationPolicy, BindsTheMaintainedPairCompletely) {
     auto bound = bindMaintained();
     ASSERT_TRUE(bound.has_value());
-    ASSERT_EQ(bound->size(), 5U);
-    for (const auto& entry : *bound) {
+    ASSERT_EQ(bound->bound.size(), 5U);
+    for (const auto& entry : bound->bound) {
         ASSERT_NE(entry.entry, nullptr);
         ASSERT_NE(entry.metric, nullptr);
         EXPECT_EQ(entry.metric->stability, MetricStability::Stable);

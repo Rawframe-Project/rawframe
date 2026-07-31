@@ -1,0 +1,16 @@
+{
+  "$schema": "../../schemas/build-configuration.schema.json",
+  "schemaVersion": 1,
+  "id": "build.debug",
+  "owner": "rawframe.build_engineering",
+  "purpose": "Debugging correctness first: unoptimized code, complete debug information, every assertion evaluated, and unrestricted diagnostics. It is never a distribution configuration.",
+  "optimization": "debugging_first",
+  "debugInformation": "full",
+  "assertions": "full",
+  "diagnostics": "full",
+  "profilingHooks": "full",
+  "hardening": "development",
+  "linkTimeOptimization": "off",
+  "incrementalBuildPriority": "highest",
+  "trustedInputsRequired": false
+}
