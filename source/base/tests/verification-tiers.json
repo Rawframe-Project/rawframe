@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "owner": "rawframe.architecture",
+  "purpose": "The declared verification tier of every maintained source unit in this root, as STD-0007 requires. A unit is Tier H when its input can be chosen by something outside the lane's trust boundary, or when it validates a path or a locator, which the standard names by name. A unit is Tier A when it owns an accepted invariant whose violation is silent. Everything else is Tier O. Where a unit could belong to two tiers the higher applies.",
+  "units": [
+    {
+      "path": "include/rawframe/base/assert.h",
+      "tier": "A",
+      "reason": "Projects the configuration's assertion level onto the three macros. A wrong mapping removes a check in one configuration and leaves it in another, which is the failure nobody sees."
+    },
+    {
+      "path": "include/rawframe/base/bits128.h",
+      "tier": "H",
+      "reason": "Parses hexadecimal identity text whose bytes come from a manifest, a wire, or an artifact, and must reject every noncanonical spelling rather than conclude from one."
+    },
+    {
+      "path": "include/rawframe/base/bytes.h",
+      "tier": "O",
+      "reason": "Two span aliases. They own no trust decision and no silent invariant."
+    },
+    {
+      "path": "include/rawframe/base/fatal.h",
+      "tier": "A",
+      "reason": "Declares the install-once handler slot and the freeze. A second installation that succeeded would redirect termination without saying so."
+    },
+    {
+      "path": "include/rawframe/base/platform.h",
+      "tier": "A",
+      "reason": "Owns the pinned compiler and architecture gate. Admitting an unsupported toolchain here is silent everywhere else."
+    },
+    {
+      "path": "src/fatal.cpp",
+      "tier": "A",
+      "reason": "Owns the termination path itself: the write-once slot, the re-entry flag, and the guarantee that the process ends even when the handler returns or the sink fails."
+    }
+  ]
+}

@@ -28,25 +28,38 @@ function(rawframe_validate_repository_authority)
         message(FATAL_ERROR "RF1002 repository index exceeds 1048576 bytes")
     endif()
 
-    string(JSON tool_count ERROR_VARIABLE tools_error LENGTH "${repository_json}" tools)
-    if(tools_error)
-        message(FATAL_ERROR "RF1006 repository index carries no readable tools array")
-    endif()
-
-    math(EXPR tool_last "${tool_count} - 1")
-    foreach(index RANGE 0 ${tool_last})
-        string(JSON tool_manifest GET "${repository_json}" tools ${index})
-        set(tool_path "${CMAKE_SOURCE_DIR}/${tool_manifest}")
-        if(NOT EXISTS "${tool_path}")
-            message(FATAL_ERROR "RF1006 listed tool manifest is missing: ${tool_manifest}")
+    # Both membership arrays, because both name manifests CMake must reach before
+    # it can construct a target. `modules` was empty until TASK-0011 and the loop
+    # read only `tools`; a module listed but absent would have failed later, in a
+    # place that named the target rather than the membership entry.
+    file(REAL_PATH "${CMAKE_SOURCE_DIR}" repository_real)
+    foreach(membership_array IN ITEMS tools modules)
+        string(JSON member_count ERROR_VARIABLE membership_error
+            LENGTH "${repository_json}" ${membership_array})
+        if(membership_error)
+            message(FATAL_ERROR
+                "RF1006 repository index carries no readable ${membership_array} array")
+        endif()
+        if(member_count EQUAL 0)
+            continue()
         endif()
 
-        file(REAL_PATH "${tool_path}" tool_real BASE_DIRECTORY "${CMAKE_SOURCE_DIR}")
-        file(REAL_PATH "${CMAKE_SOURCE_DIR}" repository_real)
-        cmake_path(IS_PREFIX repository_real "${tool_real}" NORMALIZE is_owned)
-        if(NOT is_owned)
-            message(FATAL_ERROR "RF1007 listed tool path escapes the repository: ${tool_manifest}")
-        endif()
+        math(EXPR member_last "${member_count} - 1")
+        foreach(index RANGE 0 ${member_last})
+            string(JSON member_manifest GET "${repository_json}" ${membership_array} ${index})
+            set(member_path "${CMAKE_SOURCE_DIR}/${member_manifest}")
+            if(NOT EXISTS "${member_path}")
+                message(FATAL_ERROR
+                    "RF1006 listed ${membership_array} manifest is missing: ${member_manifest}")
+            endif()
+
+            file(REAL_PATH "${member_path}" member_real BASE_DIRECTORY "${CMAKE_SOURCE_DIR}")
+            cmake_path(IS_PREFIX repository_real "${member_real}" NORMALIZE is_owned)
+            if(NOT is_owned)
+                message(FATAL_ERROR
+                    "RF1007 listed ${membership_array} path escapes the repository: ${member_manifest}")
+            endif()
+        endforeach()
     endforeach()
 
     # Maintained evidence membership is one registered index. Configure only

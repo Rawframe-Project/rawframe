@@ -43,7 +43,29 @@ function Invoke-CoverageLane {
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--preset', $preset)
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--build', '--preset', $preset)
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$build/coverage-profiles"
-    Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '--output-on-failure')
+
+    # `%m` rather than the compiled-in `%p`, and the reason is a measurement
+    # defect this lane actually produced. `%p` is the process identifier, and the
+    # suite now runs one process per test case: the first run past eight hundred
+    # cases wrote seven hundred and five raw profiles, because the operating
+    # system reuses process identifiers and a later process silently truncated an
+    # earlier one's file. The lost profiles were not distributed evenly, so whole
+    # test cases read as never executed and the diff-scoped floors failed against
+    # code the suite demonstrably ran.
+    #
+    # `%m` names the file after the instrumented binary's own signature and puts
+    # the profiling runtime into merge mode, where every process of that binary
+    # merges its counters into the one file under a lock. Eight files replace
+    # seven hundred, and nothing is lost to a reused identifier. A process that
+    # loses the environment variable still falls back to the compiled-in `%p`
+    # destination in the same directory, so it is collected either way.
+    $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/rf-%m.profraw"
+    try {
+        Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '--output-on-failure')
+    }
+    finally {
+        Remove-Item Env:\LLVM_PROFILE_FILE
+    }
 
     # One isolated run per entry point. Every executable defines `main`, an
     # external symbol, so a profile merged across programs keeps one record for
@@ -56,7 +78,7 @@ function Invoke-CoverageLane {
         @{ Name = 'archcheck'; Root = 'rf_archcheck'; Test = 'Command.ArchitectureRulesAreEnumerable' },
         @{ Name = 'evidence'; Root = 'rf_evidence'; Test = 'Command.LoadEvidenceIndex' })
     foreach ($entry in $entryPoints) {
-        $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/entry-$($entry.Name)/rf-%p.profraw"
+        $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/entry-$($entry.Name)/rf-%m.profraw"
         try {
             Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '-R', $entry.Test)
         }
@@ -79,6 +101,7 @@ function Invoke-CoverageLane {
         -object "$build/tools/rf-evidence.exe" `
         -object "$build/tools/rf-archcheck.exe" `
         -object "$build/tools/rf-verify.exe" `
+        -object "$build/source/base/tests/rawframe_base_tests.exe" `
         -instr-profile="$coverage/rawframe.profdata" --format=text `
         -ignore-filename-regex='.*[/\\]main\.cpp' > "$coverage/export.json"
     if ($LASTEXITCODE -ne 0) { throw "rf: llvm-cov export exited with $LASTEXITCODE" }

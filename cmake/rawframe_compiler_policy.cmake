@@ -46,6 +46,44 @@ function(rawframe_validate_selected_configuration)
     endif()
 endfunction()
 
+# Projects the selected configuration's `assertions` level into the one compile
+# definition `rawframe/base/assert.h` reads.
+#
+# SPEC-0003 owns the level and `targets/configurations/*.json` is where it is
+# maintained, so the value is read from there rather than restated here, where it
+# would become the second authority ADR-0004 forbids. `rawframe.base` is the only
+# consumer: the macros are its, and no other module reads this definition.
+#
+# The mapping is the strength order SPEC-0046's per-configuration table fixes.
+# `fatal_only` is a level SPEC-0003 enumerates and no configuration selects, so it
+# is rejected rather than given an invented meaning here.
+#
+# There is deliberately no default. A build that selected no configuration must
+# not inherit one configuration's assertion semantics by accident, and `assert.h`
+# refuses to compile without the definition for the same reason.
+function(rawframe_project_assertion_level target_name)
+    set(configuration_manifest
+        "${CMAKE_SOURCE_DIR}/targets/configurations/${RAWFRAME_CONFIGURATION}.json")
+    file(READ "${configuration_manifest}" configuration_json)
+    string(JSON assertion_level ERROR_VARIABLE assertion_error GET "${configuration_json}" assertions)
+    if(assertion_error)
+        message(FATAL_ERROR
+            "RF1139 ${RAWFRAME_CONFIGURATION} declares no assertions level: ${assertion_error}")
+    endif()
+
+    if(assertion_level STREQUAL "full")
+        set(projected 2)
+    elseif(assertion_level STREQUAL "contract_only")
+        set(projected 1)
+    else()
+        message(FATAL_ERROR
+            "RF1140 no Rawframe module implements the ${assertion_level} assertion level; "
+            "${RAWFRAME_CONFIGURATION} must select full or contract_only")
+    endif()
+
+    target_compile_definitions(${target_name} INTERFACE RAWFRAME_ASSERTIONS=${projected})
+endfunction()
+
 # The one instrumentation policy this repository has a consumer for. ADR-0006
 # makes instrumentation a lane over a configuration and never a configuration of
 # its own, so this adds flags to the selected configuration and changes nothing
@@ -178,6 +216,7 @@ function(rawframe_define_compiler_policy)
         target_link_options(rawframe_compiler_policy INTERFACE -stdlib=libc++ -fuse-ld=lld)
     endif()
 
+    rawframe_project_assertion_level(rawframe_compiler_policy)
     rawframe_apply_instrumentation_policy(rawframe_compiler_policy)
 
     if(RAWFRAME_ENABLE_ANALYSIS)

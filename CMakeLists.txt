@@ -35,6 +35,8 @@ if(RAWFRAME_BUILD_TESTS)
     rawframe_register_repository_tests()
 endif()
 
+add_subdirectory(source/base)
+
 add_subdirectory(tools/rf_archcheck)
 add_subdirectory(tools/rf_evidence)
 add_subdirectory(tools/rf_verify)

@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/module.schema.json",
+  "schemaVersion": 1,
+  "id": "rawframe.base",
+  "kind": "base",
+  "owner": "rawframe.architecture",
+  "purpose": "The zero-dependency leaf of the module graph: assertion and fatal primitives, the 128-bit value primitive, the byte and size vocabulary, and the compile-time platform detection every other module builds on.",
+  "stability": "internal",
+  "dependencies": {
+    "public": [],
+    "private": [],
+    "testOnly": [],
+    "toolOnly": [],
+    "hostOnly": [],
+    "forbidden": []
+  },
+  "availability": {
+    "contexts": [
+      "client",
+      "server",
+      "editor",
+      "tool"
+    ],
+    "executionModes": [
+      "graphical",
+      "headless"
+    ],
+    "platforms": [
+      "any"
+    ]
+  },
+  "exports": {
+    "native": {
+      "visibility": "engine",
+      "includeRoot": "include",
+      "includePrefix": "rawframe/base"
+    }
+  },
+  "contracts": {
+    "lifecycle": [
+      "adr.0075",
+      "spec.0046"
+    ],
+    "threading": [
+      "spec.0004",
+      "spec.0046"
+    ],
+    "security": [
+      "adr.0009",
+      "spec.0004"
+    ],
+    "performance": []
+  },
+  "verification": {
+    "testClasses": [
+      "unit",
+      "architecture"
+    ],
+    "budgetReferences": []
+  },
+  "thirdParty": []
+}

@@ -1,7 +1,9 @@
 {
   "$schema": "schemas/repository.schema.json",
   "schemaVersion": 4,
-  "modules": [],
+  "modules": [
+    "source/base/module.json"
+  ],
   "targets": [],
   "platforms": [],
   "configurations": [
