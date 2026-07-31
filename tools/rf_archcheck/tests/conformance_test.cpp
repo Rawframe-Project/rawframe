@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <string>
 #include <string_view>
@@ -368,6 +369,44 @@ TEST(Conformance, DisablingARuleWithoutAmendingItsAuthorityIsItselfAFindingsFail
     const CommandOutput kOutput = check(fixture);
     EXPECT_EQ(kOutput.exitClass, ExitClass::Findings);
     EXPECT_NE(kOutput.standardOutput.find("RA1006"), std::string::npos);
+}
+
+// The RF1538 through RF1540 retirement, performed in
+// `cmake/sync/tests/configure_acquisition_audit.cmake` under TASK-0010 with the
+// project owner's approval on 2026-07-31. ADR-0077 requires a retired stage-0
+// check to be proved by its replacement firing on the input the retired check
+// refused, so each form below is written the way that check's own regular
+// expression matched it. A retirement without this proof is a check silently
+// deleted, and the three retired here were the only mechanical guard the build
+// lane had against acquiring content at configure time.
+TEST(Conformance, EveryRetiredAcquisitionCheckHasItsReplacementFiringOnWhatItRefused) {
+    struct Retirement {
+        std::string_view retired;
+        std::string_view replacement;
+        std::string_view refused;
+    };
+    // RF1538 matched two distinct commands and both are proved, because a
+    // replacement that caught only the first would leave the second unenforced
+    // while the retirement still looked complete.
+    constexpr std::array kRetirements{
+        Retirement{"RF1538", "RA5003", "FetchContent_Declare(dep)"},
+        Retirement{"RF1538", "RA5003", "ExternalProject_Add(dep)"},
+        Retirement{"RF1539", "RA5003", "file(DOWNLOAD https://example.invalid/archive out.bin)"},
+        Retirement{"RF1540", "RA5001", "file(GLOB sources src/*.cpp)"},
+    };
+    for (std::size_t index = 0; index < kRetirements.size(); ++index) {
+        const Retirement& kCase = kRetirements.at(index);
+        const RepositoryFixture kFixture("retired" + std::to_string(index));
+        kFixture.write("CMakeLists.txt", "cmake_minimum_required(VERSION 4.4.0)\n" + std::string(kCase.refused) + "\n");
+        const std::vector<Finding> kFindings = findingsOf(kFixture);
+        const auto kMatch = std::ranges::find_if(kFindings, [&kCase](const Finding& finding) {
+            return finding.ruleId == kCase.replacement;
+        });
+        ASSERT_NE(kMatch, kFindings.end()) << kCase.retired << " was retired and " << kCase.replacement
+                                           << " does not fire on what it refused: " << kCase.refused;
+        EXPECT_EQ(kMatch->subject, "CMakeLists.txt");
+        EXPECT_TRUE(kMatch->position.present()) << "the replacement must say where, as the retired check did";
+    }
 }
 
 } // namespace rawframe::tool::archcheck
