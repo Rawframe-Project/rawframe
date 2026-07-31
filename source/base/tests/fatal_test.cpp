@@ -261,6 +261,16 @@ TEST(FatalPath, NamesAReasonTheEnumerationDoesNotDefine) {
     EXPECT_DEATH(
         {
             raiseFatal(FatalRecord{
+                // The conversion is defined rather than merely tolerated.
+                // `FatalReason` fixes its underlying type at `std::uint8_t`, and
+                // for a fixed underlying type the standard converts the value to
+                // that type and then to the enumeration, so every octet names a
+                // value of the type. The analyzer check reasons about the range
+                // an enumeration's own enumerators imply, which is the right
+                // question for an enumeration whose underlying type is deduced
+                // and the wrong one here. It is suppressed at the site rather
+                // than in the lane, because the lane's job is to ask.
+                // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
                 .reason = static_cast<FatalReason>(200),
                 .location = std::source_location::current(),
                 .condition = std::string_view{},
