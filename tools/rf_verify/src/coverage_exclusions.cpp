@@ -52,6 +52,14 @@ Result<SourceUnit> SourceUnit::read(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path, error)) {
         return reject(FailureCode::MissingInput, path.generic_string(), "the source unit does not exist");
     }
+    // Asked here rather than left to `file_size`, which answers differently on
+    // the two hosts: for a directory one reports an error and the other reports
+    // a size. An input that is not a regular file is not a source unit on either
+    // of them, and a reader that says so is a reader whose result does not
+    // depend on which host ran it.
+    if (!std::filesystem::is_regular_file(path, error)) {
+        return reject(FailureCode::InvalidPath, path.generic_string(), "the source unit is not a regular file");
+    }
     const auto kSize = std::filesystem::file_size(path, error);
     if (error) {
         return reject(FailureCode::IoFailure, path.generic_string(), "the source unit size cannot be read");
@@ -68,16 +76,17 @@ Result<SourceUnit> SourceUnit::read(const std::filesystem::path& path) {
         return reject(FailureCode::IoFailure, path.generic_string(), "the source unit cannot be read");
     }
 
+    // The last line ends at the end of the bytes rather than at a separator, so
+    // the position past it is what ends the loop. Written with a break instead,
+    // the loop condition would be a test that no input can fail, which reads as
+    // a termination check and is not one.
     const std::string_view kAll{unit.bytes_};
     std::size_t start = 0;
     while (start <= kAll.size()) {
-        const auto kEnd = kAll.find('\n', start);
-        if (kEnd == std::string_view::npos) {
-            unit.lines_.push_back(kAll.substr(start));
-            break;
-        }
-        unit.lines_.push_back(kAll.substr(start, kEnd - start));
-        start = kEnd + 1;
+        const auto kSeparator = kAll.find('\n', start);
+        const auto kStop = (kSeparator == std::string_view::npos) ? kAll.size() : kSeparator;
+        unit.lines_.push_back(kAll.substr(start, kStop - start));
+        start = kStop + 1;
     }
     return unit;
 }
