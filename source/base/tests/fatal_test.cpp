@@ -16,6 +16,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <new>
+#include <source_location>
+#include <string_view>
 
 #ifdef _WIN32
 // Both names belong to the Windows SDK's own include contract and cannot carry
@@ -31,9 +33,11 @@
 
 namespace {
 
+using rawframe::base::FatalReason;
 using rawframe::base::FatalRecord;
 using rawframe::base::freezeFatalHandler;
 using rawframe::base::installFatalHandler;
+using rawframe::base::raiseFatal;
 
 /// Writes to the standard error stream without allocating or locking, so a case
 /// can report from inside a fatal handler and from inside an allocation
@@ -75,6 +79,18 @@ void reentrantHandler(const FatalRecord& /*record*/) noexcept {
 void breakTheStandardErrorStream() noexcept {
 #ifdef _WIN32
     static_cast<void>(SetStdHandle(STD_ERROR_HANDLE, nullptr));
+#else
+    static_cast<void>(::close(STDERR_FILENO));
+#endif
+}
+
+/// The other way a Windows write target fails: a handle that is present and
+/// invalid rather than absent. The default handler answers both, and one case
+/// can only produce the first of the two. On a platform whose standard error is
+/// a descriptor there is one failure and this is it.
+void invalidateTheStandardErrorHandle() noexcept {
+#ifdef _WIN32
+    static_cast<void>(SetStdHandle(STD_ERROR_HANDLE, INVALID_HANDLE_VALUE));
 #else
     static_cast<void>(::close(STDERR_FILENO));
 #endif
@@ -168,6 +184,20 @@ TEST(FatalPath, TerminatesWhenTheDefaultHandlerCannotWrite) {
         "");
 }
 
+// The same claim for the other failing handle. A case that only ever hands the
+// default handler an absent handle leaves the invalid one untested, and the two
+// are different values answered by different comparisons.
+TEST(FatalPath, TerminatesWhenTheStandardErrorHandleIsInvalidRatherThanAbsent) {
+    RecordProperty("requirement", "SPEC-0046:item-11-terminates-when-the-write-fails");
+
+    EXPECT_DEATH(
+        {
+            invalidateTheStandardErrorHandle();
+            RAWFRAME_PANIC("the handle is invalid rather than missing");
+        },
+        "");
+}
+
 // Item 12. Re-entry terminates without recursing, and is distinguishable from the
 // failure that started it.
 TEST(FatalPath, TerminatesOnReentryAndSaysSo) {
@@ -216,4 +246,86 @@ TEST(FatalPath, TheAllocationObserverReportsAnAllocationWhenThereIsOne) {
             RAWFRAME_PANIC("an allocation happened first");
         },
         testing::HasSubstr(rawframe::base::test::kAllocationToken));
+}
+
+// The macros never produce these three records, and the default handler formats
+// all of them. `raiseFatal` is public, so a caller that is not a macro is a
+// supported caller, and everything below is what such a caller can hand it.
+
+// A reason the enumeration does not name is a value the type admits: the
+// underlying type is an octet and every octet is a valid value of it. The
+// handler names it rather than writing whatever happened to be in the buffer.
+TEST(FatalPath, NamesAReasonTheEnumerationDoesNotDefine) {
+    RecordProperty("requirement", "SPEC-0046:item-10-default-handler-before-composition");
+
+    EXPECT_DEATH(
+        {
+            raiseFatal(FatalRecord{
+                .reason = static_cast<FatalReason>(200),
+                .location = std::source_location::current(),
+                .condition = std::string_view{},
+                .message = std::string_view{"a reason with no name"},
+                .threadIdentity = 0,
+            });
+        },
+        testing::HasSubstr("rawframe fatal: Unknown"));
+}
+
+// The re-entry reason reaches the handler when a caller states it directly,
+// which is not the same path as the re-entry the flag detects: that one writes
+// one constant line and never formats a record at all.
+TEST(FatalPath, NamesTheReentryReasonWhenACallerStatesItDirectly) {
+    RecordProperty("requirement", "SPEC-0046:item-12-reentry-is-distinguishable");
+
+    EXPECT_DEATH(
+        {
+            raiseFatal(FatalRecord{
+                .reason = FatalReason::FatalPathReentered,
+                .location = std::source_location::current(),
+                .condition = std::string_view{},
+                .message = std::string_view{"stated rather than detected"},
+                .threadIdentity = 0,
+            });
+        },
+        testing::AllOf(testing::HasSubstr("rawframe fatal: FatalPathReentered"),
+                       testing::HasSubstr("stated rather than detected")));
+}
+
+// A caller that already knows which thread it is on keeps its own answer. The
+// path fills the field only when it is unset, and a case that never sets it
+// cannot tell the two behaviors apart.
+TEST(FatalPath, KeepsTheThreadIdentityTheCallerSupplied) {
+    RecordProperty("requirement", "SPEC-0046:item-10-default-handler-before-composition");
+
+    EXPECT_DEATH(
+        {
+            raiseFatal(FatalRecord{
+                .reason = FatalReason::Panic,
+                .location = std::source_location::current(),
+                .condition = std::string_view{},
+                .message = std::string_view{"the caller named its thread"},
+                .threadIdentity = 4242,
+            });
+        },
+        testing::HasSubstr("thread: 4242"));
+}
+
+// A record whose location was never set is still formatted. The location is an
+// ordinary member and a caller may leave it default constructed, which makes
+// the line and the column zero: the one value a loop that tests before it
+// writes would drop, and the handler writes it.
+TEST(FatalPath, FormatsARecordWhoseLocationWasNeverSet) {
+    RecordProperty("requirement", "SPEC-0046:item-10-default-handler-before-composition");
+
+    EXPECT_DEATH(
+        {
+            raiseFatal(FatalRecord{
+                .reason = FatalReason::Panic,
+                .location = std::source_location{},
+                .condition = std::string_view{},
+                .message = std::string_view{"there is no call site here"},
+                .threadIdentity = 7,
+            });
+        },
+        testing::AllOf(testing::HasSubstr(":0:0"), testing::HasSubstr("there is no call site here")));
 }

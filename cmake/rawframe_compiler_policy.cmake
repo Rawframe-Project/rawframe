@@ -139,12 +139,50 @@ function(rawframe_apply_instrumentation_policy target_name)
     # the first coverage run proved that at least one spawned process does lose
     # the environment variable: a stray profile landed in the repository root,
     # where the path audit would have reported it as unclassified and where the
-    # merge step would never have found it. `%p` is expanded by the profiling
-    # runtime to the process ID, which keeps concurrent CTest processes from
-    # overwriting each other.
-    set(profile_destination "${CMAKE_BINARY_DIR}/coverage-profiles/rf-%p.profraw")
+    # merge step would never have found it.
+    #
+    # `%m` rather than `%p`, and the difference is a measurement defect this lane
+    # actually produced. `%p` expands to the process identifier, and the suite
+    # runs one process per test case: the first run past eight hundred cases
+    # wrote seven hundred and five raw profiles, because the operating system
+    # reuses process identifiers and a later process silently truncated an
+    # earlier one's file. The loss was not spread evenly, so whole test cases
+    # read as never executed and the diff-scoped STD-0007 floors failed against
+    # code the suite demonstrably ran.
+    #
+    # `%m` expands to the instrumented binary's own signature and puts the
+    # profiling runtime into merge mode, where every process of that binary
+    # merges its counters into the one file under a lock. Eight files replace
+    # seven hundred, no profile is lost to a reused identifier, and concurrent
+    # CTest processes still cannot overwrite each other.
+    #
+    # `-fprofile-continuous` is the third part and answers a different loss.
+    # Counters are normally written when a process exits, and a path whose
+    # contract is to end the process never gets there: SPEC-0004 requires the
+    # fatal path to terminate, `rawframe.base` proves it by terminating, and
+    # every one of those branches read as unexecuted. Continuous mode maps the
+    # raw profile and updates it as counters increment, so a process that ends in
+    # `abort` has already recorded what it ran. Measured on this host: an
+    # aborting run and a returning run merge into one file and the aborting run's
+    # branch appears, where before it did not. It cannot be combined with an
+    # explicit `%c` in the destination, which the mode inserts itself.
+    #
+    # It is also the one option here that the clang-cl driver does not accept in
+    # its own spelling: it reports "unknown argument ignored", which is a warning
+    # rather than an error, so a run that silently lost continuous mode would
+    # have looked exactly like a run that never had it. `/clang:` passes it
+    # through to the frontend on the MSVC-compatible driver.
+    set(profile_destination "${CMAKE_BINARY_DIR}/coverage-profiles/rf-%m.profraw")
+    if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        set(continuous_option "/clang:-fprofile-continuous")
+    else()
+        set(continuous_option "-fprofile-continuous")
+    endif()
     set(coverage_options "-fprofile-instr-generate=${profile_destination}" -fcoverage-mapping -fcoverage-mcdc)
-    target_compile_options(${target_name} INTERFACE ${coverage_options})
+    # Continuous mode is a code-generation choice and belongs only to the compile
+    # step. Passing it to the link step hands the linker an argument it reads as
+    # a file name, which fails the build rather than being ignored.
+    target_compile_options(${target_name} INTERFACE ${coverage_options} "${continuous_option}")
     target_link_options(${target_name} INTERFACE ${coverage_options})
 endfunction()
 

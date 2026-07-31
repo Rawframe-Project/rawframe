@@ -15,11 +15,26 @@ namespace rawframe::tool::verify {
 
 // One branch region as `llvm-cov export` states it. A region carries two
 // outcomes, so it contributes two branch conditions, and each is covered when
-// its own execution count is nonzero. This is the same arithmetic llvm-cov uses
-// for its own branch summary, which is what makes the two agree.
+// its own execution count is nonzero.
+//
+// One region here is one source decision, which is where this departs from
+// llvm-cov's own branch summary. A decision written inside a function-like
+// macro is instrumented once per expansion site, so a header that defines an
+// assertion macro receives one region per place the macro is used, all at the
+// same source position and each counting only its own expansion. Read that way
+// a macro's decision is counted as many times as it is used and is covered by
+// none of them, which is a fact about the callers rather than about the header.
+// Regions sharing an exact position are therefore summed into one, and the
+// counts from `expansions` are summed in with them, because that is where
+// llvm-cov puts an expansion's real execution counts. The `summary` block is
+// still read verbatim from the export and is llvm-cov's arithmetic, so the
+// whole-tree objective and the diff-scoped floors can differ for a unit whose
+// decisions live in macros. That difference is the correction, not a defect.
 struct BranchRegion {
     std::uint32_t line = 0;
     std::uint32_t column = 0;
+    std::uint32_t endLine = 0;
+    std::uint32_t endColumn = 0;
     std::int64_t trueCount = 0;
     std::int64_t falseCount = 0;
 

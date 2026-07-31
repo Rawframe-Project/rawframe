@@ -14,6 +14,16 @@
       "reason": "Maps a measurement to an exit code, and a wrong exit lets a change below a floor land."
     },
     {
+      "path": "src/coverage_exclusions.cpp",
+      "tier": "A",
+      "reason": "Decides which branch outcomes STD-0007 removes from a coverage denominator. It cannot ask a person, so a mistake here silently lowers a floor for every unit it touches."
+    },
+    {
+      "path": "src/coverage_exclusions.h",
+      "tier": "A",
+      "reason": "Names the two admitted exclusion reasons. A third value added here would widen the standard without amending it."
+    },
+    {
       "path": "src/coverage_export.cpp",
       "tier": "A",
       "reason": "Reads the artifact of record; a misread field is a coverage figure that means nothing."

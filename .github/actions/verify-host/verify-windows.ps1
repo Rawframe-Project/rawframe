@@ -43,29 +43,11 @@ function Invoke-CoverageLane {
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--preset', $preset)
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--build', '--preset', $preset)
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$build/coverage-profiles"
-
-    # `%m` rather than the compiled-in `%p`, and the reason is a measurement
-    # defect this lane actually produced. `%p` is the process identifier, and the
-    # suite now runs one process per test case: the first run past eight hundred
-    # cases wrote seven hundred and five raw profiles, because the operating
-    # system reuses process identifiers and a later process silently truncated an
-    # earlier one's file. The lost profiles were not distributed evenly, so whole
-    # test cases read as never executed and the diff-scoped floors failed against
-    # code the suite demonstrably ran.
-    #
-    # `%m` names the file after the instrumented binary's own signature and puts
-    # the profiling runtime into merge mode, where every process of that binary
-    # merges its counters into the one file under a lock. Eight files replace
-    # seven hundred, and nothing is lost to a reused identifier. A process that
-    # loses the environment variable still falls back to the compiled-in `%p`
-    # destination in the same directory, so it is collected either way.
-    $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/rf-%m.profraw"
-    try {
-        Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '--output-on-failure')
-    }
-    finally {
-        Remove-Item Env:\LLVM_PROFILE_FILE
-    }
+    # No LLVM_PROFILE_FILE here. The destination is compiled in by
+    # `rawframe_apply_coverage_instrumentation`, which is the one place that
+    # decides it, and setting it here as well would make two places able to
+    # disagree about where the evidence of a run lands.
+    Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '--output-on-failure')
 
     # One isolated run per entry point. Every executable defines `main`, an
     # external symbol, so a profile merged across programs keeps one record for
@@ -128,6 +110,7 @@ function Invoke-CoverageLane {
     Invoke-Checked -Path $verify -Arguments @(
         'requirements_report', '--root', $RepositoryRoot,
         '--test-report', "$build/test_output/verify_test_report.json",
+        '--test-report', "$build/test_output/base_test_report.json",
         '--report', "$verifyReports/requirements-report.json")
 
     # The floors are diff scoped, so they need the set of lines the change

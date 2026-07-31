@@ -127,10 +127,11 @@ TEST(Conformance, Item23NoRepositoryToolIsReachableFromAProductionClosure) {
     const auto kAudit = auditShippingClosure(repositoryRoot(), snapshot());
     ASSERT_TRUE(kAudit.has_value()) << (kAudit ? std::string{} : kAudit.error().message);
     EXPECT_TRUE(kAudit->allPassed());
-    // Seven checks that do not depend on the tool list, plus two per admitted
+    // Six checks that do not depend on the tool list, plus two per admitted
     // tool. Written as the arithmetic rather than as a literal so that a tool
-    // whose checks stopped being emitted still fails here.
-    EXPECT_EQ(kAudit->checks.size(), 7U + (2U * snapshot().tools.size()));
+    // whose checks stopped being emitted still fails here. It was seven until
+    // TASK-0011 removed `source` from the forbidden product roots.
+    EXPECT_EQ(kAudit->checks.size(), 6U + (2U * snapshot().tools.size()));
 }
 
 // 24. An unregistered tool root or a hidden build input fails repository
@@ -151,12 +152,18 @@ TEST(Conformance, Item25NoRootExistsBeforeItsTaskCreatesPopulatedContent) {
     ASSERT_TRUE(kAudit.has_value()) << (kAudit ? std::string{} : kAudit.error().message);
     EXPECT_TRUE(kAudit->envelopeViolations.empty());
     EXPECT_FALSE(kAudit->envelopeFiles.empty());
-    for (const std::string_view kAbsent : {std::string_view{"source"},
-                                           std::string_view{"tests"},
-                                           std::string_view{"modules"},
-                                           std::string_view{"evidence/baselines"}}) {
+    // `source` left this list with TASK-0011, which is the accepted active Task
+    // that populated it. The item says no root exists before its Task creates
+    // populated content, not that no root exists; keeping `source` here after
+    // its Task ran would have inverted the item into a claim that the Plan must
+    // never execute. What still holds is that `source/` is populated rather than
+    // reserved, which the envelope classification above already proves.
+    for (const std::string_view kAbsent :
+         {std::string_view{"tests"}, std::string_view{"modules"}, std::string_view{"evidence/baselines"}}) {
         EXPECT_FALSE(std::filesystem::exists(repositoryRoot() / kAbsent)) << kAbsent;
     }
+    EXPECT_FALSE(std::filesystem::is_empty(repositoryRoot() / "source"))
+        << "source exists, so its Task populated it rather than reserving the root";
 }
 
 } // namespace rawframe::tool::evidence

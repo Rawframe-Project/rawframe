@@ -2,8 +2,12 @@
 #include "json_reader.h"
 #include "verify_fixture.h"
 
+#include <cstdint>
+#include <filesystem>
 #include <gtest/gtest.h>
+#include <limits>
 #include <string>
+#include <string_view>
 
 namespace rawframe::tool::verify {
 
@@ -27,6 +31,44 @@ Result<CoverageExport> buildFrom(const testing::RepositoryFixture& fixture, std:
         return std::unexpected(parsed.error());
     }
     return buildCoverageExport(fixture.root(), *parsed);
+}
+
+// The generic form carries forward slashes on every host, so there is nothing
+// in it a JSON string has to escape.
+std::string quotedPath(const std::filesystem::path& root, std::string_view relative) {
+    return "\"" + (root / relative).generic_string() + "\"";
+}
+
+// A macro's decisions are instrumented where it is defined and counted where it
+// is used, and llvm-cov reports the counts inside the using file's `expansions`
+// blocks. The two-file document below is that shape: `parser.cpp` uses the macro
+// and credits `macros.h`, and `macros.h` carries the same span in its own branch
+// list with the counts of whatever ran outside a macro.
+std::string expansionDocument(const std::filesystem::path& root,
+                              std::string_view expansionsMember,
+                              std::string_view headerBranches) {
+    const std::string kSummary = R"("summary":{"lines":{"count":1,"covered":1},"branches":{"count":2,"covered":1},)"
+                                 R"("regions":{"count":1,"covered":1},"mcdc":{"count":0,"covered":0}})";
+
+    std::string document = R"({"version":"3.1.0","type":"llvm.coverage.json.export","data":[{"files":[)";
+    document += "{\"filename\":" + quotedPath(root, "tools/subject/src/parser.cpp") + ",";
+    document += R"("branches":[],"mcdc_records":[],"segments":[],)";
+    document += std::string(expansionsMember);
+    document += kSummary + "},";
+    document += "{\"filename\":" + quotedPath(root, "tools/subject/include/macros.h") + ",";
+    document += "\"branches\":" + std::string(headerBranches) + R"(,"mcdc_records":[],"segments":[],)";
+    document += kSummary + "}]}]}";
+    return document;
+}
+
+// One expansion block naming both files. The header is index 1, which is the
+// index the branch records below name in their seventh field.
+std::string expansionsCrediting(const std::filesystem::path& root, std::string_view branches) {
+    std::string block = R"("expansions":[{"filenames":[)";
+    block += quotedPath(root, "tools/subject/src/parser.cpp") + ",";
+    block += quotedPath(root, "tools/subject/include/macros.h") + R"(],"branches":)";
+    block += std::string(branches) + "}],";
+    return block;
 }
 
 } // namespace
@@ -254,6 +296,124 @@ TEST(CoverageExport, ReadsAnExportFromDiskAndNamesItOnFailure) {
     auto absent = readCoverageExport(kFixture.root(), kFixture.root() / "out/coverage/absent.json");
     ASSERT_FALSE(absent.has_value());
     EXPECT_EQ(absent.error().code, FailureCode::MissingInput);
+}
+
+// The defect this reader was changed to answer. Every assertion in the base
+// suite executed and the assertion header still reported one execution, because
+// the counts were all sitting in the expansion blocks of the files that used the
+// macros.
+TEST(CoverageExport, FoldsMacroExpansionCountsIntoTheFileThatDefinesTheMacro) {
+    const testing::RepositoryFixture kFixture("export_expansions");
+    auto coverage = buildFrom(kFixture,
+                              expansionDocument(kFixture.root(),
+                                                expansionsCrediting(kFixture.root(), "[[10,5,10,20,3,0,1,0,4]]"),
+                                                "[[10,5,10,20,0,2,0,0,4]]"));
+    ASSERT_TRUE(coverage.has_value()) << coverage.error().message;
+
+    const CoverageFile& kHeader = coverage->files.at("tools/subject/include/macros.h");
+    ASSERT_EQ(kHeader.branches.size(), 1U) << "the two records name one span and are one decision";
+    EXPECT_EQ(kHeader.branches.at(0).trueCount, 3);
+    EXPECT_EQ(kHeader.branches.at(0).falseCount, 2);
+    EXPECT_TRUE(kHeader.branches.at(0).trueCovered());
+    EXPECT_TRUE(kHeader.branches.at(0).falseCovered());
+}
+
+// Two records that differ anywhere in their span are two decisions. A reader
+// that merged on the start position alone would fold a nested condition into
+// the one that contains it.
+TEST(CoverageExport, KeepsTwoExpandedRegionsApartWhenTheirSpansDiffer) {
+    const testing::RepositoryFixture kFixture("export_expansions_distinct");
+    auto coverage = buildFrom(
+        kFixture,
+        expansionDocument(kFixture.root(),
+                          expansionsCrediting(kFixture.root(), "[[10,5,10,20,3,0,1,0,4],[10,5,10,25,0,7,1,0,4]]"),
+                          "[]"));
+    ASSERT_TRUE(coverage.has_value()) << coverage.error().message;
+
+    const CoverageFile& kHeader = coverage->files.at("tools/subject/include/macros.h");
+    ASSERT_EQ(kHeader.branches.size(), 2U);
+    EXPECT_EQ(kHeader.branches.at(0).endColumn, 20U);
+    EXPECT_EQ(kHeader.branches.at(1).endColumn, 25U);
+    EXPECT_EQ(kHeader.branches.at(1).falseCount, 7);
+}
+
+// llvm-cov writes the signed maximum where a counter expression could not be
+// evaluated. Adding to it would produce a negative count, which reads as
+// uncovered, so the sum saturates and the unusable number stays unusable.
+TEST(CoverageExport, SaturatesACountThatCannotBeAddedToRatherThanWrappingIt) {
+    const testing::RepositoryFixture kFixture("export_expansions_saturate");
+    auto coverage =
+        buildFrom(kFixture,
+                  expansionDocument(kFixture.root(),
+                                    expansionsCrediting(kFixture.root(), "[[10,5,10,20,9223372036854775807,1,1,0,4]]"),
+                                    "[[10,5,10,20,4,9223372036854775807,0,0,4]]"));
+    ASSERT_TRUE(coverage.has_value()) << coverage.error().message;
+
+    const CoverageFile& kHeader = coverage->files.at("tools/subject/include/macros.h");
+    ASSERT_EQ(kHeader.branches.size(), 1U);
+    EXPECT_EQ(kHeader.branches.at(0).trueCount, std::numeric_limits<std::int64_t>::max());
+    EXPECT_EQ(kHeader.branches.at(0).falseCount, std::numeric_limits<std::int64_t>::max());
+}
+
+// An expansion block with no branch list is the ordinary case for a macro that
+// expands to no decision, and it is skipped rather than refused.
+TEST(CoverageExport, AcceptsAnExpansionBlockThatCarriesNoBranches) {
+    const testing::RepositoryFixture kFixture("export_expansions_empty");
+    auto coverage = buildFrom(
+        kFixture,
+        expansionDocument(kFixture.root(), R"("expansions":[{"filenames":["a.cpp"]}],)", "[[10,5,10,20,1,1,0,0,4]]"));
+    ASSERT_TRUE(coverage.has_value()) << coverage.error().message;
+    EXPECT_EQ(coverage->files.at("tools/subject/include/macros.h").branches.size(), 1U);
+}
+
+// Every way an expansion block can be malformed, each answered by its own typed
+// rejection. A reader that skipped a block it could not parse would report the
+// macro-heavy file as nearly uncovered and give no reason for it.
+TEST(CoverageExport, RejectsAMalformedExpansionBlock) {
+    const testing::RepositoryFixture kFixture("export_expansions_malformed");
+    const auto& kRoot = kFixture.root();
+
+    auto notAnArray = buildFrom(kFixture, expansionDocument(kRoot, R"("expansions":{},)", "[]"));
+    ASSERT_FALSE(notAnArray.has_value());
+    EXPECT_EQ(notAnArray.error().message, "the expansion list is not an array");
+
+    auto noFilenames = buildFrom(kFixture, expansionDocument(kRoot, R"("expansions":[{"branches":[]}],)", "[]"));
+    ASSERT_FALSE(noFilenames.has_value());
+    EXPECT_EQ(noFilenames.error().message, "an expansion names no files");
+
+    auto filenamesNotAnArray =
+        buildFrom(kFixture, expansionDocument(kRoot, R"("expansions":[{"filenames":"a.cpp"}],)", "[]"));
+    ASSERT_FALSE(filenamesNotAnArray.has_value());
+    EXPECT_EQ(filenamesNotAnArray.error().message, "an expansion names no files");
+
+    auto branchesNotAnArray =
+        buildFrom(kFixture, expansionDocument(kRoot, R"("expansions":[{"filenames":["a.cpp"],"branches":7}],)", "[]"));
+    ASSERT_FALSE(branchesNotAnArray.has_value());
+    EXPECT_EQ(branchesNotAnArray.error().message, "an expansion branch list is not an array");
+
+    auto shortRecord = buildFrom(kFixture, expansionDocument(kRoot, expansionsCrediting(kRoot, "[[10,5]]"), "[]"));
+    ASSERT_FALSE(shortRecord.has_value());
+    EXPECT_EQ(shortRecord.error().message, "a branch region is not a nine-field record");
+
+    auto unreadableFileId = buildFrom(
+        kFixture, expansionDocument(kRoot, expansionsCrediting(kRoot, R"([[10,5,10,20,1,1,"b",0,4]])"), "[]"));
+    ASSERT_FALSE(unreadableFileId.has_value());
+
+    auto fileIdOutOfRange =
+        buildFrom(kFixture, expansionDocument(kRoot, expansionsCrediting(kRoot, "[[10,5,10,20,1,1,9,0,4]]"), "[]"));
+    ASSERT_FALSE(fileIdOutOfRange.has_value());
+    EXPECT_EQ(fileIdOutOfRange.error().message, "an expansion branch names a file the block does not");
+
+    auto negativeFileId =
+        buildFrom(kFixture, expansionDocument(kRoot, expansionsCrediting(kRoot, "[[10,5,10,20,1,1,-1,0,4]]"), "[]"));
+    ASSERT_FALSE(negativeFileId.has_value());
+    EXPECT_EQ(negativeFileId.error().message, "an expansion branch names a file the block does not");
+
+    auto nameIsNotAString = buildFrom(
+        kFixture,
+        expansionDocument(kRoot, R"("expansions":[{"filenames":[5],"branches":[[10,5,10,20,1,1,0,0,4]]}],)", "[]"));
+    ASSERT_FALSE(nameIsNotAString.has_value());
+    EXPECT_EQ(nameIsNotAString.error().message, "an expansion filename is not a string");
 }
 
 } // namespace rawframe::tool::verify

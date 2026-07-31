@@ -157,7 +157,7 @@ int coverageFloors(const Options& options, std::ostream& output, std::ostream& e
     if (!tiers) {
         return fail(errors, tiers.error());
     }
-    auto evaluation = evaluateFloors(*changed, *coverage, *tiers);
+    auto evaluation = evaluateFloors(*root, *changed, *coverage, *tiers);
     if (!evaluation) {
         return fail(errors, evaluation.error());
     }
@@ -184,6 +184,8 @@ int coverageFloors(const Options& options, std::ostream& output, std::ostream& e
         writer.member("meetsFloor", unit.meetsFloor);
         writer.member("changedDecisions", static_cast<std::int64_t>(unit.changedDecisions));
         writer.member("uncoveredDecisions", static_cast<std::int64_t>(unit.uncoveredDecisions));
+        writer.member("excludedConstantConditions", static_cast<std::int64_t>(unit.excludedConstantConditions));
+        writer.member("excludedSynthesizedConditions", static_cast<std::int64_t>(unit.excludedSynthesizedConditions));
         writer.key("partiallyCoveredBranchLines");
         writer.writeIntegerArray(unit.uncoveredBranchLines);
         writer.endObject();

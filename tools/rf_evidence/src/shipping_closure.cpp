@@ -15,7 +15,22 @@ namespace {
 
 constexpr std::size_t kMaximumAuditedFiles = 65'536;
 
-Result<bool> productionMembershipEmpty(const std::filesystem::path& repositoryRoot) {
+constexpr std::string_view kRepositoryToolRoot = "tools/";
+
+/// Whether the repository index keeps production membership and repository-tool
+/// membership on opposite sides of the ADR-0022 boundary: no production entry
+/// resolves beneath the repository-tool root, and every tool entry does.
+///
+/// This check asserted that production membership was empty until TASK-0011.
+/// That was a true observation about the repository on the day it was written
+/// and not the invariant: `rawframe.base` is a production module the accepted
+/// Plan orders, and an audit that fails the moment the project does what it
+/// planned is measuring the calendar. Emptiness also proved nothing about the
+/// boundary, since it would have held equally in a repository with no tools.
+/// What must stay true for as long as `tools/` exists is that a repository tool
+/// never appears where a shipping closure resolves its members, which is what
+/// this reads instead.
+Result<bool> membershipRootsSeparated(const std::filesystem::path& repositoryRoot) {
     auto repositoryPath = resolveRepositoryPath(repositoryRoot, "repository.json");
     if (!repositoryPath) {
         return std::unexpected(repositoryPath.error());
@@ -30,18 +45,56 @@ Result<bool> productionMembershipEmpty(const std::filesystem::path& repositoryRo
         return std::unexpected(Failure{
             FailureCode::InvalidJson, repositoryPath->generic_string(), "repository membership must be an object"});
     }
-    for (const std::string_view kField : {"modules", "targets", "packagingPolicies", "profiles"}) {
+
+    // A missing array stays a typed failure rather than a quiet false. An
+    // authority that lost one of its membership kinds is malformed, and reading
+    // that as a failed check would report a boundary violation where the real
+    // defect is that nothing declared the membership at all.
+    const auto kReadArray = [&](std::string_view field) -> Result<simdjson::dom::array> {
         simdjson::dom::array members;
-        if (const auto kError = root.at_key(kField).get_array().get(members); kError) {
+        if (const auto kError = root.at_key(field).get_array().get(members); kError) {
             return std::unexpected(Failure{FailureCode::InvalidManifest,
                                            repositoryPath->generic_string(),
-                                           std::string(kField) + " membership array is missing"});
+                                           std::string(field) + " membership array is missing"});
         }
-        if (members.size() != 0) {
-            return false;
+        return members;
+    };
+
+    bool separated = true;
+    for (const std::string_view kField : {"modules", "targets", "packagingPolicies", "profiles"}) {
+        auto members = kReadArray(kField);
+        if (!members) {
+            return std::unexpected(members.error());
+        }
+        for (const auto kMember : *members) {
+            std::string_view path;
+            if (const auto kError = kMember.get_string().get(path); kError) {
+                return std::unexpected(Failure{FailureCode::InvalidManifest,
+                                               repositoryPath->generic_string(),
+                                               std::string(kField) + " membership entries must be strings"});
+            }
+            if (path.starts_with(kRepositoryToolRoot)) {
+                separated = false;
+            }
         }
     }
-    return true;
+
+    auto tools = kReadArray("tools");
+    if (!tools) {
+        return std::unexpected(tools.error());
+    }
+    for (const auto kTool : *tools) {
+        std::string_view path;
+        if (const auto kError = kTool.get_string().get(path); kError) {
+            return std::unexpected(Failure{FailureCode::InvalidManifest,
+                                           repositoryPath->generic_string(),
+                                           "tools membership entries must be strings"});
+        }
+        if (!path.starts_with(kRepositoryToolRoot)) {
+            separated = false;
+        }
+    }
+    return separated;
 }
 
 Result<bool> toolDistributionForbidden(const std::filesystem::path& repositoryRoot, const ToolInfo& tool) {
@@ -78,7 +131,15 @@ Result<bool> toolDistributionForbidden(const std::filesystem::path& repositoryRo
     return true;
 }
 
-Result<bool> noProductionModuleManifests(const std::filesystem::path& repositoryRoot) {
+/// Whether every production module manifest in the tree lies beneath `source/`.
+///
+/// This scanned for the absence of any `module.json` at all until TASK-0011, for
+/// the same reason and with the same defect as the membership check above. A
+/// manifest is not a leak; a manifest inside the repository-tool root is, and so
+/// is one in a root that declares nothing. The scan is still whole-repository
+/// rather than membership-driven, because an undeclared manifest in the wrong
+/// place is exactly what a membership-driven reader would not see.
+Result<bool> moduleManifestsOnlyBeneathSource(const std::filesystem::path& repositoryRoot) {
     std::size_t auditedEntries = 0;
     std::error_code error;
     for (std::filesystem::recursive_directory_iterator iterator(repositoryRoot, error), end; iterator != end;
@@ -102,7 +163,10 @@ Result<bool> noProductionModuleManifests(const std::filesystem::path& repository
             continue;
         }
         if (iterator->is_regular_file(error) && kFilename == "module.json") {
-            return false;
+            const auto kRelative = std::filesystem::relative(iterator->path(), repositoryRoot, error);
+            if (error || !kRelative.generic_string().starts_with("source/")) {
+                return false;
+            }
         }
     }
     return true;
@@ -160,11 +224,11 @@ Result<ShippingClosureAudit> auditShippingClosure(const std::filesystem::path& r
                                                   const RepositorySnapshot& snapshot) {
     ShippingClosureAudit audit;
 
-    auto membershipEmpty = productionMembershipEmpty(repositoryRoot);
-    if (!membershipEmpty) {
-        return std::unexpected(membershipEmpty.error());
+    auto rootsSeparated = membershipRootsSeparated(repositoryRoot);
+    if (!rootsSeparated) {
+        return std::unexpected(rootsSeparated.error());
     }
-    audit.checks.push_back(ShippingClosureCheck{"production_membership_empty", "repository.json", *membershipEmpty});
+    audit.checks.push_back(ShippingClosureCheck{"membership_roots_separated", "repository.json", *rootsSeparated});
 
     for (const auto& tool : snapshot.tools) {
         auto distributionForbidden = toolDistributionForbidden(repositoryRoot, tool);
@@ -185,14 +249,18 @@ Result<ShippingClosureAudit> auditShippingClosure(const std::filesystem::path& r
     // created it; its absence was never the invariant, and asserting it now
     // would make a legitimate root look like a shipping leak. What must stay
     // true of it is that nothing there is a production module, which
-    // noProductionModuleManifests below proves over the whole repository, and
-    // that nothing there is generated, which the path audit proves.
+    // moduleManifestsOnlyBeneathSource below proves over the whole repository,
+    // and that nothing there is generated, which the path audit proves.
+    //
+    // `source` left this list with TASK-0011 for exactly the same reason.
+    // SPEC-0007 gives every production module a root beneath it, so the first
+    // module the accepted Plan orders creates it, and its absence was a fact
+    // about the calendar rather than about the tool boundary.
     constexpr std::array kForbiddenRoots{
         std::string_view{"apps"},
         std::string_view{"games"},
         std::string_view{"packages"},
         std::string_view{"sdk"},
-        std::string_view{"source"},
     };
     for (const auto kRoot : kForbiddenRoots) {
         std::error_code error;
@@ -200,11 +268,12 @@ Result<ShippingClosureAudit> auditShippingClosure(const std::filesystem::path& r
         audit.checks.push_back(ShippingClosureCheck{"shipping_root_absent", std::string(kRoot), kAbsent});
     }
 
-    auto noModules = noProductionModuleManifests(snapshot.root);
-    if (!noModules) {
-        return std::unexpected(noModules.error());
+    auto modulesPlacedCorrectly = moduleManifestsOnlyBeneathSource(snapshot.root);
+    if (!modulesPlacedCorrectly) {
+        return std::unexpected(modulesPlacedCorrectly.error());
     }
-    audit.checks.push_back(ShippingClosureCheck{"no_production_module_manifest", "module.json", *noModules});
+    audit.checks.push_back(
+        ShippingClosureCheck{"module_manifest_only_beneath_source", "module.json", *modulesPlacedCorrectly});
 
     std::ranges::sort(audit.checks, [](const ShippingClosureCheck& left, const ShippingClosureCheck& right) {
         return std::tie(left.check, left.subject) < std::tie(right.check, right.subject);

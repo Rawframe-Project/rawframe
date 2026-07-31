@@ -16,6 +16,37 @@
 #error "the test build did not receive the assertion level projection"
 #endif
 
+namespace {
+
+// A failing condition the compiler is not free to decide. `1 == 2` would be a
+// constant expression, and whether the optimizer keeps a decision it has already
+// answered is not a property the test should depend on: the three configurations
+// optimize differently and a case that quietly stopped exercising the failing
+// branch in two of them would still pass in all three. A volatile read cannot be
+// folded at any level. The name says two because that is the value; the cases
+// below compare it against one.
+int twoAtRunTime() {
+    volatile int value = 2;
+    return value;
+}
+
+// The failing call sites live here rather than inside the death-test macro, and
+// the reason is a property of the coverage tooling rather than a preference. A
+// Rawframe macro expanded inside a GoogleTest macro has its branch regions
+// attributed to the GoogleTest header, which is external and carries no coverage
+// mapping, so the outcome executes in the death-test child and is reported
+// nowhere at all. An ordinary function keeps the same behavior and puts the
+// region back in a file that is measured.
+void assertAConditionThatDoesNotHold() {
+    RAWFRAME_ASSERT(twoAtRunTime() == 1, "two is not one");
+}
+
+void checkAConditionThatDoesNotHold() {
+    RAWFRAME_CHECK(twoAtRunTime() == 1, "two is not one");
+}
+
+} // namespace
+
 // Item 6, RAWFRAME_ASSERT.
 TEST(AssertionMacros, AssertIsEvaluatedOnlyWhereTheConfigurationSaysItIs) {
     RecordProperty("requirement", "SPEC-0046:item-6-macro-behavior-per-configuration");
@@ -38,12 +69,12 @@ TEST(AssertionMacros, AssertIsNonReturningOnFailureWhereItIsEvaluated) {
     RecordProperty("requirement", "SPEC-0046:item-6-macro-behavior-per-configuration");
 
 #if RAWFRAME_ASSERTIONS == 2
-    EXPECT_DEATH({ RAWFRAME_ASSERT(1 == 2, "one is not two"); }, "rawframe fatal: AssertionFailed");
+    EXPECT_DEATH({ assertAConditionThatDoesNotHold(); }, "rawframe fatal: AssertionFailed");
 #else
     // Removed from the shipping configuration, so a failing condition is not a
     // failure at all. Reaching the next statement is the assertion.
     bool reached = false;
-    RAWFRAME_ASSERT(1 == 2, "one is not two");
+    assertAConditionThatDoesNotHold();
     reached = true;
     EXPECT_TRUE(reached) << "a contract-only configuration must not terminate on a failed assertion";
 #endif
@@ -53,7 +84,7 @@ TEST(AssertionMacros, AssertIsNonReturningOnFailureWhereItIsEvaluated) {
 TEST(AssertionMacros, CheckIsNonReturningOnFailureInEveryConfiguration) {
     RecordProperty("requirement", "SPEC-0046:item-6-macro-behavior-per-configuration");
 
-    EXPECT_DEATH({ RAWFRAME_CHECK(1 == 2, "one is not two"); }, "rawframe fatal: CheckFailed");
+    EXPECT_DEATH({ checkAConditionThatDoesNotHold(); }, "rawframe fatal: CheckFailed");
 }
 
 TEST(AssertionMacros, CheckReturnsWhenItsConditionHolds) {

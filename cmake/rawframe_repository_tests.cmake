@@ -792,12 +792,24 @@ message(STATUS "tier_0 chain complete")
         FIXTURES_SETUP "VerificationTestReport" LABELS "repository;verification"
         RESOURCE_LOCK "rawframe_rf_verify_scratch" TIMEOUT 300)
 
+    # The same report for the production module. A test that records a binding
+    # no report reads has bound nothing, so every executable whose cases carry
+    # `RecordProperty("requirement", ...)` contributes its own GoogleTest report
+    # and the tool is handed all of them. An executable added later without this
+    # step is caught by the criterion it leaves unbound, not silently ignored.
+    add_test(NAME "Fixture.BaseTestReport"
+        COMMAND "$<TARGET_FILE:rawframe_base_tests>"
+            "--gtest_output=json:${CMAKE_BINARY_DIR}/test_output/base_test_report.json")
+    set_tests_properties("Fixture.BaseTestReport" PROPERTIES
+        FIXTURES_SETUP "BaseTestReport" LABELS "repository;verification" TIMEOUT 300)
+
     add_test(NAME "Command.RequirementsReport"
         COMMAND "$<TARGET_FILE:rawframe_tool_rf_verify>" requirements_report
             --root "${CMAKE_SOURCE_DIR}"
-            --test-report "${CMAKE_BINARY_DIR}/test_output/verify_test_report.json")
+            --test-report "${CMAKE_BINARY_DIR}/test_output/verify_test_report.json"
+            --test-report "${CMAKE_BINARY_DIR}/test_output/base_test_report.json")
     set_tests_properties("Command.RequirementsReport" PROPERTIES
-        FIXTURES_REQUIRED "VerificationTestReport"
+        FIXTURES_REQUIRED "VerificationTestReport;BaseTestReport"
         PASS_REGULAR_EXPRESSION "\"findingCount\": 0" LABELS "repository;verification"
         TIMEOUT 300)
 

@@ -25,9 +25,16 @@ struct ShippingClosureAudit {
 };
 
 // Mechanically proves that no repository tool can enter a shipping closure:
-// production membership stays empty, every tool manifest forbids shipping,
-// SDK, and target-root exposure, no production module or shipping root
-// exists, and the tool build defines no install or export surface.
+// production membership and tool membership stay on opposite sides of the
+// repository-tool root, every tool manifest forbids shipping, SDK, and
+// target-root exposure, every production module manifest lies beneath
+// `source/`, no product distribution root exists, and the tool build defines
+// no install or export surface.
+//
+// Each check states something that must remain true for as long as `tools/`
+// exists. None of them states that the project has not started yet: an audit
+// written against the repository's current emptiness passes until the accepted
+// Plan is executed and then fails because it was.
 [[nodiscard]] Result<ShippingClosureAudit> auditShippingClosure(const std::filesystem::path& repositoryRoot,
                                                                 const RepositorySnapshot& snapshot);
 
