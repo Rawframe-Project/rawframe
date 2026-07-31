@@ -1,33 +1,20 @@
 {
   "$schema": "../../schemas/tool.schema.json",
   "schemaVersion": 1,
-  "id": "rawframe.tool.evidence",
-  "displayName": "Rawframe Evidence",
-  "owner": "rawframe.build_engineering",
-  "purpose": "Validate repository authority, dependency identity, offline inputs, and deterministic architecture diagnostics.",
+  "id": "rawframe.tool.archcheck",
+  "displayName": "Rawframe Architecture Check",
+  "owner": "rawframe.architecture",
+  "purpose": "Enforce accepted architecture authorities mechanically over the repository. Every check cites one authority and the tool introduces no rule of its own.",
   "stability": "internal",
   "implementation": {
     "language": "cpp",
     "dialect": "c++23",
     "buildSystem": "cmake",
-    "cmakeTarget": "rawframe_tool_rf_evidence",
+    "cmakeTarget": "rawframe_tool_rf_archcheck",
     "entryPoints": [
-      "assemble_evidence_set",
-      "audit_paths",
-      "audit_shipping_closure",
-      "canonicalize_record",
-      "evaluate_evidence_set",
-      "explain_dependency",
-      "get_blob",
-      "graph_repository",
-      "inspect_source_ownership",
-      "load_evidence_index",
-      "put_blob",
-      "review_licenses",
-      "validate_record",
-      "validate_repository",
-      "verify_blob",
-      "verify_offline"
+      "check_repository",
+      "explain_rule",
+      "list_rules"
     ],
     "exceptions": "disabled",
     "rtti": "disabled"
@@ -45,24 +32,19 @@
     "tools": [],
     "modules": [],
     "thirdParty": [
-      "library.openssl",
       "library.simdjson"
     ],
-    "managedTools": [
-      "tool.jsonschema_oracle"
-    ]
+    "managedTools": []
   },
   "capabilities": {
     "filesystemReadRoots": [
-      "out",
       "repository",
       "schemas",
       "third_party",
       "tools"
     ],
     "filesystemWriteRoots": [
-      "out/evidence/v1/blobs",
-      "out/reports/task-0001"
+      "out/reports/archcheck"
     ],
     "network": "denied",
     "credentials": "none",
@@ -71,12 +53,8 @@
   },
   "outputs": [
     {
-      "role": "diagnostic_report",
-      "root": "out/reports/task-0001"
-    },
-    {
-      "role": "evidence_blob_store",
-      "root": "out/evidence/v1/blobs"
+      "role": "findings_report",
+      "root": "out/reports/archcheck"
     }
   ],
   "distribution": {
@@ -86,12 +64,22 @@
     "targetRoot": "forbidden"
   },
   "contracts": [
+    "adr.0002",
+    "adr.0004",
+    "adr.0005",
+    "adr.0008",
+    "adr.0012",
     "adr.0022",
+    "adr.0068",
+    "adr.0071",
+    "adr.0077",
     "spec.0001",
     "spec.0002",
+    "spec.0003",
+    "spec.0007",
+    "spec.0012",
     "spec.0017",
-    "std.0002",
-    "std.0004"
+    "spec.0044"
   ],
   "verification": [
     "architecture",

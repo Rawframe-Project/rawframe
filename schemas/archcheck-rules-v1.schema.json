@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/archcheck-rules-v1.schema.json",
+  "title": "Rawframe architecture conformance rule corpus",
+  "description": "The maintained declarative set of checks rf-archcheck enforces. SPEC-0044 fixes the grammar. This document is reviewed source, not evidence and not generated output.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "policyVersion",
+    "ruleSetSeal",
+    "policyHistory",
+    "rules"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../schemas/archcheck-rules-v1.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "policyVersion": {
+      "description": "The monotonic integer pinning one revision of the rule set. It appears in every findings document so that a result names the rules that produced it.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "ruleSetSeal": {
+      "description": "The integrity seal of the canonical form of `rules`. It is an FNV-1a 64 value and deliberately not a cryptographic digest: SPEC-0044 gives this tool no digest provider because it verifies nothing cryptographic. The seal exists so that a change to `rules` that does not increase `policyVersion` is mechanically visible, which is what RA1006 refuses.",
+      "$ref": "#/$defs/seal"
+    },
+    "policyHistory": {
+      "description": "One entry per policy version, in increasing order, ending with the current one. History makes a version increase observable rather than asserted.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyVersion",
+          "ruleSetSeal"
+        ],
+        "properties": {
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "ruleSetSeal": {
+            "$ref": "#/$defs/seal"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "seal": {
+      "type": "string",
+      "pattern": "^fnv1a64:[0-9a-f]{16}$"
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "authority",
+        "title",
+        "subjectKind",
+        "severity",
+        "landsWith"
+      ],
+      "properties": {
+        "id": {
+          "description": "The stable check identity. The digit after RA is the ADR-0077 check class. An id is never reused for a different meaning; a changed meaning takes a new id.",
+          "type": "string",
+          "pattern": "^RA[1-7][0-9]{3}$"
+        },
+        "authority": {
+          "description": "Exactly one accepted document identifier. A rule that would need two authorities is two rules.",
+          "type": "string",
+          "pattern": "^(?:adr|spec|std)\\.[0-9]{4}$"
+        },
+        "title": {
+          "description": "One sentence stating what the rule refuses, in the present tense. It carries no path, module name, or value specific to one repository state.",
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 200
+        },
+        "subjectKind": {
+          "enum": [
+            "manifest",
+            "module_root",
+            "target_closure",
+            "source_file",
+            "build_file",
+            "declared_edge",
+            "projection",
+            "repository"
+          ]
+        },
+        "severity": {
+          "description": "One value, deliberately. ADR-0077 makes findings a blocking gate, and a second severity would be a way to land a violation while claiming the check passed.",
+          "const": "finding"
+        },
+        "landsWith": {
+          "description": "`now` where the rule has live subjects at the tool's own landing, otherwise the Task that creates its subjects. A rule that lands later is still implemented, tested, and enforced from the first commit.",
+          "type": "string",
+          "pattern": "^(?:now|TASK-[0-9]{4})$"
+        }
+      }
+    }
+  }
+}

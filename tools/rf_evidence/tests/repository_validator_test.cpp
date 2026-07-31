@@ -1,11 +1,13 @@
 #include "repository_validator.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace rawframe::tool::evidence {
@@ -64,13 +66,25 @@ std::filesystem::path writeIndex(const std::filesystem::path& root, const std::v
 
 } // namespace
 
-TEST(RepositoryValidator, AcceptsTaskOneRepository) {
+TEST(RepositoryValidator, AcceptsTheAdmittedRepositoryTools) {
     const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
     auto result = validateRepository(kRoot);
     ASSERT_TRUE(result.has_value()) << result.error().path << ": " << result.error().message;
-    ASSERT_EQ(result->tools.size(), 1U);
-    EXPECT_EQ(result->tools.front().id, "rawframe.tool.evidence");
-    EXPECT_EQ(result->tools.front().cmakeTarget, "rawframe_tool_rf_evidence");
+    // Both admitted tools, by identity and by build target. Naming them is the
+    // point: a validator that returned a shorter list, or the same list under
+    // different targets, would otherwise read as a pass.
+    const std::vector<std::pair<std::string, std::string>> kExpected{
+        {"rawframe.tool.archcheck", "rawframe_tool_rf_archcheck"},
+        {"rawframe.tool.evidence", "rawframe_tool_rf_evidence"},
+    };
+    ASSERT_EQ(result->tools.size(), kExpected.size());
+    for (const auto& expected : kExpected) {
+        const auto kFound = std::ranges::find_if(result->tools, [&expected](const ToolInfo& tool) {
+            return tool.id == expected.first;
+        });
+        ASSERT_NE(kFound, result->tools.end()) << expected.first << " is not in the validated membership";
+        EXPECT_EQ(kFound->cmakeTarget, expected.second);
+    }
 }
 
 TEST(RepositoryValidator, ResolvesTheRegisteredEvidenceIndex) {

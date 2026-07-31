@@ -74,6 +74,11 @@ Invoke-Checked -Path $tool -Arguments @(
 Invoke-Checked -Path $tool -Arguments @(
     'inspect', 'source-ownership', '--root', $RepositoryRoot, '--report', "$reports/source-ownership.json")
 
+Write-Host 'rf: architecture conformance over this repository'
+$archcheck = Join-Path $RepositoryRoot 'out\build\task-0001-windows-x86_64-debug\tools\rf-archcheck.exe'
+Invoke-Checked -Path $archcheck -Arguments @(
+    'check_repository', '--root', $RepositoryRoot, '--report', "$reports/archcheck-findings.json")
+
 Write-Host 'rf: the locked closure, verified offline against the lock'
 Invoke-Checked -Path $tool -Arguments @(
     'verify-offline', '--root', $RepositoryRoot, '--host', 'windows-x86_64',

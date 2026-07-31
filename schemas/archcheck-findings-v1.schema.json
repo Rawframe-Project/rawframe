@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.rawframe.net/archcheck-findings-v1.schema.json",
+  "title": "Rawframe architecture conformance findings document",
+  "description": "The canonically ordered machine-readable output of one rf-archcheck invocation. SPEC-0044 fixes the grammar. Findings are a correctness gate and participate in no ADR-0019 evidence chain.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "policyVersion",
+    "toolVersion",
+    "findingCount",
+    "findings"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../schemas/archcheck-findings-v1.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "policyVersion": {
+      "description": "The corpus value. A result that does not name the rules that produced it cannot be compared with another result.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "toolVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "findingCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65536
+    },
+    "findings": {
+      "description": "Ordered by ruleId, then subject, then position, ascending, with a total order and no ties. Iteration order, filesystem order, and hash order never reach these bytes.",
+      "type": "array",
+      "maxItems": 65536,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ruleId",
+          "authority",
+          "subject",
+          "detail"
+        ],
+        "properties": {
+          "ruleId": {
+            "type": "string",
+            "pattern": "^RA[1-7][0-9]{3}$"
+          },
+          "authority": {
+            "description": "Copied from the rule, so a reader never has to hold the corpus to know which document was violated.",
+            "type": "string",
+            "pattern": "^(?:adr|spec|std)\\.[0-9]{4}$"
+          },
+          "subject": {
+            "description": "The repository-relative path, or the module or target identifier, normalized with forward slashes.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "position": {
+            "description": "Present only where the subject is a file and the rule has a position. Absent, never zero, when there is none.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "line",
+              "column"
+            ],
+            "properties": {
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16777216
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16777216
+              }
+            }
+          },
+          "detail": {
+            "description": "One sentence naming what was found, containing the observed value. A detail that restates the rule title adds nothing.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      }
+    }
+  }
+}
