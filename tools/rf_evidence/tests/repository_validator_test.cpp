@@ -70,12 +70,13 @@ TEST(RepositoryValidator, AcceptsTheAdmittedRepositoryTools) {
     const std::filesystem::path kRoot = RAWFRAME_TEST_REPOSITORY_ROOT;
     auto result = validateRepository(kRoot);
     ASSERT_TRUE(result.has_value()) << result.error().path << ": " << result.error().message;
-    // Both admitted tools, by identity and by build target. Naming them is the
+    // Every admitted tool, by identity and by build target. Naming them is the
     // point: a validator that returned a shorter list, or the same list under
     // different targets, would otherwise read as a pass.
     const std::vector<std::pair<std::string, std::string>> kExpected{
         {"rawframe.tool.archcheck", "rawframe_tool_rf_archcheck"},
         {"rawframe.tool.evidence", "rawframe_tool_rf_evidence"},
+        {"rawframe.tool.verify", "rawframe_tool_rf_verify"},
     };
     ASSERT_EQ(result->tools.size(), kExpected.size());
     for (const auto& expected : kExpected) {

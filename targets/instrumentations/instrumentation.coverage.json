@@ -1,0 +1,24 @@
+{
+  "$schema": "../../schemas/instrumentation.schema.json",
+  "schemaVersion": 1,
+  "id": "instrumentation.coverage",
+  "owner": "rawframe.quality_engineering",
+  "purpose": "Clang source-based coverage with MC/DC, the measurement lane STD-0007 requires. It is a correctness and hygiene lane and never produces performance evidence.",
+  "kind": "coverage",
+  "compatibleConfigurations": [
+    "build.debug",
+    "build.development"
+  ],
+  "platformFamilies": [
+    "host.linux_x86_64",
+    "host.windows_x86_64"
+  ],
+  "toolchains": [
+    "compiler.llvm_clang"
+  ],
+  "incompatibleInstrumentation": [],
+  "runtimeDependencies": [],
+  "releaseEligible": false,
+  "performanceClass": "high",
+  "verification": []
+}

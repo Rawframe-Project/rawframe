@@ -1,0 +1,16 @@
+{
+  "$schema": "../../schemas/build-configuration.schema.json",
+  "schemaVersion": 1,
+  "id": "build.development",
+  "owner": "rawframe.build_engineering",
+  "purpose": "The daily configuration: representative performance with complete debug information, every assertion still evaluated, and bounded profiling hooks that stay affordable in ordinary work.",
+  "optimization": "balanced",
+  "debugInformation": "full",
+  "assertions": "full",
+  "diagnostics": "development",
+  "profilingHooks": "bounded",
+  "hardening": "development",
+  "linkTimeOptimization": "off",
+  "incrementalBuildPriority": "balanced",
+  "trustedInputsRequired": false
+}

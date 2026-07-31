@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "owner": "rawframe.architecture",
+  "purpose": "The declared verification tier of every maintained source unit in this root, as STD-0007 requires. A unit is Tier H when its input can be chosen by something outside the lane's trust boundary, or when it validates a path or a locator, which the standard names by name. A unit is Tier A when it owns an accepted invariant whose violation is silent. Everything else is Tier O. Where a unit could belong to two tiers the higher applies.",
+  "units": [
+    {
+      "path": "src/checks.h",
+      "tier": "A",
+      "reason": "Declares the check interface every rule below is reached through."
+    },
+    {
+      "path": "src/checks_closure.cpp",
+      "tier": "A",
+      "reason": "Proves a target closure, where a missed violation is silent."
+    },
+    {
+      "path": "src/checks_edges.cpp",
+      "tier": "A",
+      "reason": "Owns the dependency-edge rules, where a wrong category admits an edge nobody declared."
+    },
+    {
+      "path": "src/checks_manifest.cpp",
+      "tier": "A",
+      "reason": "Owns the maintained-form and membership-authority rules."
+    },
+    {
+      "path": "src/checks_membership.cpp",
+      "tier": "A",
+      "reason": "Proves explicit membership in both directions."
+    },
+    {
+      "path": "src/checks_projection.cpp",
+      "tier": "A",
+      "reason": "Proves that a generated projection matches its authority exactly."
+    },
+    {
+      "path": "src/checks_separation.cpp",
+      "tier": "A",
+      "reason": "Proves that generated and vendored material stays separated from maintained source."
+    },
+    {
+      "path": "src/checks_source.cpp",
+      "tier": "A",
+      "reason": "Owns the source-shape rules over declared extensions and third-party includes."
+    },
+    {
+      "path": "src/command.cpp",
+      "tier": "A",
+      "reason": "Maps findings and failures to the exit codes SPEC-0044 fixes."
+    },
+    {
+      "path": "src/command.h",
+      "tier": "A",
+      "reason": "Maps findings and failures to the exit codes SPEC-0044 fixes."
+    },
+    {
+      "path": "src/engine.cpp",
+      "tier": "A",
+      "reason": "Owns rule coverage: a rule the engine does not run is a rule that reports as passing."
+    },
+    {
+      "path": "src/engine.h",
+      "tier": "A",
+      "reason": "Owns rule coverage: a rule the engine does not run is a rule that reports as passing."
+    },
+    {
+      "path": "src/failure.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/findings.cpp",
+      "tier": "A",
+      "reason": "Owns the finding record and its ordering, which the report and the exit code both read."
+    },
+    {
+      "path": "src/findings.h",
+      "tier": "A",
+      "reason": "Owns the finding record and its ordering, which the report and the exit code both read."
+    },
+    {
+      "path": "src/json_reader.cpp",
+      "tier": "H",
+      "reason": "Parses every maintained manifest and must reject a malformed one rather than conclude from it."
+    },
+    {
+      "path": "src/json_reader.h",
+      "tier": "H",
+      "reason": "Parses every maintained manifest and must reject a malformed one rather than conclude from it."
+    },
+    {
+      "path": "src/main.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/repository_model.cpp",
+      "tier": "A",
+      "reason": "Builds the model every check reasons over, from the declared authorities."
+    },
+    {
+      "path": "src/repository_model.h",
+      "tier": "A",
+      "reason": "Builds the model every check reasons over, from the declared authorities."
+    },
+    {
+      "path": "src/repository_scan.cpp",
+      "tier": "H",
+      "reason": "Enumerates and validates repository paths, including symlink and containment rejection."
+    },
+    {
+      "path": "src/repository_scan.h",
+      "tier": "H",
+      "reason": "Enumerates and validates repository paths, including symlink and containment rejection."
+    },
+    {
+      "path": "src/rule_corpus.cpp",
+      "tier": "H",
+      "reason": "Validates the rule corpus and its seal, which is the policy authority every check reads."
+    },
+    {
+      "path": "src/rule_corpus.h",
+      "tier": "H",
+      "reason": "Validates the rule corpus and its seal, which is the policy authority every check reads."
+    },
+    {
+      "path": "src/text_scan.cpp",
+      "tier": "H",
+      "reason": "Scans maintained source and build text as input."
+    },
+    {
+      "path": "src/text_scan.h",
+      "tier": "H",
+      "reason": "Scans maintained source and build text as input."
+    },
+    {
+      "path": "src/tool_limits.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    }
+  ]
+}

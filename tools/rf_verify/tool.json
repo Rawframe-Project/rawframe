@@ -1,0 +1,95 @@
+{
+  "$schema": "../../schemas/tool.schema.json",
+  "schemaVersion": 1,
+  "id": "rawframe.tool.verify",
+  "displayName": "Rawframe Verification Measure",
+  "owner": "rawframe.quality_engineering",
+  "purpose": "Measure a change against STD-0007 mechanically: diff-scoped coverage floors by verification tier, the whole-tree figure and uncovered set, and the generated coverage-of-requirements report.",
+  "stability": "internal",
+  "implementation": {
+    "language": "cpp",
+    "dialect": "c++23",
+    "buildSystem": "cmake",
+    "cmakeTarget": "rawframe_tool_rf_verify",
+    "entryPoints": [
+      "coverage_floors",
+      "coverage_summary",
+      "requirements_report"
+    ],
+    "exceptions": "disabled",
+    "rtti": "disabled"
+  },
+  "availability": {
+    "platforms": [
+      "linux",
+      "windows"
+    ],
+    "architectures": [
+      "x86_64"
+    ]
+  },
+  "dependencies": {
+    "tools": [],
+    "modules": [],
+    "thirdParty": [
+      "library.simdjson"
+    ],
+    "managedTools": []
+  },
+  "capabilities": {
+    "filesystemReadRoots": [
+      "repository",
+      "out",
+      "tools"
+    ],
+    "filesystemWriteRoots": [
+      "out/reports/verify"
+    ],
+    "network": "denied",
+    "credentials": "none",
+    "runnerControl": false,
+    "baselinePromotion": false
+  },
+  "outputs": [
+    {
+      "role": "coverage_floor_report",
+      "root": "out/reports/verify"
+    },
+    {
+      "role": "coverage_summary_report",
+      "root": "out/reports/verify"
+    },
+    {
+      "role": "requirements_report",
+      "root": "out/reports/verify"
+    }
+  ],
+  "distribution": {
+    "repositoryOnly": true,
+    "shippingClosure": "forbidden",
+    "sdkExposure": "forbidden",
+    "targetRoot": "forbidden"
+  },
+  "contracts": [
+    "adr.0006",
+    "adr.0008",
+    "adr.0019",
+    "adr.0021",
+    "adr.0022",
+    "spec.0003",
+    "spec.0014",
+    "spec.0016",
+    "spec.0017",
+    "std.0001",
+    "std.0002",
+    "std.0003",
+    "std.0007"
+  ],
+  "verification": [
+    "determinism",
+    "integration",
+    "security",
+    "semantic",
+    "unit"
+  ]
+}

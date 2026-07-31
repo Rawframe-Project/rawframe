@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "owner": "rawframe.evidence_engineering",
+  "purpose": "The declared verification tier of every maintained source unit in this root, as STD-0007 requires. A unit is Tier H when its input can be chosen by something outside the lane's trust boundary, or when it validates a path or a locator, which the standard names by name. A unit is Tier A when it owns an accepted invariant whose violation is silent. Everything else is Tier O. Where a unit could belong to two tiers the higher applies.",
+  "units": [
+    {
+      "path": "src/attestation.cpp",
+      "tier": "H",
+      "reason": "Decides whether an artifact origin is trusted, which is a trust decision rather than a parse."
+    },
+    {
+      "path": "src/attestation.h",
+      "tier": "H",
+      "reason": "Decides whether an artifact origin is trusted, which is a trust decision rather than a parse."
+    },
+    {
+      "path": "src/baseline_record.cpp",
+      "tier": "H",
+      "reason": "Validates a baseline record that arrives as bytes rather than as a value this process built."
+    },
+    {
+      "path": "src/baseline_record.h",
+      "tier": "H",
+      "reason": "Validates a baseline record that arrives as bytes rather than as a value this process built."
+    },
+    {
+      "path": "src/blob_store.cpp",
+      "tier": "H",
+      "reason": "Admits external bytes into the content-addressed store and verifies a digest before publication."
+    },
+    {
+      "path": "src/blob_store.h",
+      "tier": "H",
+      "reason": "Admits external bytes into the content-addressed store and verifies a digest before publication."
+    },
+    {
+      "path": "src/canonical_json.cpp",
+      "tier": "H",
+      "reason": "Decides whether submitted bytes are already canonical, over input the process did not produce."
+    },
+    {
+      "path": "src/canonical_json.h",
+      "tier": "H",
+      "reason": "Decides whether submitted bytes are already canonical, over input the process did not produce."
+    },
+    {
+      "path": "src/command.cpp",
+      "tier": "A",
+      "reason": "Maps every operation to an exit code, and a wrong exit is a failure that reports as a pass."
+    },
+    {
+      "path": "src/command.h",
+      "tier": "A",
+      "reason": "Maps every operation to an exit code, and a wrong exit is a failure that reports as a pass."
+    },
+    {
+      "path": "src/dependency_authority.cpp",
+      "tier": "H",
+      "reason": "Parses the locked dependency and toolchain authorities as untrusted input."
+    },
+    {
+      "path": "src/dependency_authority.h",
+      "tier": "H",
+      "reason": "Parses the locked dependency and toolchain authorities as untrusted input."
+    },
+    {
+      "path": "src/descriptor.cpp",
+      "tier": "H",
+      "reason": "Binds a media type, a byte length, and a digest, and must reject a descriptor that disagrees."
+    },
+    {
+      "path": "src/descriptor.h",
+      "tier": "H",
+      "reason": "Binds a media type, a byte length, and a digest, and must reject a descriptor that disagrees."
+    },
+    {
+      "path": "src/diagnostic.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/diagnostic.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/evaluation_policy.cpp",
+      "tier": "H",
+      "reason": "Validates the policy an evaluation is judged against, which arrives as bytes."
+    },
+    {
+      "path": "src/evaluation_policy.h",
+      "tier": "H",
+      "reason": "Validates the policy an evaluation is judged against, which arrives as bytes."
+    },
+    {
+      "path": "src/evaluator.cpp",
+      "tier": "A",
+      "reason": "Emits the evaluation verdict, the authority the whole chain exists to produce."
+    },
+    {
+      "path": "src/evaluator.h",
+      "tier": "A",
+      "reason": "Emits the evaluation verdict, the authority the whole chain exists to produce."
+    },
+    {
+      "path": "src/evidence_set.cpp",
+      "tier": "H",
+      "reason": "Validates an evidence set and its complete attempt ledger from external bytes."
+    },
+    {
+      "path": "src/evidence_set.h",
+      "tier": "H",
+      "reason": "Validates an evidence set and its complete attempt ledger from external bytes."
+    },
+    {
+      "path": "src/failure.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/file_reader.cpp",
+      "tier": "H",
+      "reason": "Reads bytes from outside the process under bounded limits."
+    },
+    {
+      "path": "src/file_reader.h",
+      "tier": "H",
+      "reason": "Reads bytes from outside the process under bounded limits."
+    },
+    {
+      "path": "src/file_security.cpp",
+      "tier": "H",
+      "reason": "Rejects traversal, symlink, reparse-point, and containment violations. Path validation."
+    },
+    {
+      "path": "src/file_security.h",
+      "tier": "H",
+      "reason": "Rejects traversal, symlink, reparse-point, and containment violations. Path validation."
+    },
+    {
+      "path": "src/json_policy.cpp",
+      "tier": "H",
+      "reason": "Enforces the accepted integer subset and rejects every noncanonical JSON form."
+    },
+    {
+      "path": "src/json_policy.h",
+      "tier": "H",
+      "reason": "Enforces the accepted integer subset and rejects every noncanonical JSON form."
+    },
+    {
+      "path": "src/license_review.cpp",
+      "tier": "H",
+      "reason": "Parses the license corpus and the dependency catalog as untrusted input."
+    },
+    {
+      "path": "src/license_review.h",
+      "tier": "H",
+      "reason": "Parses the license corpus and the dependency catalog as untrusted input."
+    },
+    {
+      "path": "src/main.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/metric_registry.cpp",
+      "tier": "H",
+      "reason": "Validates the typed metric registry that every gating decision reads, from external bytes."
+    },
+    {
+      "path": "src/metric_registry.h",
+      "tier": "H",
+      "reason": "Validates the typed metric registry that every gating decision reads, from external bytes."
+    },
+    {
+      "path": "src/offline_verifier.cpp",
+      "tier": "H",
+      "reason": "Verifies the locked closure against its lock offline and must reject a mismatch."
+    },
+    {
+      "path": "src/offline_verifier.h",
+      "tier": "H",
+      "reason": "Verifies the locked closure against its lock offline and must reject a mismatch."
+    },
+    {
+      "path": "src/path_audit.cpp",
+      "tier": "A",
+      "reason": "Proves that delivered material stays inside the accepted write envelope."
+    },
+    {
+      "path": "src/path_audit.h",
+      "tier": "A",
+      "reason": "Proves that delivered material stays inside the accepted write envelope."
+    },
+    {
+      "path": "src/path_policy.cpp",
+      "tier": "H",
+      "reason": "Normalizes and validates repository paths. Path and locator validation."
+    },
+    {
+      "path": "src/path_policy.h",
+      "tier": "H",
+      "reason": "Normalizes and validates repository paths. Path and locator validation."
+    },
+    {
+      "path": "src/process_runner.cpp",
+      "tier": "H",
+      "reason": "Crosses a process boundary and treats everything that comes back as untrusted."
+    },
+    {
+      "path": "src/process_runner.h",
+      "tier": "H",
+      "reason": "Crosses a process boundary and treats everything that comes back as untrusted."
+    },
+    {
+      "path": "src/raw_run_receipt.cpp",
+      "tier": "H",
+      "reason": "Validates a raw run receipt a producer wrote, from external bytes."
+    },
+    {
+      "path": "src/raw_run_receipt.h",
+      "tier": "H",
+      "reason": "Validates a raw run receipt a producer wrote, from external bytes."
+    },
+    {
+      "path": "src/record_command.cpp",
+      "tier": "A",
+      "reason": "Owns canonicalize and validate, including their refusal to write a corrected form."
+    },
+    {
+      "path": "src/record_command.h",
+      "tier": "A",
+      "reason": "Owns canonicalize and validate, including their refusal to write a corrected form."
+    },
+    {
+      "path": "src/record_gate.cpp",
+      "tier": "H",
+      "reason": "Admits or refuses a submitted record before anything downstream can use it."
+    },
+    {
+      "path": "src/record_gate.h",
+      "tier": "H",
+      "reason": "Admits or refuses a submitted record before anything downstream can use it."
+    },
+    {
+      "path": "src/report_writer.cpp",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/report_writer.h",
+      "tier": "O",
+      "reason": "Ordinary maintained source: it owns no trust decision and no silent invariant."
+    },
+    {
+      "path": "src/repository_validator.cpp",
+      "tier": "H",
+      "reason": "Validates every maintained manifest and index in the repository as input."
+    },
+    {
+      "path": "src/repository_validator.h",
+      "tier": "H",
+      "reason": "Validates every maintained manifest and index in the repository as input."
+    },
+    {
+      "path": "src/schema_oracle.cpp",
+      "tier": "H",
+      "reason": "Drives the offline schema oracle and admits or rejects a document against a schema."
+    },
+    {
+      "path": "src/schema_oracle.h",
+      "tier": "H",
+      "reason": "Drives the offline schema oracle and admits or rejects a document against a schema."
+    },
+    {
+      "path": "src/sha256.cpp",
+      "tier": "H",
+      "reason": "Supplies the identity the whole evidence chain rests on; a defect here is a forged identity."
+    },
+    {
+      "path": "src/sha256.h",
+      "tier": "H",
+      "reason": "Supplies the identity the whole evidence chain rests on; a defect here is a forged identity."
+    },
+    {
+      "path": "src/shipping_closure.cpp",
+      "tier": "A",
+      "reason": "Proves that no repository tool reaches a shipping closure."
+    },
+    {
+      "path": "src/shipping_closure.h",
+      "tier": "A",
+      "reason": "Proves that no repository tool reaches a shipping closure."
+    },
+    {
+      "path": "src/source_inspector.cpp",
+      "tier": "H",
+      "reason": "Scans maintained source text as input and reports ownership and size facts about it."
+    },
+    {
+      "path": "src/source_inspector.h",
+      "tier": "H",
+      "reason": "Scans maintained source text as input and reports ownership and size facts about it."
+    },
+    {
+      "path": "src/store_command.cpp",
+      "tier": "A",
+      "reason": "Owns publication into the store, which must be atomic and never replace an existing blob."
+    },
+    {
+      "path": "src/store_command.h",
+      "tier": "A",
+      "reason": "Owns publication into the store, which must be atomic and never replace an existing blob."
+    },
+    {
+      "path": "src/trust_policy.cpp",
+      "tier": "H",
+      "reason": "Decides provenance and trust tier, which is the definition of a trust decision."
+    },
+    {
+      "path": "src/trust_policy.h",
+      "tier": "H",
+      "reason": "Decides provenance and trust tier, which is the definition of a trust decision."
+    }
+  ]
+}

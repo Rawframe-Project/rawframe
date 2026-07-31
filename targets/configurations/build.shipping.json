@@ -1,0 +1,16 @@
+{
+  "$schema": "../../schemas/build-configuration.schema.json",
+  "schemaVersion": 1,
+  "id": "build.shipping",
+  "owner": "rawframe.build_engineering",
+  "purpose": "The distribution configuration: optimized and hardened, debug information published separately, diagnostics restricted, developer assertions removed while contract checks remain, and trusted inputs required.",
+  "optimization": "performance_first",
+  "debugInformation": "split_external",
+  "assertions": "contract_only",
+  "diagnostics": "restricted",
+  "profilingHooks": "restricted",
+  "hardening": "shipping",
+  "linkTimeOptimization": "required",
+  "incrementalBuildPriority": "lowest",
+  "trustedInputsRequired": true
+}

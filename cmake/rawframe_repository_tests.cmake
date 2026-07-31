@@ -776,6 +776,41 @@ message(STATUS "tier_0 chain complete")
         PASS_REGULAR_EXPRESSION "ruleSetSeal fnv1a64:" LABELS "repository;architecture"
         TIMEOUT 300)
 
+    # The requirement bindings, generated from tests that actually executed
+    # rather than from a maintained matrix. The setup step is the rf-verify test
+    # executable run once more for its GoogleTest JSON report, because that
+    # report is the only place a `RecordProperty("requirement", ...)` binding
+    # exists. STD-0007 makes the report an accounting artifact and not a gate,
+    # so this test asserts the accounting is well formed and that no test binds
+    # a criterion the inventory does not declare; it does not assert a count of
+    # bound criteria, which would turn coverage of the standard into a ratchet
+    # nobody accepted.
+    add_test(NAME "Fixture.VerificationTestReport"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_verify_tests>"
+            "--gtest_output=json:${CMAKE_BINARY_DIR}/test_output/verify_test_report.json")
+    set_tests_properties("Fixture.VerificationTestReport" PROPERTIES
+        FIXTURES_SETUP "VerificationTestReport" LABELS "repository;verification"
+        RESOURCE_LOCK "rawframe_rf_verify_scratch" TIMEOUT 300)
+
+    add_test(NAME "Command.RequirementsReport"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_verify>" requirements_report
+            --root "${CMAKE_SOURCE_DIR}"
+            --test-report "${CMAKE_BINARY_DIR}/test_output/verify_test_report.json")
+    set_tests_properties("Command.RequirementsReport" PROPERTIES
+        FIXTURES_REQUIRED "VerificationTestReport"
+        PASS_REGULAR_EXPRESSION "\"findingCount\": 0" LABELS "repository;verification"
+        TIMEOUT 300)
+
+    # The tool refuses to produce a requirements report with no executed tests
+    # behind it. An empty report that read as a pass would be the exact failure
+    # the generated-not-maintained rule exists to prevent.
+    add_test(NAME "Command.RequirementsReportRefusesNoTestReport"
+        COMMAND "$<TARGET_FILE:rawframe_tool_rf_verify>" requirements_report
+            --root "${CMAKE_SOURCE_DIR}")
+    set_tests_properties("Command.RequirementsReportRefusesNoTestReport" PROPERTIES
+        PASS_REGULAR_EXPRESSION "invalid_arguments" LABELS "repository;verification;security"
+        TIMEOUT 300)
+
     # A substituted dependency provider must be rejected before any production
     # compilation. The installed-tree authority is checked ahead of the
     # host-specific section of the policy, so both cases apply to every lane and

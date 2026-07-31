@@ -4,13 +4,20 @@
   "modules": [],
   "targets": [],
   "platforms": [],
-  "configurations": [],
-  "instrumentations": [],
+  "configurations": [
+    "targets/configurations/build.debug.json",
+    "targets/configurations/build.development.json",
+    "targets/configurations/build.shipping.json"
+  ],
+  "instrumentations": [
+    "targets/instrumentations/instrumentation.coverage.json"
+  ],
   "packagingPolicies": [],
   "profiles": [],
   "tools": [
     "tools/rf_archcheck/tool.json",
-    "tools/rf_evidence/tool.json"
+    "tools/rf_evidence/tool.json",
+    "tools/rf_verify/tool.json"
   ],
   "evidenceIndex": "evidence/evidence.json"
 }
