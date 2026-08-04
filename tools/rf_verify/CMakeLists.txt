@@ -3,6 +3,7 @@ find_package(simdjson 4.6.4 CONFIG REQUIRED)
 add_library(rawframe_tool_rf_verify_private STATIC)
 target_sources(rawframe_tool_rf_verify_private PRIVATE
     src/command.cpp
+    src/coverage_exclusions.cpp
     src/coverage_export.cpp
     src/coverage_summary.cpp
     src/diff_reader.cpp
@@ -47,6 +48,8 @@ if(RAWFRAME_ENABLE_ANALYSIS)
     set(rawframe_tool_rf_verify_maintained_sources
         src/command.cpp
         src/command.h
+        src/coverage_exclusions.cpp
+        src/coverage_exclusions.h
         src/coverage_export.cpp
         src/coverage_export.h
         src/coverage_summary.cpp
@@ -70,6 +73,7 @@ if(RAWFRAME_ENABLE_ANALYSIS)
         src/tier_declarations.h
         src/tool_limits.h
         tests/command_test.cpp
+        tests/coverage_exclusions_test.cpp
         tests/coverage_export_rejections_test.cpp
         tests/coverage_export_test.cpp
         tests/diff_reader_test.cpp

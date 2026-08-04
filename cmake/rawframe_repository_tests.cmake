@@ -792,12 +792,24 @@ message(STATUS "tier_0 chain complete")
         FIXTURES_SETUP "VerificationTestReport" LABELS "repository;verification"
         RESOURCE_LOCK "rawframe_rf_verify_scratch" TIMEOUT 300)
 
+    # The same report for the production module. A test that records a binding
+    # no report reads has bound nothing, so every executable whose cases carry
+    # `RecordProperty("requirement", ...)` contributes its own GoogleTest report
+    # and the tool is handed all of them. An executable added later without this
+    # step is caught by the criterion it leaves unbound, not silently ignored.
+    add_test(NAME "Fixture.BaseTestReport"
+        COMMAND "$<TARGET_FILE:rawframe_base_tests>"
+            "--gtest_output=json:${CMAKE_BINARY_DIR}/test_output/base_test_report.json")
+    set_tests_properties("Fixture.BaseTestReport" PROPERTIES
+        FIXTURES_SETUP "BaseTestReport" LABELS "repository;verification" TIMEOUT 300)
+
     add_test(NAME "Command.RequirementsReport"
         COMMAND "$<TARGET_FILE:rawframe_tool_rf_verify>" requirements_report
             --root "${CMAKE_SOURCE_DIR}"
-            --test-report "${CMAKE_BINARY_DIR}/test_output/verify_test_report.json")
+            --test-report "${CMAKE_BINARY_DIR}/test_output/verify_test_report.json"
+            --test-report "${CMAKE_BINARY_DIR}/test_output/base_test_report.json")
     set_tests_properties("Command.RequirementsReport" PROPERTIES
-        FIXTURES_REQUIRED "VerificationTestReport"
+        FIXTURES_REQUIRED "VerificationTestReport;BaseTestReport"
         PASS_REGULAR_EXPRESSION "\"findingCount\": 0" LABELS "repository;verification"
         TIMEOUT 300)
 
@@ -1031,4 +1043,56 @@ message(STATUS "tier_0 chain complete")
             PASS_REGULAR_EXPRESSION "RF1559" LABELS "repository;host"
             RUN_SERIAL TRUE TIMEOUT 300)
     endif()
+    # An acceptance criterion discharged by the lane names the CTest cases that
+    # prove it. Those names are maintained in one file and the cases are
+    # registered in another, so only a check keeps them the same: rename a case
+    # and the criterion goes on claiming the item is covered while pointing at
+    # nothing. The registry consulted is CMake's own, walked from the top-level
+    # directory, and the walk is deferred to the end of that directory because
+    # the modules that register these cases are added after this file is
+    # included. It fails the configure rather than a test: a name that is already
+    # wrong gains nothing from being built first.
+    cmake_language(DEFER CALL rawframe_check_lane_discharged_cases)
+endfunction()
+
+function(rawframe_check_lane_discharged_cases)
+    set(pending "${CMAKE_SOURCE_DIR}")
+    set(registered "")
+    while(pending)
+        list(POP_FRONT pending directory)
+        get_property(directory_tests DIRECTORY "${directory}" PROPERTY TESTS)
+        list(APPEND registered ${directory_tests})
+        get_property(children DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+        list(APPEND pending ${children})
+    endwhile()
+
+    file(READ "${CMAKE_SOURCE_DIR}/tools/rf_verify/criteria/acceptance-criteria.json"
+        criteria_inventory LIMIT 1048576)
+    string(JSON criterion_count LENGTH "${criteria_inventory}" criteria)
+    math(EXPR criterion_last "${criterion_count} - 1")
+    foreach(criterion_index RANGE 0 ${criterion_last})
+        string(JSON criterion_discharge GET "${criteria_inventory}" criteria ${criterion_index} discharge)
+        if(NOT criterion_discharge STREQUAL "lane")
+            continue()
+        endif()
+        string(JSON criterion_id GET "${criteria_inventory}" criteria ${criterion_index} id)
+        # A lane criterion may be discharged by a build target or by a lane step,
+        # neither of which is a case, so an absent array is a complete answer
+        # rather than a missing one.
+        string(JSON case_count ERROR_VARIABLE case_error
+            LENGTH "${criteria_inventory}" criteria ${criterion_index} ctestCases)
+        if(case_error OR case_count EQUAL 0)
+            continue()
+        endif()
+        math(EXPR case_last "${case_count} - 1")
+        foreach(case_index RANGE 0 ${case_last})
+            string(JSON case_name GET "${criteria_inventory}"
+                criteria ${criterion_index} ctestCases ${case_index})
+            if(NOT "${case_name}" IN_LIST registered)
+                message(FATAL_ERROR
+                    "RF1589 acceptance criterion ${criterion_id} names the CTest case ${case_name}, "
+                    "which no add_test registers")
+            endif()
+        endforeach()
+    endforeach()
 endfunction()

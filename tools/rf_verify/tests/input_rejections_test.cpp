@@ -279,8 +279,8 @@ TEST(RequirementsRejections, ReadsSeveralCriteriaFromOneBindingAndIgnoresTheEmpt
     kFixture.write("out/report.json",
                    reportWith(R"({"classname":"S","name":"t","requirement":" A:one ,\tA:two\t, ,"})"));
     std::vector<DeclaredCriterion> declared;
-    declared.push_back(DeclaredCriterion{"A:one", "first", DischargeKind::Automated, {}});
-    declared.push_back(DeclaredCriterion{"A:two", "second", DischargeKind::Automated, {}});
+    declared.push_back(DeclaredCriterion{"A:one", "first", DischargeKind::Automated, {}, {}, {}});
+    declared.push_back(DeclaredCriterion{"A:two", "second", DischargeKind::Automated, {}, {}, {}});
     auto report = buildRequirementsReport(declared, {kFixture.root() / "out/report.json"});
     ASSERT_TRUE(report.has_value()) << report.error().message;
     EXPECT_EQ(report->bindingsRead, 2U);
@@ -326,11 +326,35 @@ TEST(RequirementsRejections, RefusesAManualCriterionThatNamesNoProcedure) {
     }
 }
 
+TEST(RequirementsRejections, RefusesALaneCriterionThatNamesNothingThatDischargesIt) {
+    RecordProperty("requirement", "STD-0007:unbound-criteria-are-visible-and-counted");
+    const testing::RepositoryFixture kFixture("requirements_inventory_lane");
+    for (const std::string_view kEntry : {R"({"id":"A:one","text":"t","discharge":"lane"})",
+                                          R"({"id":"A:one","text":"t","discharge":"lane","dischargedBy":""})",
+                                          R"({"id":"A:one","text":"t","discharge":"lane","dischargedBy":7})"}) {
+        const std::string kDocument = R"({"criteria":[)" + std::string(kEntry) + "]}";
+        EXPECT_NE(inventoryFailure(kFixture, kDocument).message.find("name what discharges it"), std::string::npos)
+            << kEntry;
+    }
+}
+
+TEST(RequirementsRejections, RefusesALaneCriterionWhoseNamedCasesAreNotNames) {
+    const testing::RepositoryFixture kFixture("requirements_inventory_lane_cases");
+    const std::string kPrefix = R"({"criteria":[{"id":"A:one","text":"t","discharge":"lane","dischargedBy":"d",)";
+    EXPECT_NE(inventoryFailure(kFixture, kPrefix + R"("ctestCases":"Suite.One"}]})").message.find("must be an array"),
+              std::string::npos);
+    for (const std::string_view kCases : {R"([7])", R"([""])", R"(["ok", null])"}) {
+        const std::string kDocument = kPrefix + R"("ctestCases":)" + std::string(kCases) + "}]}";
+        EXPECT_NE(inventoryFailure(kFixture, kDocument).message.find("must each name one case"), std::string::npos)
+            << kCases;
+    }
+}
+
 TEST(RequirementsRejections, RefusesADischargeKindTheInventoryDoesNotDefine) {
     const testing::RepositoryFixture kFixture("requirements_inventory_discharge");
     const Failure kFailure =
         inventoryFailure(kFixture, R"({"criteria":[{"id":"A:one","text":"t","discharge":"reviewed"}]})");
-    EXPECT_NE(kFailure.message.find("automated or manual"), std::string::npos);
+    EXPECT_NE(kFailure.message.find("automated, manual, or lane"), std::string::npos);
 }
 
 TEST(RequirementsRejections, ReportsAManualCriterionSeparatelyFromAnUnboundOne) {
@@ -338,8 +362,8 @@ TEST(RequirementsRejections, ReportsAManualCriterionSeparatelyFromAnUnboundOne) 
     const testing::RepositoryFixture kFixture("requirements_manual_report");
     kFixture.write("out/report.json", reportWith(R"({"classname":"S","name":"t"})"));
     std::vector<DeclaredCriterion> declared;
-    declared.push_back(DeclaredCriterion{"A:one", "first", DischargeKind::Automated, {}});
-    declared.push_back(DeclaredCriterion{"A:two", "second", DischargeKind::Manual, "read the report"});
+    declared.push_back(DeclaredCriterion{"A:one", "first", DischargeKind::Automated, {}, {}, {}});
+    declared.push_back(DeclaredCriterion{"A:two", "second", DischargeKind::Manual, "read the report", {}, {}});
     auto report = buildRequirementsReport(declared, {kFixture.root() / "out/report.json"});
     ASSERT_TRUE(report.has_value()) << report.error().message;
     EXPECT_EQ(report->testsRead, 1U);

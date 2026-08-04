@@ -46,6 +46,44 @@ function(rawframe_validate_selected_configuration)
     endif()
 endfunction()
 
+# Projects the selected configuration's `assertions` level into the one compile
+# definition `rawframe/base/assert.h` reads.
+#
+# SPEC-0003 owns the level and `targets/configurations/*.json` is where it is
+# maintained, so the value is read from there rather than restated here, where it
+# would become the second authority ADR-0004 forbids. `rawframe.base` is the only
+# consumer: the macros are its, and no other module reads this definition.
+#
+# The mapping is the strength order SPEC-0046's per-configuration table fixes.
+# `fatal_only` is a level SPEC-0003 enumerates and no configuration selects, so it
+# is rejected rather than given an invented meaning here.
+#
+# There is deliberately no default. A build that selected no configuration must
+# not inherit one configuration's assertion semantics by accident, and `assert.h`
+# refuses to compile without the definition for the same reason.
+function(rawframe_project_assertion_level target_name)
+    set(configuration_manifest
+        "${CMAKE_SOURCE_DIR}/targets/configurations/${RAWFRAME_CONFIGURATION}.json")
+    file(READ "${configuration_manifest}" configuration_json)
+    string(JSON assertion_level ERROR_VARIABLE assertion_error GET "${configuration_json}" assertions)
+    if(assertion_error)
+        message(FATAL_ERROR
+            "RF1139 ${RAWFRAME_CONFIGURATION} declares no assertions level: ${assertion_error}")
+    endif()
+
+    if(assertion_level STREQUAL "full")
+        set(projected 2)
+    elseif(assertion_level STREQUAL "contract_only")
+        set(projected 1)
+    else()
+        message(FATAL_ERROR
+            "RF1140 no Rawframe module implements the ${assertion_level} assertion level; "
+            "${RAWFRAME_CONFIGURATION} must select full or contract_only")
+    endif()
+
+    target_compile_definitions(${target_name} INTERFACE RAWFRAME_ASSERTIONS=${projected})
+endfunction()
+
 # The one instrumentation policy this repository has a consumer for. ADR-0006
 # makes instrumentation a lane over a configuration and never a configuration of
 # its own, so this adds flags to the selected configuration and changes nothing
@@ -101,12 +139,50 @@ function(rawframe_apply_instrumentation_policy target_name)
     # the first coverage run proved that at least one spawned process does lose
     # the environment variable: a stray profile landed in the repository root,
     # where the path audit would have reported it as unclassified and where the
-    # merge step would never have found it. `%p` is expanded by the profiling
-    # runtime to the process ID, which keeps concurrent CTest processes from
-    # overwriting each other.
-    set(profile_destination "${CMAKE_BINARY_DIR}/coverage-profiles/rf-%p.profraw")
+    # merge step would never have found it.
+    #
+    # `%m` rather than `%p`, and the difference is a measurement defect this lane
+    # actually produced. `%p` expands to the process identifier, and the suite
+    # runs one process per test case: the first run past eight hundred cases
+    # wrote seven hundred and five raw profiles, because the operating system
+    # reuses process identifiers and a later process silently truncated an
+    # earlier one's file. The loss was not spread evenly, so whole test cases
+    # read as never executed and the diff-scoped STD-0007 floors failed against
+    # code the suite demonstrably ran.
+    #
+    # `%m` expands to the instrumented binary's own signature and puts the
+    # profiling runtime into merge mode, where every process of that binary
+    # merges its counters into the one file under a lock. Eight files replace
+    # seven hundred, no profile is lost to a reused identifier, and concurrent
+    # CTest processes still cannot overwrite each other.
+    #
+    # `-fprofile-continuous` is the third part and answers a different loss.
+    # Counters are normally written when a process exits, and a path whose
+    # contract is to end the process never gets there: SPEC-0004 requires the
+    # fatal path to terminate, `rawframe.base` proves it by terminating, and
+    # every one of those branches read as unexecuted. Continuous mode maps the
+    # raw profile and updates it as counters increment, so a process that ends in
+    # `abort` has already recorded what it ran. Measured on this host: an
+    # aborting run and a returning run merge into one file and the aborting run's
+    # branch appears, where before it did not. It cannot be combined with an
+    # explicit `%c` in the destination, which the mode inserts itself.
+    #
+    # It is also the one option here that the clang-cl driver does not accept in
+    # its own spelling: it reports "unknown argument ignored", which is a warning
+    # rather than an error, so a run that silently lost continuous mode would
+    # have looked exactly like a run that never had it. `/clang:` passes it
+    # through to the frontend on the MSVC-compatible driver.
+    set(profile_destination "${CMAKE_BINARY_DIR}/coverage-profiles/rf-%m.profraw")
+    if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        set(continuous_option "/clang:-fprofile-continuous")
+    else()
+        set(continuous_option "-fprofile-continuous")
+    endif()
     set(coverage_options "-fprofile-instr-generate=${profile_destination}" -fcoverage-mapping -fcoverage-mcdc)
-    target_compile_options(${target_name} INTERFACE ${coverage_options})
+    # Continuous mode is a code-generation choice and belongs only to the compile
+    # step. Passing it to the link step hands the linker an argument it reads as
+    # a file name, which fails the build rather than being ignored.
+    target_compile_options(${target_name} INTERFACE ${coverage_options} "${continuous_option}")
     target_link_options(${target_name} INTERFACE ${coverage_options})
 endfunction()
 
@@ -178,6 +254,7 @@ function(rawframe_define_compiler_policy)
         target_link_options(rawframe_compiler_policy INTERFACE -stdlib=libc++ -fuse-ld=lld)
     endif()
 
+    rawframe_project_assertion_level(rawframe_compiler_policy)
     rawframe_apply_instrumentation_policy(rawframe_compiler_policy)
 
     if(RAWFRAME_ENABLE_ANALYSIS)

@@ -1,5 +1,6 @@
 add_executable(rawframe_tool_rf_verify_tests
     command_test.cpp
+    coverage_exclusions_test.cpp
     coverage_export_rejections_test.cpp
     coverage_export_test.cpp
     diff_reader_test.cpp

@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,12 @@ struct UnitVerdict {
     std::vector<std::uint32_t> uncoveredBranchLines;
     std::size_t changedDecisions = 0;
     std::size_t uncoveredDecisions = 0;
+    // Branch outcomes STD-0007 removes from the denominator, counted by reason
+    // so the report says which and how many rather than quietly measuring a
+    // smaller unit. A unit that excludes most of its outcomes is telling a
+    // reader that coverage is not what verifies it.
+    std::size_t excludedConstantConditions = 0;
+    std::size_t excludedSynthesizedConditions = 0;
 };
 
 struct FloorEvaluation {
@@ -47,7 +54,13 @@ struct FloorEvaluation {
 // Evaluates the diff-scoped floors. A changed translation unit the export does
 // not describe is a typed failure and not a finding: it means the lane did not
 // build or did not run that unit, so nothing can be concluded about the change.
-[[nodiscard]] Result<FloorEvaluation>
-evaluateFloors(const ChangedLines& changed, const CoverageExport& coverage, const TierIndex& tiers);
+//
+// The repository root is read: STD-0007's excluded outcomes are decided from the
+// source bytes of the unit being measured, which is what keeps the exclusion
+// mechanical rather than declared.
+[[nodiscard]] Result<FloorEvaluation> evaluateFloors(const std::filesystem::path& repositoryRoot,
+                                                     const ChangedLines& changed,
+                                                     const CoverageExport& coverage,
+                                                     const TierIndex& tiers);
 
 } // namespace rawframe::tool::verify

@@ -1,5 +1,6 @@
 #include "floors.h"
 
+#include "coverage_exclusions.h"
 #include "repository_paths.h"
 
 #include <algorithm>
@@ -32,8 +33,10 @@ std::string percentText(std::int64_t covered, std::int64_t total) {
 
 } // namespace
 
-Result<FloorEvaluation>
-evaluateFloors(const ChangedLines& changed, const CoverageExport& coverage, const TierIndex& tiers) {
+Result<FloorEvaluation> evaluateFloors(const std::filesystem::path& repositoryRoot,
+                                       const ChangedLines& changed,
+                                       const CoverageExport& coverage,
+                                       const TierIndex& tiers) {
     FloorEvaluation evaluation;
 
     for (const auto& [path, lines] : changed.files) {
@@ -74,9 +77,28 @@ evaluateFloors(const ChangedLines& changed, const CoverageExport& coverage, cons
         verdict.tier = kDeclaration->second.tier;
         verdict.floorPercent = tierBranchFloorPercent(verdict.tier);
 
+        // The unit's own bytes, read once and only when it has changed regions
+        // to classify. A unit the export names must be readable: it was compiled
+        // during this run, so a source file that is not there now means the
+        // export and the tree disagree about what was measured.
+        auto unit = SourceUnit::read(repositoryRoot / path);
+        if (!unit) {
+            return std::unexpected(unit.error());
+        }
+
         for (const auto& region : kCovered->second.branches) {
             if (!lines.contains(region.line)) {
                 continue;
+            }
+            switch (classifyBranchRegion(*unit, region)) {
+            case BranchExclusion::ConstantCondition:
+                verdict.excludedConstantConditions += 2;
+                continue;
+            case BranchExclusion::SynthesizedBody:
+                verdict.excludedSynthesizedConditions += 2;
+                continue;
+            case BranchExclusion::None:
+                break;
             }
             verdict.changedConditions += 2;
             verdict.coveredConditions += static_cast<std::int64_t>(region.trueCovered());

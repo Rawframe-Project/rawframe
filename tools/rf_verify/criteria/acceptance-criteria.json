@@ -14,6 +14,11 @@
       "discharge": "automated"
     },
     {
+      "id": "STD-0007:the-denominator-excludes-only-mechanical-shapes",
+      "text": "A coverage floor's denominator excludes only the two branch shapes STD-0007 names, each decided from the source bytes: a condition that is a literal constant, and a region in a body the compiler synthesized from a defaulted declaration. Every excluded outcome is counted and reported by reason.",
+      "discharge": "automated"
+    },
+    {
       "id": "STD-0007:tier-h-decisions-are-covered-to-mcdc",
       "text": "Tier H changed lines reach 100 percent branch coverage and every decision in the validating path is covered to MC/DC.",
       "discharge": "automated"
@@ -40,7 +45,7 @@
     },
     {
       "id": "STD-0007:unbound-criteria-are-visible-and-counted",
-      "text": "Every acceptance criterion is either bound to a named test, listed as unbound, or declared as discharged by a named manual procedure.",
+      "text": "Every acceptance criterion is either bound to a named test, listed as unbound, declared as discharged by a named lane mechanism whose named cases are mechanically checked to exist, or declared as discharged by a named manual procedure.",
       "discharge": "automated"
     },
     {
@@ -76,6 +81,118 @@
       "text": "Mutation testing is described as practice only after its feasibility experiment against the pinned artifact and its platform decision are recorded.",
       "discharge": "manual",
       "procedure": "Review of any claim that mutation testing is practice: the reviewer requires the recorded feasibility result and the recorded Windows-lane decision before the claim stands."
+    },
+    {
+      "id": "SPEC-0046:item-4-public-surface-enumerates-exactly",
+      "text": "The public surface of rawframe.base enumerates to exactly what SPEC-0046 declares. A symbol present and unspecified fails.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-5-exactly-two-constinit-globals",
+      "text": "Base contains exactly two process-global mutable objects, both in the fatal implementation, both constinit.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-6-macro-behavior-per-configuration",
+      "text": "Each assertion macro behaves as the SPEC-0046 table states in each of the three configurations: nine cases, not three.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-7-shipping-assert-is-not-evaluated",
+      "text": "RAWFRAME_ASSERT's condition is not evaluated in build.shipping, proved by a condition whose evaluation would be observable.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-7-assertion-conditions-have-no-side-effects",
+      "text": "No maintained production assertion condition carries an observable effect, and the lint that decides this distinguishes an effect from a comparison on a corpus written for the purpose.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-8-check-evaluates-once",
+      "text": "RAWFRAME_CHECK evaluates its condition exactly once, proved by a counter rather than by reading the macro.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-9-single-installation-before-freeze",
+      "text": "installFatalHandler returns true once, then false for a second handler, false after freezeFatalHandler, and false for a null handler; in each rejecting case the previously installed handler is still the one that runs.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-10-default-handler-before-composition",
+      "text": "The fatal path runs before any composition root exists, with no handler installed, and terminates through the default handler.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-11-terminates-when-the-write-fails",
+      "text": "The fatal path runs when the default handler's write target fails, and still terminates.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-12-reentry-is-distinguishable",
+      "text": "Re-entering the fatal path from inside a handler terminates without recursing, and the re-entry is distinguishable in the crash artifact.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-13-fatal-path-allocates-nothing",
+      "text": "raiseFatal performs no heap allocation, proved by an allocation-observing fixture rather than by reading the code.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-14-hex-round-trip",
+      "text": "Format then parse returns the original 128-bit value, over a corpus including zero, all bits set, and values isolating each of the two members.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-15-ordering-matches-text",
+      "text": "Ordering of the 128-bit primitive matches lexicographic ordering of its canonical text, over a corpus that crosses the high and low boundary.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-16-parse-rejections",
+      "text": "Every named hex parse rejection returns parsed == false and does not assert, allocate, or terminate.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-17-constexpr-evaluation",
+      "text": "parseBits128Hex and formatBits128Hex evaluate in a constant expression, proved by a static_assert round trip.",
+      "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-1-manifest-declares-zero-edges",
+      "text": "The base manifest declares zero dependency edges in every category, proved by rf-archcheck rather than by inspection.",
+      "discharge": "lane",
+      "dischargedBy": "The CTest case that runs rf-archcheck over this repository. RA2001 through RA2005 read the manifest's declared edges, and the module's own manifest is one of the subjects the run covers.",
+      "ctestCases": ["Command.ArchitectureConformance"]
+    },
+    {
+      "id": "SPEC-0046:item-2-no-public-header-includes-another-module",
+      "text": "No base public header includes a header from any other Rawframe module, proved by a translation unit that includes each base header alone and nothing else and compiles.",
+      "discharge": "lane",
+      "dischargedBy": "The rawframe_base_single_header_probe build target. Each probe translation unit includes exactly one base header and nothing else, so a header that reached for another module would fail the build rather than a test."
+    },
+    {
+      "id": "SPEC-0046:item-3-links-without-any-other-module",
+      "text": "Base links into an executable that links neither rawframe.result nor rawframe.diagnostics nor rawframe.execution, and that executable runs.",
+      "discharge": "lane",
+      "dischargedBy": "The link probe, registered as a CTest case because a link-time dependency is invisible to a header check and running the result is the part that proves it.",
+      "ctestCases": ["Base.LinksAndRunsWithoutAnyOtherModule"]
+    },
+    {
+      "id": "SPEC-0046:item-18-clean-under-the-pinned-tuple",
+      "text": "The module is clean under the pinned ADR-0008 tuple on both admitted hosts, with exceptions and RTTI disabled, and with the analysis lane at zero findings.",
+      "discharge": "lane",
+      "dischargedBy": "The verify-host corpus itself, on windows-x86_64 and on the digest-pinned linux-x86_64 container: the three configurations build and test, and the analysis preset builds with warnings as errors. There is no test process to record a binding from, because the subject is the build."
+    },
+    {
+      "id": "SPEC-0046:item-19-unsupported-platform-fails-to-compile",
+      "text": "A translation unit compiled where neither compiler macro would be defined fails to compile with the diagnostic platform.h specifies, rather than silently selecting a fallback. The shipping assertion fixture is the same shape read from the other side: a condition naming something that does not exist must still fail to compile where the condition is not evaluated.",
+      "discharge": "lane",
+      "dischargedBy": "The negative-compilation fixtures, registered as CTest cases that drive a compile and require it to fail with the expected diagnostic. A test that must not compile cannot be a case inside a binary that did.",
+      "ctestCases": [
+        "Base.NegativeCompile.unsupported_compiler",
+        "Base.NegativeCompile.unsupported_architecture",
+        "Base.NegativeCompile.shipping_assertion_names_nothing"
+      ]
     }
   ]
 }

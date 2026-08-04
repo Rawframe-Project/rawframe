@@ -39,6 +39,10 @@ rf_coverage_lane() {
     "${prepared}/cmake" --preset "$preset"
     "${prepared}/cmake" --build --preset "$preset"
     rm -rf "${build}/coverage-profiles"
+    # No LLVM_PROFILE_FILE here. The destination is compiled in by
+    # `rawframe_apply_coverage_instrumentation`, which is the one place that
+    # decides it, and setting it here as well would make two places able to
+    # disagree about where the evidence of a run lands.
     "${prepared}/ctest" --preset "$preset" --output-on-failure
 
     # One isolated run per entry point. Every executable defines `main`, an
@@ -54,7 +58,7 @@ rf_coverage_lane() {
         tool_name="${entry%%:*}"
         rest="${entry#*:}"
         entry_test="${rest#*:}"
-        LLVM_PROFILE_FILE="${repository_root}/${build}/coverage-profiles/entry-${tool_name}/rf-%p.profraw" \
+        LLVM_PROFILE_FILE="${repository_root}/${build}/coverage-profiles/entry-${tool_name}/rf-%m.profraw" \
             "${prepared}/ctest" --preset "$preset" -R "$entry_test"
     done
 
@@ -69,6 +73,7 @@ rf_coverage_lane() {
         -object "${build}/tools/rf-evidence" \
         -object "${build}/tools/rf-archcheck" \
         -object "${build}/tools/rf-verify" \
+        -object "${build}/source/base/tests/rawframe_base_tests" \
         -instr-profile="${coverage}/rawframe.profdata" --format=text \
         -ignore-filename-regex='.*[/\\]main\.cpp' > "${coverage}/export.json"
 
@@ -93,6 +98,7 @@ rf_coverage_lane() {
         --report "${verify_reports}/coverage-summary.json"
     "$verify" requirements_report --root "$repository_root" \
         --test-report "${build}/test_output/verify_test_report.json" \
+        --test-report "${build}/test_output/base_test_report.json" \
         --report "${verify_reports}/requirements-report.json"
 
     # The floors are diff scoped, so they need the set of lines the change

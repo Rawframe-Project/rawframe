@@ -19,7 +19,10 @@ namespace {
 // values, which is why the same names serve for each.
 constexpr std::size_t kRegionLineStart = 0;
 constexpr std::size_t kRegionColumnStart = 1;
+constexpr std::size_t kRegionLineEnd = 2;
+constexpr std::size_t kRegionColumnEnd = 3;
 constexpr std::size_t kBranchTrueCount = 4;
+constexpr std::size_t kBranchFileId = 6;
 constexpr std::size_t kBranchFalseCount = 5;
 constexpr std::size_t kBranchFieldCount = 9;
 constexpr std::size_t kMcdcConditionFolding = 9;
@@ -94,6 +97,58 @@ Result<CoverageSummary> readSummary(const JsonNode& file) {
     return result;
 }
 
+Result<BranchRegion> readBranchRegion(const JsonNode& entry) {
+    if (!entry.isArray() || entry.elements.size() < kBranchFieldCount) {
+        return reject(FailureCode::InvalidJson, {}, "a branch region is not a nine-field record");
+    }
+    BranchRegion region;
+    for (const auto& [index, target] : {std::pair<std::size_t, std::uint32_t*>{kRegionLineStart, &region.line},
+                                        std::pair<std::size_t, std::uint32_t*>{kRegionColumnStart, &region.column},
+                                        std::pair<std::size_t, std::uint32_t*>{kRegionLineEnd, &region.endLine},
+                                        std::pair<std::size_t, std::uint32_t*>{kRegionColumnEnd, &region.endColumn}}) {
+        auto value = readLineNumber(entry, index);
+        if (!value) {
+            return std::unexpected(value.error());
+        }
+        *target = *value;
+    }
+    auto trueCount = readIntegerAt(entry, kBranchTrueCount);
+    if (!trueCount) {
+        return std::unexpected(trueCount.error());
+    }
+    auto falseCount = readIntegerAt(entry, kBranchFalseCount);
+    if (!falseCount) {
+        return std::unexpected(falseCount.error());
+    }
+    region.trueCount = *trueCount;
+    region.falseCount = *falseCount;
+    return region;
+}
+
+// Adds a region to a list, summing into the one already there at the same exact
+// source span. See the note on BranchRegion for why sharing a span makes two
+// records one decision.
+void mergeRegion(std::vector<BranchRegion>& into, const BranchRegion& region) {
+    const auto kExisting = std::ranges::find_if(into, [&region](const BranchRegion& candidate) {
+        return candidate.line == region.line && candidate.column == region.column &&
+               candidate.endLine == region.endLine && candidate.endColumn == region.endColumn;
+    });
+    if (kExisting == into.end()) {
+        into.push_back(region);
+        return;
+    }
+    // Saturating rather than wrapping. llvm-cov writes the signed maximum where
+    // a counter expression could not be evaluated, and adding to that value
+    // would turn an unusable number into a negative one, which reads as
+    // uncovered and would be a verdict invented by arithmetic.
+    const auto kSaturatingAdd = [](std::int64_t left, std::int64_t right) {
+        constexpr std::int64_t kCeiling = std::numeric_limits<std::int64_t>::max();
+        return (left > kCeiling - right) ? kCeiling : left + right;
+    };
+    kExisting->trueCount = kSaturatingAdd(kExisting->trueCount, region.trueCount);
+    kExisting->falseCount = kSaturatingAdd(kExisting->falseCount, region.falseCount);
+}
+
 Status readBranches(const JsonNode& file, CoverageFile& target) {
     const JsonNode* branches = file.find("branches");
     if (branches == nullptr) {
@@ -103,31 +158,68 @@ Status readBranches(const JsonNode& file, CoverageFile& target) {
         return reject(FailureCode::InvalidJson, target.path, "the branch list is not an array");
     }
     for (const auto& entry : branches->elements) {
-        if (!entry.isArray() || entry.elements.size() < kBranchFieldCount) {
-            return reject(FailureCode::InvalidJson, target.path, "a branch region is not a nine-field record");
+        auto region = readBranchRegion(entry);
+        if (!region) {
+            Failure failure = region.error();
+            failure.path = target.path;
+            return std::unexpected(failure);
         }
-        BranchRegion region;
-        auto line = readLineNumber(entry, kRegionLineStart);
-        if (!line) {
-            return std::unexpected(line.error());
+        mergeRegion(target.branches, *region);
+    }
+    return {};
+}
+
+// The branch regions an `expansions` block attributes to another file, keyed by
+// the absolute filename the block names.
+//
+// A macro's decisions are instrumented where the macro is defined and executed
+// where it is used, and llvm-cov reports the executing counts inside the using
+// file's expansion blocks rather than in the defining file's own branch list.
+// A reader that skips them measures a header full of macros as though almost
+// nothing ran, which is what happened to `rawframe.base`: every assertion in the
+// suite executed, and the assertion header still reported one execution.
+Status collectExpansionBranches(const JsonNode& file,
+                                const std::string& path,
+                                std::map<std::string, std::vector<BranchRegion>>& into) {
+    const JsonNode* expansions = file.find("expansions");
+    if (expansions == nullptr) {
+        return {};
+    }
+    if (!expansions->isArray()) {
+        return reject(FailureCode::InvalidJson, path, "the expansion list is not an array");
+    }
+    for (const auto& expansion : expansions->elements) {
+        const JsonNode* names = expansion.find("filenames");
+        const JsonNode* branches = expansion.find("branches");
+        if (names == nullptr || !names->isArray()) {
+            return reject(FailureCode::InvalidJson, path, "an expansion names no files");
         }
-        auto column = readLineNumber(entry, kRegionColumnStart);
-        if (!column) {
-            return std::unexpected(column.error());
+        if (branches == nullptr) {
+            continue;
         }
-        auto trueCount = readIntegerAt(entry, kBranchTrueCount);
-        if (!trueCount) {
-            return std::unexpected(trueCount.error());
+        if (!branches->isArray()) {
+            return reject(FailureCode::InvalidJson, path, "an expansion branch list is not an array");
         }
-        auto falseCount = readIntegerAt(entry, kBranchFalseCount);
-        if (!falseCount) {
-            return std::unexpected(falseCount.error());
+        for (const auto& entry : branches->elements) {
+            auto region = readBranchRegion(entry);
+            if (!region) {
+                Failure failure = region.error();
+                failure.path = path;
+                return std::unexpected(failure);
+            }
+            auto fileId = readIntegerAt(entry, kBranchFileId);
+            if (!fileId) {
+                return std::unexpected(fileId.error());
+            }
+            if (*fileId < 0 || static_cast<std::size_t>(*fileId) >= names->elements.size()) {
+                return reject(FailureCode::InvalidJson, path, "an expansion branch names a file the block does not");
+            }
+            const JsonNode& kName = names->elements.at(static_cast<std::size_t>(*fileId));
+            if (!kName.isString()) {
+                return reject(FailureCode::InvalidJson, path, "an expansion filename is not a string");
+            }
+            mergeRegion(into[kName.text], *region);
         }
-        region.line = *line;
-        region.column = *column;
-        region.trueCount = *trueCount;
-        region.falseCount = *falseCount;
-        target.branches.push_back(region);
     }
     return {};
 }
@@ -304,6 +396,27 @@ appendCoverageExport(const std::filesystem::path& repositoryRoot, const JsonNode
     if (data == nullptr || !data->isArray()) {
         return reject(FailureCode::InvalidJson, {}, "the coverage export has no data array");
     }
+    // Expansions are collected across the whole document before anything is
+    // folded in, because the file a block credits may be read after the block
+    // that credits it. Keyed by the absolute name llvm-cov wrote, since that is
+    // the only identity the block carries.
+    std::map<std::string, std::vector<BranchRegion>> expansionBranches;
+    for (const auto& entry : data->elements) {
+        const JsonNode* files = entry.find("files");
+        if (files == nullptr || !files->isArray()) {
+            return reject(FailureCode::InvalidJson, {}, "a coverage export entry has no file list");
+        }
+        for (const auto& file : files->elements) {
+            const JsonNode* name = file.find("filename");
+            if (name == nullptr || !name->isString()) {
+                return reject(FailureCode::InvalidJson, {}, "a covered file has no filename");
+            }
+            if (auto status = collectExpansionBranches(file, name->text, expansionBranches); !status) {
+                return std::unexpected(status.error());
+            }
+        }
+    }
+
     for (const auto& entry : data->elements) {
         const JsonNode* files = entry.find("files");
         if (files == nullptr || !files->isArray()) {
@@ -341,6 +454,11 @@ appendCoverageExport(const std::filesystem::path& repositoryRoot, const JsonNode
             }
             if (auto status = readSegments(file, target); !status) {
                 return std::unexpected(status.error());
+            }
+            if (const auto kExpanded = expansionBranches.find(name->text); kExpanded != expansionBranches.end()) {
+                for (const auto& region : kExpanded->second) {
+                    mergeRegion(target.branches, region);
+                }
             }
             into.files.emplace(target.path, std::move(target));
         }

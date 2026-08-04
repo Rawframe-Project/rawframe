@@ -49,6 +49,10 @@ constexpr std::array kEnvelopeFiles{
     // TASK-0010 envelope, named individually for the same reason.
     std::string_view{"schemas/archcheck-rules-v1.schema.json"},
     std::string_view{"schemas/archcheck-findings-v1.schema.json"},
+    // TASK-0011 envelope. The module schema predates this Task, but this Task
+    // amends it, and the pre-existing rule below would otherwise absorb an edit
+    // the audit exists to show.
+    std::string_view{"schemas/module.schema.json"},
     std::string_view{"third_party/catalog.json"},
     std::string_view{"third_party/toolchain.lock.json"},
     std::string_view{"third_party/artifacts.lock.json"},
@@ -72,6 +76,10 @@ constexpr std::array kEnvelopeRoots{
     // decides which of them exist.
     std::string_view{"tools/rf_verify/"},
     std::string_view{"targets/"},
+    // TASK-0011 envelope: the first production module's root. `source/base/` and
+    // not `source/`, because the next module's root is the next Task's to admit
+    // and an audit that already accepted it would have nothing to report.
+    std::string_view{"source/base/"},
 };
 
 // Read-only material that legitimately coexists with the Task in the same
@@ -167,6 +175,7 @@ constexpr std::array kKnownTopDirectories{
     std::string_view{"docs"},
     std::string_view{"evidence"},
     std::string_view{"schemas"},
+    std::string_view{"source"},
     std::string_view{"targets"},
     std::string_view{"third_party"},
     std::string_view{"tools"},

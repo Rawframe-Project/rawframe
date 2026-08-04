@@ -15,7 +15,12 @@ constexpr std::string_view kInventory = R"({
     {"id": "DOC-0001:bound", "text": "A criterion a test discharges.", "discharge": "automated"},
     {"id": "DOC-0001:unbound", "text": "A criterion no test discharges.", "discharge": "automated"},
     {"id": "DOC-0001:by-hand", "text": "A criterion no automated test can reach.", "discharge": "manual",
-     "procedure": "A reviewer reads the change and records the result."}
+     "procedure": "A reviewer reads the change and records the result."},
+    {"id": "DOC-0001:by-the-lane", "text": "A criterion the lane discharges without a binding.",
+     "discharge": "lane", "dischargedBy": "A compile probe that has no test process.",
+     "ctestCases": ["Suite.Registered"]},
+    {"id": "DOC-0001:by-the-build", "text": "A criterion a build target discharges.",
+     "discharge": "lane", "dischargedBy": "A build target, which is not a case at all."}
   ]
 })";
 
@@ -42,10 +47,16 @@ std::vector<DeclaredCriterion> inventoryFrom(const testing::RepositoryFixture& f
 TEST(Requirements, ReadsTheDeclaredInventory) {
     const testing::RepositoryFixture kFixture("requirements_inventory");
     const auto kDeclared = inventoryFrom(kFixture, kInventory);
-    ASSERT_EQ(kDeclared.size(), 3U);
+    ASSERT_EQ(kDeclared.size(), 5U);
     EXPECT_EQ(kDeclared.at(0).id, "DOC-0001:bound");
     EXPECT_EQ(kDeclared.at(2).discharge, DischargeKind::Manual);
     EXPECT_FALSE(kDeclared.at(2).procedure.empty());
+    EXPECT_EQ(kDeclared.at(3).discharge, DischargeKind::Lane);
+    EXPECT_FALSE(kDeclared.at(3).dischargedBy.empty());
+    EXPECT_EQ(kDeclared.at(3).ctestCases, (std::vector<std::string>{"Suite.Registered"}));
+    // A lane criterion need not name a case: a build target discharges one and
+    // a build target is not a case.
+    EXPECT_TRUE(kDeclared.at(4).ctestCases.empty());
 }
 
 TEST(Requirements, RejectsAnInventoryThatIsNotOne) {
@@ -97,6 +108,14 @@ TEST(Requirements, GeneratesTheBindingsFromTheTestsThatExecuted) {
 
     ASSERT_EQ(report->manual.size(), 1U);
     EXPECT_EQ(report->manual.at(0).id, "DOC-0001:by-hand");
+
+    // A lane criterion is accounted for and is neither bound nor unbound.
+    // Whether the cases it names exist is the build system's question, answered
+    // where those cases are registered; the report's job is that the criterion
+    // does not vanish.
+    ASSERT_EQ(report->lane.size(), 2U);
+    EXPECT_EQ(report->lane.at(0).id, "DOC-0001:by-the-lane");
+    EXPECT_EQ(report->lane.at(1).id, "DOC-0001:by-the-build");
 }
 
 TEST(Requirements, ReportsATestThatBindsACriterionTheInventoryDoesNotDeclare) {
@@ -172,6 +191,9 @@ TEST(Requirements, ReadsTheRepositoryInventoryItself) {
         EXPECT_FALSE(criterion.text.empty()) << criterion.id;
         if (criterion.discharge == DischargeKind::Manual) {
             EXPECT_FALSE(criterion.procedure.empty()) << criterion.id;
+        }
+        if (criterion.discharge == DischargeKind::Lane) {
+            EXPECT_FALSE(criterion.dischargedBy.empty()) << criterion.id;
         }
     }
 }

@@ -222,8 +222,8 @@ TEST(CoverageSummaryReporting, LeavesAFullyCoveredBranchAndACoveredDecisionOutOf
     CoverageExport coverage;
     CoverageFile file;
     file.path = "tools/subject/src/parser.cpp";
-    file.branches.push_back(BranchRegion{4, 1, 1, 1});
-    file.branches.push_back(BranchRegion{5, 1, 1, 0});
+    file.branches.push_back(BranchRegion{.line = 4, .column = 1, .trueCount = 1, .falseCount = 1});
+    file.branches.push_back(BranchRegion{.line = 5, .column = 1, .trueCount = 1, .falseCount = 0});
 
     McdcDecision covered;
     covered.line = 9;

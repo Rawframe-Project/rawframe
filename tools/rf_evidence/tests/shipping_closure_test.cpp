@@ -20,11 +20,11 @@ const std::filesystem::path& realRoot() {
 }
 
 // The audit reads five kinds of evidence: repository membership, each tool
-// manifest, each tool's build files, the forbidden shipping roots, and the
-// absence of a production module manifest. A scratch root carrying exactly
-// those inputs is enough to violate each one in isolation, and copying the real
-// files means a failing check names the mutation rather than a fixture that
-// never resembled the repository.
+// manifest, each tool's build files, the forbidden product roots, and where
+// production module manifests lie. A scratch root carrying exactly those inputs
+// is enough to violate each one in isolation, and copying the real files means a
+// failing check names the mutation rather than a fixture that never resembled
+// the repository.
 std::filesystem::path scratchRootFor(std::string_view name) {
     const auto kRoot = std::filesystem::path(RAWFRAME_TEST_OUTPUT_ROOT) / "shipping_closure" / name;
     std::filesystem::remove_all(kRoot);
@@ -36,8 +36,7 @@ std::filesystem::path scratchRootFor(std::string_view name) {
     auto snapshot = validateRepository(realRoot());
     EXPECT_TRUE(snapshot.has_value()) << snapshot.error().path << ": " << snapshot.error().message;
     for (const auto& tool : snapshot.value_or(RepositorySnapshot{}).tools) {
-        const std::filesystem::path kToolRoot =
-            std::filesystem::path(tool.manifestPath).parent_path();
+        const std::filesystem::path kToolRoot = std::filesystem::path(tool.manifestPath).parent_path();
         std::filesystem::create_directories(kRoot / kToolRoot / "tests");
         for (const auto* kFile : {"tool.json", "CMakeLists.txt", "tests/CMakeLists.txt"}) {
             std::filesystem::copy_file(realRoot() / kToolRoot / kFile, kRoot / kToolRoot / kFile);
@@ -105,14 +104,80 @@ TEST(ShippingClosure, AcceptsAFaithfulCopyOfTheRealClosureEvidence) {
     EXPECT_TRUE(audit->allPassed());
 }
 
-TEST(ShippingClosure, RejectsNonEmptyProductionMembership) {
+// A production module declared inside the repository-tool root is the leak the
+// boundary exists to prevent: the shipping closure resolves its members from
+// these arrays, so an entry there is reachable from a product by construction.
+TEST(ShippingClosure, RejectsAProductionMemberDeclaredUnderTheToolRoot) {
     const auto kRoot = scratchRootFor("production_membership");
-    mutateFile(kRoot / "repository.json", "\"modules\": []", "\"modules\": [\"source/base/module.json\"]");
+    mutateFile(kRoot / "repository.json", "\"source/base/module.json\"", "\"tools/rf_evidence/module.json\"");
 
     auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
     ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
-    EXPECT_EQ(checkResult(*audit, "production_membership_empty", "repository.json"), std::optional{false});
+    EXPECT_EQ(checkResult(*audit, "membership_roots_separated", "repository.json"), std::optional{false});
     EXPECT_FALSE(audit->allPassed());
+}
+
+// The same boundary from the other side. A tool declared outside `tools/` is a
+// tool the production roots can reach, and only checking one direction would let
+// it through.
+TEST(ShippingClosure, RejectsAToolDeclaredOutsideTheToolRoot) {
+    const auto kRoot = scratchRootFor("tool_membership");
+    mutateFile(kRoot / "repository.json", "\"tools/rf_evidence/tool.json\"", "\"source/base/tool.json\"");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_EQ(checkResult(*audit, "membership_roots_separated", "repository.json"), std::optional{false});
+    EXPECT_FALSE(audit->allPassed());
+}
+
+// And the case that would have been reported as a violation before TASK-0011:
+// a production module declared where SPEC-0007 puts it is not a finding. Without
+// this the check could be satisfied by rejecting every module, which is the
+// behaviour it replaced.
+TEST(ShippingClosure, AcceptsAProductionModuleDeclaredBeneathSource) {
+    const auto kRoot = scratchRootFor("production_membership_accepted");
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_EQ(checkResult(*audit, "membership_roots_separated", "repository.json"), std::optional{true});
+    EXPECT_NE(readText(kRoot / "repository.json").find("source/base/module.json"), std::string::npos)
+        << "the fixture no longer carries a production module, so this case proves nothing";
+}
+
+// Membership that is not readable is not membership that passes. Each of the
+// three shapes below would otherwise be answered by treating the entry as
+// absent, and an audit that reads an unreadable index as separated is an audit
+// that reports a boundary it never looked at.
+TEST(ShippingClosure, RefusesAProductionMembershipEntryThatIsNotAPath) {
+    const auto kRoot = scratchRootFor("production_membership_not_a_string");
+    mutateFile(kRoot / "repository.json", "\"source/base/module.json\"", "42");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_FALSE(audit.has_value());
+    EXPECT_EQ(audit.error().code, FailureCode::InvalidManifest);
+    EXPECT_NE(audit.error().message.find("modules membership entries must be strings"), std::string::npos)
+        << audit.error().message;
+}
+
+TEST(ShippingClosure, RefusesAnIndexWithNoToolMembershipArray) {
+    const auto kRoot = scratchRootFor("tool_membership_missing");
+    mutateFile(kRoot / "repository.json", "\"tools\":", "\"toolsWasHere\":");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_FALSE(audit.has_value());
+    EXPECT_EQ(audit.error().code, FailureCode::InvalidManifest);
+    EXPECT_NE(audit.error().message.find("tools membership array is missing"), std::string::npos)
+        << audit.error().message;
+}
+
+TEST(ShippingClosure, RefusesAToolMembershipEntryThatIsNotAPath) {
+    const auto kRoot = scratchRootFor("tool_membership_not_a_string");
+    mutateFile(kRoot / "repository.json", "\"tools/rf_evidence/tool.json\"", "7");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_FALSE(audit.has_value());
+    EXPECT_EQ(audit.error().code, FailureCode::InvalidManifest);
+    EXPECT_NE(audit.error().message.find("tools membership entries must be strings"), std::string::npos)
+        << audit.error().message;
 }
 
 // `repositoryOnly` and the three forbidden exposures are separate claims, so
@@ -188,25 +253,49 @@ TEST(ShippingClosure, RejectsAnExportSurfaceInTheToolTestBuild) {
 
 TEST(ShippingClosure, RejectsAPresentShippingRoot) {
     const auto kRoot = scratchRootFor("shipping_root");
-    std::filesystem::create_directories(kRoot / "source");
+    std::filesystem::create_directories(kRoot / "sdk");
 
     auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
     ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
-    EXPECT_EQ(checkResult(*audit, "shipping_root_absent", "source"), std::optional{false});
+    EXPECT_EQ(checkResult(*audit, "shipping_root_absent", "sdk"), std::optional{false});
     // The other forbidden roots are unaffected, which is what keeps this case
     // from passing because the whole audit collapsed.
-    EXPECT_EQ(checkResult(*audit, "shipping_root_absent", "sdk"), std::optional{true});
+    EXPECT_EQ(checkResult(*audit, "shipping_root_absent", "apps"), std::optional{true});
     EXPECT_FALSE(audit->allPassed());
 }
 
-TEST(ShippingClosure, RejectsAProductionModuleManifest) {
+// `source` is deliberately not in that list any more, and its absence from the
+// list is itself worth a case: a repository with a populated `source/` root is
+// the repository the accepted Plan produces, not a shipping leak.
+TEST(ShippingClosure, AcceptsAPresentProductionSourceRoot) {
+    const auto kRoot = scratchRootFor("source_root_present");
+    std::filesystem::create_directories(kRoot / "source/base");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_EQ(checkResult(*audit, "shipping_root_absent", "source"), std::nullopt);
+    EXPECT_TRUE(audit->allPassed());
+}
+
+TEST(ShippingClosure, RejectsAModuleManifestInsideTheToolRoot) {
     const auto kRoot = scratchRootFor("module_manifest");
     writeText(kRoot / "tools/rf_evidence/module.json", "{}\n");
 
     auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
     ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
-    EXPECT_EQ(checkResult(*audit, "no_production_module_manifest", "module.json"), std::optional{false});
+    EXPECT_EQ(checkResult(*audit, "module_manifest_only_beneath_source", "module.json"), std::optional{false});
     EXPECT_FALSE(audit->allPassed());
+}
+
+TEST(ShippingClosure, AcceptsAModuleManifestBeneathSource) {
+    const auto kRoot = scratchRootFor("module_manifest_accepted");
+    std::filesystem::create_directories(kRoot / "source/base");
+    writeText(kRoot / "source/base/module.json", "{}\n");
+
+    auto audit = auditShippingClosure(kRoot, snapshotRootedAt(kRoot));
+    ASSERT_TRUE(audit.has_value()) << audit.error().path << ": " << audit.error().message;
+    EXPECT_EQ(checkResult(*audit, "module_manifest_only_beneath_source", "module.json"), std::optional{true});
+    EXPECT_TRUE(audit->allPassed());
 }
 
 // A missing membership array is a malformed authority rather than a failed

@@ -43,6 +43,10 @@ function Invoke-CoverageLane {
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--preset', $preset)
     Invoke-Checked -Path "$Prepared\cmake.exe" -Arguments @('--build', '--preset', $preset)
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$build/coverage-profiles"
+    # No LLVM_PROFILE_FILE here. The destination is compiled in by
+    # `rawframe_apply_coverage_instrumentation`, which is the one place that
+    # decides it, and setting it here as well would make two places able to
+    # disagree about where the evidence of a run lands.
     Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '--output-on-failure')
 
     # One isolated run per entry point. Every executable defines `main`, an
@@ -56,7 +60,7 @@ function Invoke-CoverageLane {
         @{ Name = 'archcheck'; Root = 'rf_archcheck'; Test = 'Command.ArchitectureRulesAreEnumerable' },
         @{ Name = 'evidence'; Root = 'rf_evidence'; Test = 'Command.LoadEvidenceIndex' })
     foreach ($entry in $entryPoints) {
-        $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/entry-$($entry.Name)/rf-%p.profraw"
+        $env:LLVM_PROFILE_FILE = Join-Path $RepositoryRoot "$build/coverage-profiles/entry-$($entry.Name)/rf-%m.profraw"
         try {
             Invoke-Checked -Path "$Prepared\ctest.exe" -Arguments @('--preset', $preset, '-R', $entry.Test)
         }
@@ -79,6 +83,7 @@ function Invoke-CoverageLane {
         -object "$build/tools/rf-evidence.exe" `
         -object "$build/tools/rf-archcheck.exe" `
         -object "$build/tools/rf-verify.exe" `
+        -object "$build/source/base/tests/rawframe_base_tests.exe" `
         -instr-profile="$coverage/rawframe.profdata" --format=text `
         -ignore-filename-regex='.*[/\\]main\.cpp' > "$coverage/export.json"
     if ($LASTEXITCODE -ne 0) { throw "rf: llvm-cov export exited with $LASTEXITCODE" }
@@ -105,6 +110,7 @@ function Invoke-CoverageLane {
     Invoke-Checked -Path $verify -Arguments @(
         'requirements_report', '--root', $RepositoryRoot,
         '--test-report', "$build/test_output/verify_test_report.json",
+        '--test-report', "$build/test_output/base_test_report.json",
         '--report', "$verifyReports/requirements-report.json")
 
     # The floors are diff scoped, so they need the set of lines the change

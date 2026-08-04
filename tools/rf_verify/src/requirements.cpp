@@ -135,10 +135,38 @@ Result<std::vector<DeclaredCriterion>> readCriteriaInventory(const std::filesyst
                                   id->text);
             }
             criterion.procedure = procedure->text;
+        } else if (discharge->text == "lane") {
+            criterion.discharge = DischargeKind::Lane;
+            const JsonNode* dischargedBy = entry.find("dischargedBy");
+            if (dischargedBy == nullptr || !dischargedBy->isString() || dischargedBy->text.empty()) {
+                return reject(FailureCode::InvalidJson,
+                              path.generic_string(),
+                              "a lane-discharged criterion must name what discharges it: " + id->text);
+            }
+            criterion.dischargedBy = dischargedBy->text;
+            // The array is optional because a build target and a lane step are
+            // both legitimate dischargers and neither is a CTest case. Present
+            // and not an array of non-empty strings is a malformed inventory
+            // rather than an absent one.
+            if (const JsonNode* cases = entry.find("ctestCases"); cases != nullptr) {
+                if (!cases->isArray()) {
+                    return reject(FailureCode::InvalidJson,
+                                  path.generic_string(),
+                                  "a criterion's ctestCases must be an array: " + id->text);
+                }
+                for (const auto& element : cases->elements) {
+                    if (!element.isString() || element.text.empty()) {
+                        return reject(FailureCode::InvalidJson,
+                                      path.generic_string(),
+                                      "a criterion's ctestCases must each name one case: " + id->text);
+                    }
+                    criterion.ctestCases.push_back(element.text);
+                }
+            }
         } else {
             return reject(FailureCode::InvalidJson,
                           path.generic_string(),
-                          "a criterion discharge must be automated or manual: " + discharge->text);
+                          "a criterion discharge must be automated, manual, or lane: " + discharge->text);
         }
         declared.push_back(std::move(criterion));
     }
@@ -187,6 +215,10 @@ Result<RequirementsReport> buildRequirementsReport(const std::vector<DeclaredCri
         }
         if (criterion.discharge == DischargeKind::Manual) {
             report.manual.push_back(criterion);
+            continue;
+        }
+        if (criterion.discharge == DischargeKind::Lane) {
+            report.lane.push_back(criterion);
             continue;
         }
         report.unbound.push_back(criterion);
