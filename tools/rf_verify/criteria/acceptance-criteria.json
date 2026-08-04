@@ -45,7 +45,7 @@
     },
     {
       "id": "STD-0007:unbound-criteria-are-visible-and-counted",
-      "text": "Every acceptance criterion is either bound to a named test, listed as unbound, or declared as discharged by a named manual procedure.",
+      "text": "Every acceptance criterion is either bound to a named test, listed as unbound, declared as discharged by a named lane mechanism whose named cases are mechanically checked to exist, or declared as discharged by a named manual procedure.",
       "discharge": "automated"
     },
     {
@@ -156,6 +156,43 @@
       "id": "SPEC-0046:item-17-constexpr-evaluation",
       "text": "parseBits128Hex and formatBits128Hex evaluate in a constant expression, proved by a static_assert round trip.",
       "discharge": "automated"
+    },
+    {
+      "id": "SPEC-0046:item-1-manifest-declares-zero-edges",
+      "text": "The base manifest declares zero dependency edges in every category, proved by rf-archcheck rather than by inspection.",
+      "discharge": "lane",
+      "dischargedBy": "The CTest case that runs rf-archcheck over this repository. RA2001 through RA2005 read the manifest's declared edges, and the module's own manifest is one of the subjects the run covers.",
+      "ctestCases": ["Command.ArchitectureConformance"]
+    },
+    {
+      "id": "SPEC-0046:item-2-no-public-header-includes-another-module",
+      "text": "No base public header includes a header from any other Rawframe module, proved by a translation unit that includes each base header alone and nothing else and compiles.",
+      "discharge": "lane",
+      "dischargedBy": "The rawframe_base_single_header_probe build target. Each probe translation unit includes exactly one base header and nothing else, so a header that reached for another module would fail the build rather than a test."
+    },
+    {
+      "id": "SPEC-0046:item-3-links-without-any-other-module",
+      "text": "Base links into an executable that links neither rawframe.result nor rawframe.diagnostics nor rawframe.execution, and that executable runs.",
+      "discharge": "lane",
+      "dischargedBy": "The link probe, registered as a CTest case because a link-time dependency is invisible to a header check and running the result is the part that proves it.",
+      "ctestCases": ["Base.LinksAndRunsWithoutAnyOtherModule"]
+    },
+    {
+      "id": "SPEC-0046:item-18-clean-under-the-pinned-tuple",
+      "text": "The module is clean under the pinned ADR-0008 tuple on both admitted hosts, with exceptions and RTTI disabled, and with the analysis lane at zero findings.",
+      "discharge": "lane",
+      "dischargedBy": "The verify-host corpus itself, on windows-x86_64 and on the digest-pinned linux-x86_64 container: the three configurations build and test, and the analysis preset builds with warnings as errors. There is no test process to record a binding from, because the subject is the build."
+    },
+    {
+      "id": "SPEC-0046:item-19-unsupported-platform-fails-to-compile",
+      "text": "A translation unit compiled where neither compiler macro would be defined fails to compile with the diagnostic platform.h specifies, rather than silently selecting a fallback. The shipping assertion fixture is the same shape read from the other side: a condition naming something that does not exist must still fail to compile where the condition is not evaluated.",
+      "discharge": "lane",
+      "dischargedBy": "The negative-compilation fixtures, registered as CTest cases that drive a compile and require it to fail with the expected diagnostic. A test that must not compile cannot be a case inside a binary that did.",
+      "ctestCases": [
+        "Base.NegativeCompile.unsupported_compiler",
+        "Base.NegativeCompile.unsupported_architecture",
+        "Base.NegativeCompile.shipping_assertion_names_nothing"
+      ]
     }
   ]
 }

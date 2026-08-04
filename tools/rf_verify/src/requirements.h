@@ -11,11 +11,20 @@
 namespace rawframe::tool::verify {
 
 // How an accepted acceptance criterion is discharged. A criterion no automated
-// test can reach is not thereby exempt: it names the manual procedure that
-// discharges it, so the gap stays explicit instead of becoming invisible.
+// test can reach is not thereby exempt: it names what discharges it, so the gap
+// stays explicit instead of becoming invisible.
+//
+// `Lane` exists because a criterion can be discharged by something that runs and
+// still cannot record a binding. A compile probe, a link probe, a
+// compile-must-fail fixture, and the analysis lane itself all either have no
+// GoogleTest process to record a property from or are not a test process at all.
+// Calling those manual would be false, because nobody performs a procedure, and
+// leaving them out of the inventory would leave it short of the corpus it exists
+// to account for.
 enum class DischargeKind : std::uint8_t {
     Automated,
     Manual,
+    Lane,
 };
 
 struct DeclaredCriterion {
@@ -24,6 +33,12 @@ struct DeclaredCriterion {
     std::string text;
     DischargeKind discharge = DischargeKind::Automated;
     std::string procedure;
+    // What discharges a `Lane` criterion, in words, for the reader of a report.
+    std::string dischargedBy;
+    // The exact CTest case names a `Lane` criterion is discharged by, when it is
+    // discharged by cases rather than by a build target or a lane step. Checked
+    // against what the lane actually registers, so the name cannot rot.
+    std::vector<std::string> ctestCases;
 };
 
 struct CriterionBinding {
@@ -37,6 +52,7 @@ struct RequirementsReport {
     // STD-0007 makes these visible and counted rather than absent.
     std::vector<DeclaredCriterion> unbound;
     std::vector<DeclaredCriterion> manual;
+    std::vector<DeclaredCriterion> lane;
     // Recorded by a test and declared nowhere. This is the drift a generated
     // report can actually see, which is why it is a finding and the unbound set
     // is not.

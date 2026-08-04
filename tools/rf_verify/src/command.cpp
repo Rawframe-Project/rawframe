@@ -295,6 +295,7 @@ int requirementsReport(const Options& options, std::ostream& output, std::ostrea
     writer.member("boundCriteria", static_cast<std::int64_t>(report->bound.size()));
     writer.member("unboundCriteria", static_cast<std::int64_t>(report->unbound.size()));
     writer.member("manuallyDischargedCriteria", static_cast<std::int64_t>(report->manual.size()));
+    writer.member("laneDischargedCriteria", static_cast<std::int64_t>(report->lane.size()));
     writer.key("bound");
     writer.beginArray();
     for (const auto& binding : report->bound) {
@@ -320,6 +321,17 @@ int requirementsReport(const Options& options, std::ostream& output, std::ostrea
         writer.beginObject();
         writer.member("criterion", criterion.id);
         writer.member("procedure", criterion.procedure);
+        writer.endObject();
+    }
+    writer.endArray();
+    writer.key("lane");
+    writer.beginArray();
+    for (const auto& criterion : report->lane) {
+        writer.beginObject();
+        writer.member("criterion", criterion.id);
+        writer.member("dischargedBy", criterion.dischargedBy);
+        writer.key("ctestCases");
+        writer.writeStringArray(criterion.ctestCases);
         writer.endObject();
     }
     writer.endArray();
